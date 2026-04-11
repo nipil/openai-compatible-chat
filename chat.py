@@ -6,11 +6,18 @@ import time
 import shutil
 import re
 import argparse
+import logging
 from datetime import datetime
 from typing import List, Optional
 
 from openai import OpenAI, BadRequestError
 from pydantic import BaseModel, Field, ValidationError
+
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.text import Text
+from rich.markdown import Markdown
+from rich.live import Live
 
 
 CONFIG_PATH = "config.json"
@@ -18,6 +25,38 @@ MAPPING_PATH = "mapping.json"
 EXCLUSION_PATH = "exclusion.json"
 
 ALLOWED_TYPES = {"chat", "multimodal", "reasoning", "instruct"}
+
+console = Console()
+
+
+# ---------- Logging ----------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    handlers=[RichHandler(console=console, markup=True, rich_tracebacks=True)],
+)
+logger = logging.getLogger("cli")
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+def log_debug(msg):
+    logger.debug(f"[grey50]{msg}[/grey50]")
+
+
+def log_info(msg):
+    logger.info(f"[white]{msg}[/white]")
+
+
+def log_warning(msg):
+    logger.warning(f"[orange1]{msg}[/orange1]")
+
+
+def log_error(msg):
+    logger.error(f"[red]{msg}[/red]")
+
+
+def log_critical(msg):
+    logger.critical(f"[purple]{msg}[/purple]")
 
 
 # ---------- Pydantic ----------
@@ -31,6 +70,7 @@ class Config(BaseModel):
 class ModelMeta(BaseModel):
     family: Optional[str] = None
     type: Optional[str] = None
+    max_tokens: Optional[int] = None  # optionnel pour coloration
 
 
 class Exclusion(BaseModel):
@@ -42,12 +82,11 @@ def load_config():
     try:
         return Config(**json.load(open(CONFIG_PATH)))
     except FileNotFoundError:
-        print("config.json not found")
+        log_error("config.json not found")
     except json.JSONDecodeError as e:
-        print(f"Invalid JSON in {CONFIG_PATH}: {e}")
+        log_error(f"Invalid JSON in {CONFIG_PATH}: {e}")
     except ValidationError as e:
-        print(f"Invalid {CONFIG_PATH}:")
-        print(e)
+        log_error(f"Invalid {CONFIG_PATH}:\n{e}")
     sys.exit(1)
 
 
@@ -58,7 +97,7 @@ def load_mapping():
         raw = json.load(open(MAPPING_PATH))
         return {k: ModelMeta(**v) for k, v in raw.items()}
     except Exception as e:
-        print(f"Invalid {MAPPING_PATH}: {e}")
+        log_error(f"Invalid {MAPPING_PATH}: {e}")
         sys.exit(1)
 
 
@@ -68,7 +107,7 @@ def load_exclusion():
     try:
         return Exclusion(**json.load(open(EXCLUSION_PATH)))
     except Exception as e:
-        print(f"Invalid {EXCLUSION_PATH}: {e}")
+        log_error(f"Invalid {EXCLUSION_PATH}: {e}")
         sys.exit(1)
 
 
@@ -98,7 +137,7 @@ def now():
 
 
 def exit_handler(sig, frame):
-    print("\nExiting.")
+    console.print("\n[white]Exiting.[/white]")
     sys.exit(0)
 
 
@@ -112,27 +151,21 @@ def compile_regex(patterns):
         try:
             compiled.append(re.compile(p, re.IGNORECASE))
         except re.error as e:
-            print(f"Invalid regex: {p} → {e}")
+            log_error(f"Invalid regex: {p} → {e}")
             sys.exit(1)
     return compiled
 
 
 # ---------- Models ----------
-
-
 def test_model(client, model):
     try:
         client.models.retrieve(model)
         return True, None
-
     except BadRequestError as e:
         msg = str(e).lower()
-
         if "not allowed" in msg or "permission" in msg:
             return False, "not_allowed"
-
         return False, "invalid"
-
     except Exception:
         return False, "error"
 
@@ -141,21 +174,18 @@ def list_models(client):
     try:
         return client.models.list().data
     except Exception as e:
-        print(f"Error fetching models: {e}")
+        log_error(f"Error fetching models: {e}")
         return []
 
 
 def explain_model_rejection(model, mapping, exclusion, regex_filters):
     if model in exclusion.excluded_models:
         return "excluded (previously marked as not allowed)"
-
     if any(r.search(model) for r in regex_filters):
         return "filtered out by exclude_model_name_regex"
-
     meta = mapping.get(model)
     if meta and meta.type and meta.type not in ALLOWED_TYPES:
         return f"filtered out (type={meta.type} not supported)"
-
     return "not available in filtered model list"
 
 
@@ -165,6 +195,7 @@ def enrich(mid, mapping):
         "id": mid,
         "family": m.family if m else "zzz",
         "type": m.type if m else None,
+        "max_tokens": m.max_tokens if m else None,
     }
 
 
@@ -186,32 +217,44 @@ def sort_models(models):
 
 
 def display_models(models, excluded):
-    entries = [
-        f"{i+1}. {m['id']} ({m['type']})" if m["type"] else f"{i+1}. {m['id']}"
-        for i, m in enumerate(models)
-    ]
+    entries = []
+
+    for i, m in enumerate(models):
+        number = Text(f"{i+1}. ", style="bold")
+        name = Text(m["id"], style="white")
+
+        if m["type"]:
+            meta = Text(f" ({m['type']})", style="grey50")
+            entry = Text.assemble(number, name, meta)
+        else:
+            entry = Text.assemble(number, name)
+
+        entries.append(entry)
 
     width = shutil.get_terminal_size((120, 20)).columns
-    colw = max(len(e) for e in entries) + 4
+    colw = max(len(e.plain) for e in entries) + 4
     cols = max(1, width // colw)
     rows = (len(entries) + cols - 1) // cols
 
     for r in range(rows):
-        print(
-            "".join(
-                entries[c * rows + r].ljust(colw)
-                for c in range(cols)
-                if c * rows + r < len(entries)
-            )
-        )
+        row = []
+        for c in range(cols):
+            idx = c * rows + r
+            if idx < len(entries):
+                txt = entries[idx]
+                txt.pad_right(colw - len(txt.plain))
+                row.append(txt)
+        console.print(*row, sep="")
 
     if excluded:
-        print("\nIgnored models:", ", ".join(sorted(excluded)))
+        console.print(
+            "\n[orange1]Ignored models:[/orange1] " + ", ".join(sorted(excluded))
+        )
 
 
 def select_model(models):
     if len(models) == 1:
-        print(f"Auto-selected: {models[0]['id']}")
+        log_info(f"Auto-selected: {models[0]['id']}")
         return models[0]["id"]
 
     display_models(models, [])
@@ -223,8 +266,26 @@ def select_model(models):
 
 
 # ---------- Chat ----------
+def format_token_display(tokens, max_tokens):
+    if not max_tokens:
+        return Text(f"{tokens}", style="bold white")
+
+    ratio = tokens / max_tokens
+
+    if ratio < 0.5:
+        style = "grey50"
+    elif ratio < 0.75:
+        style = "white"
+    elif ratio < 0.9:
+        style = "orange1"
+    else:
+        style = "red"
+
+    return Text(f"{tokens}", style=style)
+
+
 def chat(client, model, models, exclusion, config):
-    print("\n--- Conversation ---\n")
+    console.print("\n[white]--- Conversation ---[/white]\n")
 
     user_prompt = input("System prompt: ")
     prepend = (config.prepend_system_prompt or "").strip()
@@ -237,12 +298,22 @@ def chat(client, model, models, exclusion, config):
     history = [{"role": "system", "content": system}]
     closed = False
 
+    model_meta = next((m for m in models if m["id"] == model), {})
+    max_tokens = model_meta.get("max_tokens")
+
     while True:
         tokens = get_token_count(history, model)
-        msg = input(f"[{now()}][{model}][~{tokens}]> ").strip()
+
+        time_txt = Text(f"[{now()}]", style="white")
+        model_txt = Text(f"[{model}]", style="italic grey50")
+        token_txt = Text("[~") + format_token_display(tokens, max_tokens) + Text("]")
+
+        prompt = Text.assemble(time_txt, model_txt, token_txt, Text("> "))
+
+        msg = console.input(prompt).strip()
 
         if closed:
-            print("Conversation closed. Ctrl-C to exit.")
+            log_warning("Conversation closed. Ctrl-C to exit.")
             continue
 
         if not msg:
@@ -256,32 +327,82 @@ def chat(client, model, models, exclusion, config):
                 model=model, messages=history, stream=True
             )
 
-            print()
             full = ""
-            for chunk in stream:
-                delta = chunk.choices[0].delta.content or ""
-                print(delta, end="", flush=True)
-                full += delta
+            last_render = 0
 
-            print(f"\n[{time.time()-start:.2f}s]\n")
+            term_height = shutil.get_terminal_size((120, 40)).lines
+            max_live_lines = int(term_height * 0.6)
+
+            use_live = True
+
+            console.print()
+
+            with Live("", console=console, refresh_per_second=10) as live:
+                for chunk in stream:
+                    delta = chunk.choices[0].delta.content or ""
+                    full += delta
+
+                    now_ts = time.time()
+
+                    # throttle render (évite surcoût CPU)
+                    if now_ts - last_render < 0.1:
+                        continue
+                    last_render = now_ts
+
+                    if use_live:
+                        try:
+                            md = Markdown(full)
+
+                            # estimation hauteur simple
+                            lines = full.count("\n") + 1
+
+                            if lines > max_live_lines:
+                                use_live = False
+                                live.stop()
+                                console.print()  # saut propre
+                                continue
+
+                            live.update(md)
+
+                        except Exception:
+                            use_live = False
+                            live.stop()
+                            console.print(full)
+                            continue
+
+                # fin du stream
+                if use_live:
+                    live.update(Markdown(full))
+
+            # fallback final (si live désactivé)
+            if not use_live:
+                try:
+                    console.print(Markdown(full))
+                except Exception:
+                    console.print(full)
+
+            duration = time.time() - start
+            console.print(f"[grey50][{duration:.2f}s][/grey50]\n")
+
             history.append({"role": "assistant", "content": full})
 
         except BadRequestError as e:
             s = str(e).lower()
 
             if "context_length" in s:
-                print("\nContext limit reached. Start a new conversation.\n")
+                log_warning("Context limit reached. Start a new conversation.")
                 closed = True
                 continue
 
             if "not allowed" in s:
-                print(f"\nModel {model} not allowed → excluded\n")
+                log_warning(f"Model {model} not allowed → excluded")
+
                 if model not in exclusion.excluded_models:
                     exclusion.excluded_models.append(model)
                     save_exclusion(exclusion)
                 return
 
-            print(e)
+            log_error(str(e))
 
 
 # ---------- Main ----------
@@ -298,32 +419,30 @@ def main():
 
     client = OpenAI(api_key=config.api_key, base_url=config.base_url)
 
-    models = None  # lazy load
+    models = None
 
     while True:
 
-        # --- CLI override ---
         if args.model:
-            print(f"Trying model: {args.model}...")
+            log_info(f"Trying model: {args.model}...")
 
             ok, reason = test_model(client, args.model)
 
             if ok:
-                # vérifier filtres locaux
                 rejection = explain_model_rejection(
                     args.model, mapping, exclusion, regex
                 )
 
                 if rejection != "not available in filtered model list":
-                    print(f"Model '{args.model}' exists but is {rejection}")
-                    args.model = None  # fallback menu
+                    log_warning(f"Model '{args.model}' exists but is {rejection}")
+                    args.model = None
                 else:
-                    print(f"Using model: {args.model}")
+                    log_info(f"Using model: {args.model}")
                     chat(client, args.model, [], exclusion, config)
                     return
 
             elif reason == "not_allowed":
-                print(f"Model '{args.model}' not allowed → excluded")
+                log_warning(f"Model '{args.model}' not allowed → excluded")
 
                 if args.model not in exclusion.excluded_models:
                     exclusion.excluded_models.append(args.model)
@@ -332,10 +451,9 @@ def main():
                 args.model = None
 
             else:
-                print(f"Model '{args.model}' does not exist or is unavailable")
+                log_error(f"Model '{args.model}' does not exist or is unavailable")
                 args.model = None
 
-        # --- Load models only if needed ---
         if models is None:
             raw = list_models(client)
             models = sort_models(
@@ -343,7 +461,7 @@ def main():
             )
 
         if not models:
-            print("No models available")
+            log_critical("No models available")
             return
 
         model = select_model(models)
