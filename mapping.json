@@ -1,4 +1,32 @@
 {
+  "gpt-oss-120b": {
+    "family": "gpt-oss",
+    "type": "chat",
+    "context_window": 131072,
+    "description": "Open-source GPT OSS 120B model",
+    "release": "2025-02-01"
+  },
+  "gpt-oss-20b": {
+    "family": "gpt-oss",
+    "type": "chat",
+    "context_window": 131072,
+    "description": "Open-source GPT OSS 20B model",
+    "release": "2025-02-01"
+  },
+  "qwen-3.5-27b": {
+    "family": "qwen",
+    "type": "chat",
+    "context_window": 131072,
+    "description": "Qwen 3.5 27B multilingual model",
+    "release": "2024-06-01"
+  },
+  "gte-embedding-2b": {
+    "family": "gte",
+    "type": "embedding",
+    "context_window": 8192,
+    "description": "GTE embedding 2B model",
+    "release": "2024-01-15"
+  },
   "gpt-4": {
     "family": "gpt-4",
     "type": "chat",
