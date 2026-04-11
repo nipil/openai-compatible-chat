@@ -68,7 +68,7 @@ Créer un fichier `config.json` :
 ## Lancement
 
 ```bash
-python main.py
+python chat.py
 ```
 
 ### Sélection directe du modèle
@@ -76,7 +76,7 @@ python main.py
 Vous pouvez bypass le menu de sélection avec :
 
 ```bash
-python main.py --model gpt-4o
+python chat.py --model gpt-4o
 ```
 
 Comportement :
