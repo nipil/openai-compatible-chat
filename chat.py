@@ -10,6 +10,11 @@ import logging
 from datetime import datetime
 from typing import List, Optional
 
+try:
+    import readline
+except ImportError:
+    pass
+
 from openai import OpenAI, BadRequestError
 from pydantic import BaseModel, Field, ValidationError
 
