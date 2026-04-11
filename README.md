@@ -2,6 +2,8 @@
 
 Simple chatbot en ligne de commande (CLI) en Python, utilisant l’API OpenAI (publique ou privée).
 
+![sample](sample.png)
+
 ---
 
 ## Installation
