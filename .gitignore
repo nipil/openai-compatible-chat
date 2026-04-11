@@ -214,3 +214,6 @@ config.json
 
 # modèles non autorisés par la clé API
 exclusion.json
+
+# Added by cargo
+/target

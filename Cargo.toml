@@ -1,0 +1,32 @@
+[package]
+name = "openai-compatible-cli-chat"
+version = "0.2.1"
+edition = "2024"
+
+[[bin]]
+name = "chat"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+async-openai = "0.26"                              # pin to a known-good release; bump carefully
+chrono = { version = "0.4", features = ["clock"] }
+clap = { version = "4", features = ["derive"] }
+console = "0.15"                                   # strip_ansi_codes + Term helpers
+crossterm = "0.27"
+dialoguer = "0.11"                                 # FuzzySelect for model picking
+futures = "0.3"
+owo-colors = "3"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+termimad = "0.22"                                  # markdown → ANSI terminal rendering
+tokio = { version = "1", features = ["full"] }
+
+
+# Things to verify before cargo build
+# async-openai message builder API can shift between minor versions
+# — if ChatCompletionRequestSystemMessageArgs is renamed, check the crate's changelog.
+# MadSkin::default_dark() — if your termimad version doesn't have it,
+# replace with MadSkin::default().
+# Run cargo update after cloning to pull the latest compatible patch releases.
