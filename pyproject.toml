@@ -1,0 +1,13 @@
+[project]
+name = "cli-chatbot"
+version = "0.1.0"
+description = "CLI chatbot using OpenAI API"
+requires-python = ">=3.9"
+dependencies = [
+    "openai>=2,<3",
+    "pydantic>=2,<3"
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

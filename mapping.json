@@ -1,0 +1,198 @@
+{
+  "gpt-4": {
+    "family": "gpt-4",
+    "type": "chat",
+    "context_window": 8192,
+    "description": "Original GPT-4 model",
+    "release": "2023-03-14"
+  },
+  "gpt-4-0613": {
+    "family": "gpt-4",
+    "type": "chat",
+    "context_window": 8192,
+    "description": "GPT-4 with function calling support",
+    "release": "2023-06-13"
+  },
+  "gpt-4-turbo": {
+    "family": "gpt-4",
+    "type": "chat",
+    "context_window": 128000,
+    "description": "Optimized GPT-4 (faster, cheaper)",
+    "release": "2023-11-06"
+  },
+  "gpt-4-turbo-2024-04-09": {
+    "family": "gpt-4",
+    "type": "chat",
+    "context_window": 128000,
+    "description": "Stable GPT-4 Turbo snapshot",
+    "release": "2024-04-09"
+  },
+  "gpt-4o": {
+    "family": "gpt-4o",
+    "type": "multimodal",
+    "context_window": 128000,
+    "description": "Omni model (text, vision, audio)",
+    "release": "2024-05-13"
+  },
+  "gpt-4o-mini": {
+    "family": "gpt-4o",
+    "type": "multimodal",
+    "context_window": 128000,
+    "description": "Lightweight GPT-4o",
+    "release": "2024-07-18"
+  },
+  "gpt-4.1": {
+    "family": "gpt-4.1",
+    "type": "chat",
+    "context_window": 128000,
+    "description": "Improved GPT-4 generation",
+    "release": "2025-04-14"
+  },
+  "gpt-4.1-mini": {
+    "family": "gpt-4.1",
+    "type": "chat",
+    "context_window": 128000,
+    "description": "Fast and cheap GPT-4.1 variant",
+    "release": "2025-04-14"
+  },
+  "gpt-4.1-nano": {
+    "family": "gpt-4.1",
+    "type": "chat",
+    "context_window": 128000,
+    "description": "Ultra-light GPT-4.1",
+    "release": "2025-04-14"
+  },
+  "gpt-3.5-turbo": {
+    "family": "gpt-3.5",
+    "type": "chat",
+    "context_window": 16384,
+    "description": "Fast and cost-effective chat model",
+    "release": "2023-03-01"
+  },
+  "gpt-3.5-turbo-1106": {
+    "family": "gpt-3.5",
+    "type": "chat",
+    "context_window": 16384,
+    "description": "Improved GPT-3.5 with tools",
+    "release": "2023-11-06"
+  },
+  "gpt-3.5-turbo-0125": {
+    "family": "gpt-3.5",
+    "type": "chat",
+    "context_window": 16384,
+    "description": "Latest GPT-3.5 snapshot",
+    "release": "2024-01-25"
+  },
+  "gpt-3.5-turbo-instruct": {
+    "family": "gpt-3.5",
+    "type": "instruct",
+    "context_window": 4096,
+    "description": "Instruction-following model",
+    "release": "2023-09-14"
+  },
+  "o1": {
+    "family": "o-series",
+    "type": "reasoning",
+    "context_window": 200000,
+    "description": "Advanced reasoning model",
+    "release": "2024-12-17"
+  },
+  "o1-pro": {
+    "family": "o-series",
+    "type": "reasoning",
+    "context_window": 200000,
+    "description": "High-performance reasoning model",
+    "release": "2025-03-19"
+  },
+  "o3": {
+    "family": "o-series",
+    "type": "reasoning",
+    "context_window": 200000,
+    "description": "Next-gen reasoning model",
+    "release": "2025-04-16"
+  },
+  "o3-mini": {
+    "family": "o-series",
+    "type": "reasoning",
+    "context_window": 200000,
+    "description": "Compact reasoning model",
+    "release": "2025-01-31"
+  },
+  "o4-mini": {
+    "family": "o-series",
+    "type": "reasoning",
+    "context_window": 200000,
+    "description": "Efficient reasoning model",
+    "release": "2025-04-16"
+  },
+  "text-embedding-3-small": {
+    "family": "embedding",
+    "type": "embedding",
+    "context_window": null,
+    "description": "Lightweight embedding model",
+    "release": "2024-01-25"
+  },
+  "text-embedding-3-large": {
+    "family": "embedding",
+    "type": "embedding",
+    "context_window": null,
+    "description": "High-quality embedding model",
+    "release": "2024-01-25"
+  },
+  "text-embedding-ada-002": {
+    "family": "embedding",
+    "type": "embedding",
+    "context_window": null,
+    "description": "Legacy embedding model",
+    "release": "2022-12-01"
+  },
+  "tts-1": {
+    "family": "tts",
+    "type": "audio",
+    "context_window": null,
+    "description": "Text-to-speech",
+    "release": "2024-01-01"
+  },
+  "tts-1-hd": {
+    "family": "tts",
+    "type": "audio",
+    "context_window": null,
+    "description": "High-quality text-to-speech",
+    "release": "2024-01-01"
+  },
+  "whisper-1": {
+    "family": "audio",
+    "type": "transcription",
+    "context_window": null,
+    "description": "Speech-to-text model",
+    "release": "2022-09-01"
+  },
+  "dall-e-2": {
+    "family": "image",
+    "type": "image",
+    "context_window": null,
+    "description": "Image generation (legacy)",
+    "release": "2022-04-01"
+  },
+  "dall-e-3": {
+    "family": "image",
+    "type": "image",
+    "context_window": null,
+    "description": "Advanced image generation",
+    "release": "2023-10-01"
+  },
+  "gpt-image-1": {
+    "family": "image",
+    "type": "image",
+    "context_window": null,
+    "description": "Unified image model",
+    "release": "2025-01-01"
+  },
+  "omni-moderation-latest": {
+    "family": "moderation",
+    "type": "moderation",
+    "context_window": null,
+    "description": "Content moderation model",
+    "release": "2024-09-26"
+  }
+}
