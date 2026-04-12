@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"           # déclenché par : git tag v1.0.0 && git push --tags
+    branches:
+      - ci-test        # ← ajout temporaire
+
+permissions:
+  contents: write      # nécessaire pour créer la release GitHub
+
+jobs:
+  build:
+    name: Build — ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        include:
+          - name:   Linux x64
+            os:     ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: chat
+
+          - name:   Windows x64
+            os:     windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: chat.exe
+
+          - name:   macOS x64
+            os:     macos-13        # macos-13 = dernière image Intel disponible
+            target: x86_64-apple-darwin
+            binary: chat
+
+          - name:   macOS aarch64
+            os:     macos-latest    # macos-latest = Apple Silicon (M1+)
+            target: aarch64-apple-darwin
+            binary: chat
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Cache .cargo/registry + target/ entre les runs pour accélérer la CI
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build (release)
+        run: cargo build --release --target ${{ matrix.target }}
+
+      # Renomme le binaire en chat-<target> avant upload pour éviter les conflits
+      - name: Rename binary (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mv target/${{ matrix.target }}/release/${{ matrix.binary }} \
+             chat-${{ matrix.target }}
+
+      - name: Rename binary (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Move-Item target/${{ matrix.target }}/release/${{ matrix.binary }} `
+                    chat-${{ matrix.target }}.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-${{ matrix.target }}
+          path: chat-${{ matrix.target }}*   # capture .exe aussi
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')   # ← skip sur les branches
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true  # génère les notes depuis les commits
