@@ -11,15 +11,19 @@ mod tokens;
 use config::{load_config, load_exclusion, load_mapping, save_exclusion};
 
 #[derive(Parser)]
-#[command(name = "llm", about = "Interactive LLM CLI", version)]
+#[command(name = "chat", about = "Interactive LLM CLI", version)]
 struct Args {
-    /// Use a specific model directly, bypassing the selection list.
     #[arg(long, short = 'm')]
     model: Option<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Enable ANSI colour codes on legacy Windows consoles (cmd.exe).
+    // No-op on Windows 10+ / modern terminals / all Unix systems.
+    #[cfg(windows)]
+    enable_ansi_support::enable_ansi_support().ok();
+    
     // Clean Ctrl-C exit from anywhere in the program.
     tokio::spawn(async {
         tokio::signal::ctrl_c().await.ok();

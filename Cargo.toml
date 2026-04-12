@@ -24,3 +24,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 termimad = "0.34" # markdown → ANSI terminal rendering
 tokio = { version = "1", features = ["full"] }
+
+[target.'cfg(windows)'.dependencies]
+enable-ansi-support = "0.3.1"

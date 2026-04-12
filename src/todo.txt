@@ -1,2 +1,0 @@
-async-openai message builder API can shift between minor versions — if ChatCompletionRequestSystemMessageArgs is renamed, check the crate's changelog.
-MadSkin::default_dark() — if your termimad version doesn't have it, replace with MadSkin::default().
