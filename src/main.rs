@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_openai::{Client, config::OpenAIConfig};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 mod chat;
 mod config;
@@ -11,19 +11,51 @@ mod tokens;
 use config::{load_config, load_exclusion, load_mapping, save_exclusion};
 
 #[derive(Parser)]
-#[command(name = "chat", about = "Interactive LLM CLI", version)]
+#[command(name = "chat", about = "Interactive LLM", version)]
 struct Args {
     #[arg(long, short = 'm')]
     model: Option<String>,
+
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// CLI subcommand
+    Cli,
+    /// Web subcommand
+    Web {
+        /// Port to listen on
+        #[arg(short = 'p', long = "port")]
+        port: u16,
+    },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let args = Args::parse();
+    match &args.command {
+        Commands::Cli => {
+            cli(args.model).await?;
+        }
+        Commands::Web { port } => {
+            web(args.model, port).await?;
+        }
+    }
+    Ok(())
+}
+
+async fn web(model: Option<String>, port: &u16) -> Result<()> {
+    Ok(())
+}
+
+async fn cli(model: Option<String>) -> Result<()> {
     // Enable ANSI colour codes on legacy Windows consoles (cmd.exe).
     // No-op on Windows 10+ / modern terminals / all Unix systems.
     #[cfg(windows)]
     enable_ansi_support::enable_ansi_support().ok();
-    
+
     // Clean Ctrl-C exit from anywhere in the program.
     tokio::spawn(async {
         tokio::signal::ctrl_c().await.ok();
@@ -31,7 +63,6 @@ async fn main() -> Result<()> {
         std::process::exit(0);
     });
 
-    let args = Args::parse();
     let config = load_config().map_err(|e| {
         display::log_error(&e.to_string());
         e
@@ -46,7 +77,7 @@ async fn main() -> Result<()> {
             .with_api_base(&config.base_url),
     );
 
-    let mut forced: Option<String> = args.model;
+    let mut forced: Option<String> = model;
     let mut model_cache: Option<Vec<models::EnrichedModel>> = None;
 
     loop {
