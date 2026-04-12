@@ -5,7 +5,7 @@ on:
     tags:
       - "v*"           # déclenché par : git tag v1.0.0 && git push --tags
     branches:
-      - ci-test        # ← ajout temporaire
+      - ci-test        # pour tester les builds sans faire de release
 
 permissions:
   contents: write      # nécessaire pour créer la release GitHub
@@ -15,27 +15,31 @@ jobs:
     name: Build — ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
 
+    env:
+      # pour que le binaire puisse tourner macOS 12+
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
+
     strategy:
       matrix:
         include:
-          - name:   Linux x64
-            os:     ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+          - name:   Linux x64 (static)
+            os:     ubuntu-22.04
+            target: x86_64-unknown-linux-musl
             binary: chat
 
           - name:   Windows x64
-            os:     windows-latest
+            os:     windows-2022
             target: x86_64-pc-windows-msvc
             binary: chat.exe
 
-          - name:   macOS x64
-            os:     macos-13        # macos-13 = dernière image Intel disponible
-            target: x86_64-apple-darwin
+          - name:   macOS ARM
+            os:     macos-15
+            target: aarch64-apple-darwin
             binary: chat
 
-          - name:   macOS aarch64
-            os:     macos-latest    # macos-latest = Apple Silicon (M1+)
-            target: aarch64-apple-darwin
+          - name:   macOS Intel
+            os:     macos-15
+            target: x86_64-apple-darwin
             binary: chat
 
     steps:
@@ -53,22 +57,50 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
+      # Linux musl (static)
+      - name: Install musl tools
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
       - name: Build (release)
         run: cargo build --release --target ${{ matrix.target }}
 
-      # Renomme le binaire en chat-<target> avant upload pour éviter les conflits
+      # Strip (Unix)
+      - name: Strip binary (Unix)
+        if: matrix.os != 'windows-2022'
+        run: |
+          strip target/${{ matrix.target }}/release/${{ matrix.binary }}
+
+      # Strip (Windows)
+      - name: Strip binary (Windows)
+        if: matrix.os == 'windows-2022'
+        shell: bash
+        run: |
+          strip target/${{ matrix.target }}/release/${{ matrix.binary }}
+
+      # Rename Linux
       - name: Rename binary (Linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           mv target/${{ matrix.target }}/release/${{ matrix.binary }} \
              chat-${{ matrix.target }}
 
+      # Rename Windows
       - name: Rename binary (Windows)
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         shell: pwsh
         run: |
           Move-Item target/${{ matrix.target }}/release/${{ matrix.binary }} `
                     chat-${{ matrix.target }}.exe
+
+      # Rename macOS
+      - name: Rename binary (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          mv target/${{ matrix.target }}/release/${{ matrix.binary }} \
+             chat-${{ matrix.target }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -76,10 +108,39 @@ jobs:
           name: chat-${{ matrix.target }}
           path: chat-${{ matrix.target }}*   # capture .exe aussi
 
+  macos-universal:
+    name: Build macOS universal binary
+    needs: build
+    runs-on: macos-15
+
+    steps:
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create universal binary
+        run: |
+          mkdir macos
+
+          cp artifacts/chat-aarch64-apple-darwin/chat-aarch64-apple-darwin macos/chat-arm64
+          cp artifacts/chat-x86_64-apple-darwin/chat-x86_64-apple-darwin macos/chat-x64
+
+          lipo -create macos/chat-arm64 macos/chat-x64 -o macos/chat-macos
+          chmod +x macos/chat-macos
+
+      - name: Upload universal binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-macos
+          path: macos/chat-macos
+
   release:
     name: Create GitHub Release
-    needs: build
-    runs-on: ubuntu-latest
+    needs:
+      - build
+      - macos-universal
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Download all artifacts
