@@ -1,6 +1,6 @@
 # CLI Chatbot (OpenAI)
 
-Simple chatbot en ligne de commande (CLI) en Python, utilisant l’API OpenAI (publique ou privée).
+Simple chatbot en ligne de commande (CLI) en Rust, utilisant l’API OpenAI (publique ou privée).
 
 ![sample](sample.png)
 
@@ -8,53 +8,66 @@ Simple chatbot en ligne de commande (CLI) en Python, utilisant l’API OpenAI (p
 
 ## Installation
 
-### 🪟 Windows (PowerShell)
+Les binaires sont générés automatiquement à chaque release.
+
+### 📦 Télécharger un binaire
+
+1. Aller sur la page des releases :  
+   <https://github.com/><repo>/releases
+
+2. Télécharger l’archive correspondant à votre système :
+   - 🪟 Windows : `chatbot-x86_64-pc-windows-msvc.zip`
+   - 🐧 Linux : `chatbot-x86_64-unknown-linux-gnu.tar.gz`
+   - 🍎 macOS : `chatbot-aarch64-apple-darwin.tar.gz` (Apple Silicon)
+   - 🍎 macOS : `chatbot-x86_64-apple-darwin.tar.gz` (Intel)
+
+3. Extraire l’archive
+
+---
+
+### 🪟 Windows
+
+- Extraire le `.zip`
+- Lancer le binaire :
 
 ```powershell
-# Cloner le projet
-git clone <repo>
-cd <repo>
-
-# Créer un environnement virtuel
-python -m venv .venv
-
-# Activer l'environnement
-.venv\Scripts\Activate.ps1
-
-# Mettre à jour pip
-python -m pip install --upgrade pip
-
-# Installer les dépendances
-pip install .
+.\chatbot.exe
 ```
 
 ---
 
-### 🐧 Linux
+### 🐧 Linux / 🍎 macOS
+
+- Extraire l’archive :
 
 ```bash
-# Cloner le projet
-git clone <repo>
-cd <repo>
-
-# Créer un environnement virtuel
-python3 -m venv .venv
-
-# Activer l'environnement
-source .venv/bin/activate
-
-# Mettre à jour pip
-python -m pip install --upgrade pip
-
-# Installer les dépendances
-pip install .
+tar -xzf chatbot-*.tar.gz
+cd chatbot-*
 ```
+
+- Rendre le binaire exécutable (si nécessaire) :
+
+```bash
+chmod +x chatbot
+```
+
+- Lancer :
+
+```bash
+./chatbot
+```
+
+---
+
+## Mise à jour
+
+Télécharger simplement la dernière version depuis la page des releases et remplacer l’ancien binaire.
 
 ---
 
 ## Configuration
 
-Créer un fichier `config.json` :
+Créer un fichier `config.json` dans le même dossier que le binaire :
 
 ```json
 {
@@ -70,39 +83,43 @@ Créer un fichier `config.json` :
 ## Lancement
 
 ```bash
-python chat.py
+./chatbot
 ```
+
+(Sur Windows : `chatbot.exe`)
+
+---
 
 ### Sélection directe du modèle
 
 Vous pouvez bypass le menu de sélection avec :
 
 ```bash
-python chat.py --model gpt-4o
+./chatbot --model gpt-4o
 ```
 
 Comportement :
 
-* vérifie que le modèle existe dans la liste récupérée via l’API
-* applique les filtres (exclusions + regex)
-* si valide → démarrage direct de la conversation
-* sinon → message d’erreur + retour au menu
+- vérifie que le modèle existe dans la liste récupérée via l’API
+- applique les filtres (exclusions + regex)
+- si valide → démarrage direct de la conversation
+- sinon → message d’erreur + retour au menu
 
 ---
 
 ## Fonctionnalités
 
-* sélection interactive du modèle
-* streaming des réponses
-* historique conversationnel
-* estimation des tokens (`~`)
-* filtrage des modèles (regex + exclusions automatiques)
-* gestion des erreurs (modèle interdit, dépassement contexte)
+- sélection interactive du modèle
+- streaming des réponses
+- historique conversationnel
+- estimation des tokens (`~`)
+- filtrage des modèles (regex + exclusions automatiques)
+- gestion des erreurs (modèle interdit, dépassement contexte)
 
 ---
 
 ## Notes
 
-* `CTRL-C` : quitter proprement
-* dépassement de contexte → conversation verrouillée
-* les modèles non autorisés pour la clé API fournie sont ajoutés automatiquement à `exclusion.json`
+- `CTRL-C` : quitter proprement
+- dépassement de contexte → conversation verrouillée
+- les modèles non autorisés pour la clé API fournie sont ajoutés automatiquement à `exclusion.json`
