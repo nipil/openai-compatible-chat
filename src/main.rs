@@ -1,14 +1,15 @@
 use anyhow::Result;
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 mod chat;
 mod config;
 mod display;
 mod models;
 mod tokens;
-
-use config::{load_config, load_exclusion, load_mapping, save_exclusion};
+mod web;
 
 #[derive(Parser)]
 #[command(name = "chat", about = "Interactive LLM", version)]
@@ -47,6 +48,28 @@ async fn main() -> Result<()> {
 }
 
 async fn web(model: Option<String>, port: &u16) -> Result<()> {
+    let cfg = config::load_config()?;
+    let mapping = config::load_mapping()?;
+    let exclusion = config::load_exclusion().unwrap_or_default();
+    let filters = models::compile_regex(&cfg.exclude_model_name_regex)?;
+
+    let oa_cfg = OpenAIConfig::new()
+        .with_api_key(&cfg.api_key)
+        .with_api_base(&cfg.base_url);
+
+    let state = web::AppState {
+        client: Arc::new(Client::with_config(oa_cfg)),
+        mapping: Arc::new(mapping),
+        exclusion: Arc::new(RwLock::new(exclusion)), // <-- RwLock wraps Exclusion
+        filters: Arc::new(filters),
+        system_prompt: cfg.prepend_system_prompt,
+    };
+
+    let app = web::router(state);
+    let listen_addr = format!("localhost:{port}");
+    let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
+    println!("Server listening on {listen_addr}");
+    axum::serve(listener, app).await?;
     Ok(())
 }
 
@@ -63,12 +86,12 @@ async fn cli(model: Option<String>) -> Result<()> {
         std::process::exit(0);
     });
 
-    let config = load_config().map_err(|e| {
+    let config = config::load_config().map_err(|e| {
         display::log_error(&e.to_string());
         e
     })?;
-    let mapping = load_mapping()?;
-    let mut excl = load_exclusion()?;
+    let mapping = config::load_mapping()?;
+    let mut excl = config::load_exclusion()?;
     let filters = models::compile_regex(&config.exclude_model_name_regex)?;
 
     let client = Client::with_config(
@@ -101,7 +124,7 @@ async fn cli(model: Option<String>) -> Result<()> {
                     display::log_warning(&format!("Model '{id}' not allowed → excluded"));
                     if !excl.excluded_models.contains(&id) {
                         excl.excluded_models.push(id);
-                        save_exclusion(&excl)?;
+                        config::save_exclusion(&excl)?;
                     }
                     let m = pick_from_list(&client, &mut model_cache, &mapping, &excl, &filters)
                         .await?;
@@ -126,7 +149,7 @@ async fn cli(model: Option<String>) -> Result<()> {
             chat::run(&client, &model, model_cache.as_deref(), &mut excl, &config).await?;
 
         if let chat::ChatOutcome::ModelExcluded = outcome {
-            save_exclusion(&excl)?;
+            config::save_exclusion(&excl)?;
             model_cache = None; // Force a fresh listing next iteration.
         }
 
