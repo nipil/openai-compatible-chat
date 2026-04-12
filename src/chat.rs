@@ -8,7 +8,7 @@ use async_openai::{
     Client,
     config::OpenAIConfig,
     error::OpenAIError,
-    types::{
+    types::chat::{
         ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
         ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
         CreateChatCompletionRequestArgs,

@@ -9,7 +9,10 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
-async-openai = "0.26" # pin to a known-good release; bump carefully
+async-openai = { version = "0.34", features = [
+    "chat-completion",
+    "model",
+] } # pin to a known-good release; bump carefully
 chrono = { version = "0.4", features = ["clock"] }
 clap = { version = "4", features = ["derive"] }
 console = "0.16" # strip_ansi_codes + Term helpers
