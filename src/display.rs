@@ -5,7 +5,18 @@ use std::{
 
 use crossterm::{cursor, execute, terminal};
 use owo_colors::OwoColorize;
-use termimad::MadSkin;
+
+use termimad::{
+    CompoundStyle, MadSkin, StyledChar,
+    crossterm::style::{Attribute::*, Attributes, Color::*},
+    gray,
+};
+
+const BULLET_CHAR: char = '●';
+const QUOTE_CHAR: char = '▐';
+const HRULE_CHAR: char = '─';
+const SCROLLBAR_THUMB: char = '▐';
+const SCROLLBAR_TRACK: char = '│';
 
 // ── Structured log lines (mimics rich's RichHandler colour scheme) ────────────
 
@@ -100,10 +111,95 @@ impl LiveMarkdown {
     }
 }
 
-fn make_skin() -> MadSkin {
-    // `default_dark()` targets dark-background terminals.
-    // Switch to `MadSkin::default()` for automatic detection.
-    MadSkin::default_dark()
+// gray(n) takes values 0–23 (0 = near-black, 23 = near-white).
+// Adjust gray(2)/gray(3) for the code block background
+// if it blends too much with your terminal's default.
+
+/// Build a Rich-inspired MadSkin for dark terminals.
+///
+/// Rich colour mapping:
+///   H1  → bold cyan          (Rich: "Markdown H1" — bright cyan)
+///   H2  → bold magenta       (Rich: "Markdown H2" — magenta)
+///   H3  → bold yellow        (Rich: "Markdown H3" — yellow)
+///   H4+ → bold white
+///   bold       → bright white bold
+///   italic     → yellow italic     (Rich uses yellow for emphasis)
+///   strikeout  → red crossed-out
+///   inline code → green on dark    (Rich: green text, dark panel)
+///   code block  → green on near-black
+///   bullet     → cyan  BULLET_CHAR
+///   quote mark → blue  QUOTE_CHAR  italic
+///   horiz rule → cyan  HRULE_CHAR
+///   table      → blue borders
+///   scrollbar  → cyan / dark
+pub fn make_skin() -> MadSkin {
+    // imports are at the top of display.rs — nothing needed here
+
+    let mut skin = MadSkin::default_dark();
+
+    // ── Headers ───────────────────────────────────────────────────────────────
+    // h1: bold cyan, underlined — mimics Rich's prominent header style
+    skin.headers[0].compound_style =
+        CompoundStyle::new(Some(Cyan), None, Attributes::from(Bold) | Underlined);
+    // h2: bold magenta
+    skin.headers[1].compound_style = CompoundStyle::new(Some(Magenta), None, Bold.into());
+    // h3: bold yellow
+    skin.headers[2].compound_style = CompoundStyle::new(Some(Yellow), None, Bold.into());
+    // h4–h8: bold white (progressively less prominent, same colour)
+    for h in &mut skin.headers[3..] {
+        h.compound_style = CompoundStyle::new(Some(White), None, Bold.into());
+    }
+
+    // ── Inline styles ─────────────────────────────────────────────────────────
+    // Bold: bright white — Rich renders **bold** as white on dark backgrounds
+    skin.bold = CompoundStyle::new(Some(White), None, Bold.into());
+
+    // Italic: yellow — Rich uses yellow/gold for *emphasis*
+    skin.italic = CompoundStyle::new(Some(Yellow), None, Italic.into());
+
+    // Strikeout: red crossed-out — Rich renders ~~struck~~ in red
+    skin.strikeout = CompoundStyle::new(Some(Red), None, CrossedOut.into());
+
+    // ── Code ─────────────────────────────────────────────────────────────────
+    // Inline code: bold green on near-black — Rich's default code style
+    skin.inline_code = CompoundStyle::new(Some(Green), Some(gray(2)), Bold.into());
+    // Code block: same fg, slightly lighter dark background for contrast
+    skin.code_block.compound_style =
+        CompoundStyle::new(Some(Green), Some(gray(3)), Attributes::default());
+
+    // ── Structural elements ───────────────────────────────────────────────────
+    // Bullet: cyan filled circle — Rich uses cyan BULLET_CHAR markers
+    skin.bullet = StyledChar::new(
+        CompoundStyle::new(Some(Cyan), None, Bold.into()),
+        BULLET_CHAR,
+    );
+
+    // Blockquote mark: blue italic bar — Rich renders quotes in blue/dim
+    skin.quote_mark = StyledChar::new(
+        CompoundStyle::new(Some(Blue), None, Italic.into()),
+        QUOTE_CHAR,
+    );
+
+    // Horizontal rule: cyan dashes
+    skin.horizontal_rule = StyledChar::new(
+        CompoundStyle::new(Some(Cyan), None, Attributes::default()),
+        HRULE_CHAR,
+    );
+
+    // Table borders: blue — Rich tables use blue/dim borders
+    skin.table.compound_style = CompoundStyle::new(Some(Blue), None, Attributes::default());
+
+    // Scrollbar: cyan thumb on dark track
+    skin.scrollbar.thumb = StyledChar::new(
+        CompoundStyle::new(Some(Cyan), None, Attributes::default()),
+        SCROLLBAR_THUMB,
+    );
+    skin.scrollbar.track = StyledChar::new(
+        CompoundStyle::new(Some(gray(6)), None, Attributes::default()),
+        SCROLLBAR_TRACK,
+    );
+
+    skin
 }
 
 /// Count how many terminal rows `rendered` occupies, accounting for ANSI
