@@ -26,6 +26,8 @@ Base URL: `http://localhost:3000`
 
 Returns the list of available models, filtered and sorted according to the loaded configuration (exclusion list, regex filters, allowed types).
 
+    curl http://localhost:3000/api/models | jq
+
 ### Response
 
 `200 OK` — `application/json`
@@ -57,6 +59,17 @@ Models not present in the local mapping, excluded by the exclusion list, or matc
 Sends a full conversation history to the configured OpenAI-compatible API and streams the assistant's reply token by token as Server-Sent Events.
 
 The backend is stateless. The client is responsible for maintaining the conversation history and sending it in full on every request.
+
+    curl -N -X POST http://localhost:3000/api/chat \
+      -H "Content-Type: application/json" \
+      -d '{
+        "model": "gpt-4o",
+        "messages": [
+          { "role": "user",      "content": "My name is Alice." },
+          { "role": "assistant", "content": "Nice to meet you, Alice!" },
+          { "role": "user",      "content": "What is my name?" }
+        ]
+      }'
 
 #### Request
 

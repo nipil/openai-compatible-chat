@@ -1,7 +1,6 @@
 use async_openai::{
     Client,
     config::OpenAIConfig,
-    error::OpenAIError,
     types::chat::{
         ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
         ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
@@ -135,11 +134,13 @@ async fn build_chat_stream(
     // Capture what we need for the exclusion side-effect inside the stream
     let model = req.model.clone();
     let exclusion = Arc::clone(&s.exclusion);
+    let client = Arc::clone(&s.client);
 
     // Use `.then()` (async map) so we can do async writes on unauthorized errors
     let sse = openai_stream.then(move |chunk| {
         let model = model.clone();
         let exclusion = Arc::clone(&exclusion);
+        let client = Arc::clone(&client);
         async move {
             match chunk {
                 Ok(resp) => {
@@ -151,22 +152,25 @@ async fn build_chat_stream(
                     Ok::<Event, Infallible>(Event::default().data(token))
                 }
 
-                Err(ref e) if is_unauthorized_model(e) => {
-                    // Persist the newly excluded model and update shared state
-                    let mut excl = exclusion.write().await;
-                    if !excl.excluded_models.contains(&model) {
-                        excl.excluded_models.push(model.clone());
-                        // save_exclusion is sync; acceptable for infrequent disk writes
-                        if let Err(io) = config::save_exclusion(&excl) {
-                            eprintln!("Failed to persist exclusion list: {io}");
+                Err(e) => {
+                    // Reuse test_model's exact detection logic to check if this
+                    // model is unauthorized, rather than re-parsing the error string
+                    if let Err(models::ModelError::NotAllowed) =
+                        models::test_model(&client, &model).await
+                    {
+                        let mut excl = exclusion.write().await;
+                        if !excl.excluded_models.contains(&model) {
+                            excl.excluded_models.push(model.clone());
+                            if let Err(io) = config::save_exclusion(&excl) {
+                                eprintln!("Failed to persist exclusion list: {io}");
+                            }
                         }
+                        return Ok(Event::default()
+                            .event("error")
+                            .data(format!("Model '{model}' has been excluded: {e}")));
                     }
-                    Ok(Event::default()
-                        .event("error")
-                        .data(format!("Model '{model}' has been excluded: {e}")))
+                    Ok(Event::default().event("error").data(e.to_string()))
                 }
-
-                Err(e) => Ok(Event::default().event("error").data(e.to_string())),
             }
         }
     });
@@ -191,14 +195,4 @@ fn msg_to_api(m: &MessageDto) -> anyhow::Result<ChatCompletionRequestMessage> {
             .build()?
             .into(),
     })
-}
-
-/// Detects API errors that indicate this model is not accessible to this key.
-/// Refine this to match whatever patterns your test_model() already handles.
-fn is_unauthorized_model(e: &OpenAIError) -> bool {
-    let msg = e.to_string().to_lowercase();
-    msg.contains("model_not_found")
-        || msg.contains("does not exist")
-        || msg.contains("not have access")
-        || msg.contains("permission")
 }
