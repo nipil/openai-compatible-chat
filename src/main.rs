@@ -46,6 +46,20 @@ async fn main() -> Result<()> {
     let exclusion = config::load_exclusion().unwrap_or_default();
     let filters = models::compile_regex(&cfg.exclude_model_name_regex)?;
 
+    /// TODO: add locked model validation before constructing AppState
+    /// Does it check for actual availability ? try to reuse cli's forced !
+    // let locked_model = match model {
+    //     Some(ref m) => match models::test_model(&client, m).await {
+    //         Ok(()) => model.clone(),
+    //         Err(ModelError::Network(e)) => return Err(anyhow!("Network: {e}")),
+    //         Err(_) => {
+    //             eprintln!("Warning: model '{m}' unavailable, ignoring lock");
+    //             None
+    //         }
+    //     },
+    //     None => None,
+    // };
+
     // Create shared components
     let oa_cfg = OpenAIConfig::new()
         .with_api_key(&cfg.api_key)
