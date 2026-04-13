@@ -57,9 +57,9 @@ struct ModelDto {
 }
 
 async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
-    let excl = s.exclusion.read().await;
+    let exclusion = s.exclusion.read().await;
     let ids = models::list_models(&s.client).await.unwrap_or_default();
-    let enriched = models::filter_and_sort(ids, &s.mapping, &excl.excluded_models, &s.filters);
+    let enriched = models::filter_and_sort(ids, &s.mapping, &exclusion.excluded_models, &s.filters);
     Json(
         enriched
             .into_iter()
@@ -158,10 +158,10 @@ async fn build_chat_stream(
                     if let Err(models::ModelError::NotAllowed) =
                         models::test_model(&client, &model).await
                     {
-                        let mut excl = exclusion.write().await;
-                        if !excl.excluded_models.contains(&model) {
-                            excl.excluded_models.push(model.clone());
-                            if let Err(io) = config::save_exclusion(&excl) {
+                        let mut exclusion = exclusion.write().await;
+                        if !exclusion.excluded_models.contains(&model) {
+                            exclusion.excluded_models.push(model.clone());
+                            if let Err(io) = config::save_exclusion(&exclusion) {
                                 eprintln!("Failed to persist exclusion list: {io}");
                             }
                         }

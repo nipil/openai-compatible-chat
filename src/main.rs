@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
 mod chat;
@@ -36,31 +36,47 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+
+    // Load configuration once
+    let cfg = config::load_config().map_err(|e| {
+        display::log_error(&e.to_string());
+        e
+    })?;
+    let mapping = config::load_mapping()?;
+    let exclusion = config::load_exclusion().unwrap_or_default();
+    let filters = models::compile_regex(&cfg.exclude_model_name_regex)?;
+
+    // Create shared components
+    let oa_cfg = OpenAIConfig::new()
+        .with_api_key(&cfg.api_key)
+        .with_api_base(&cfg.base_url);
+    let client = Client::with_config(oa_cfg);
+
     match &args.command {
         Commands::Cli => {
-            cli(args.model).await?;
+            cli(args.model, client, mapping, exclusion, filters, cfg).await?;
         }
         Commands::Web { port } => {
-            web(args.model, port).await?;
+            web(args.model, port, client, mapping, exclusion, filters, cfg).await?;
         }
     }
     Ok(())
 }
 
-async fn web(model: Option<String>, port: &u16) -> Result<()> {
-    let cfg = config::load_config()?;
-    let mapping = config::load_mapping()?;
-    let exclusion = config::load_exclusion().unwrap_or_default();
-    let filters = models::compile_regex(&cfg.exclude_model_name_regex)?;
-
-    let oa_cfg = OpenAIConfig::new()
-        .with_api_key(&cfg.api_key)
-        .with_api_base(&cfg.base_url);
-
+async fn web(
+    model: Option<String>,
+    port: &u16,
+    client: Client<OpenAIConfig>,
+    mapping: HashMap<String, config::ModelMeta>,
+    exclusion: config::Exclusion,
+    filters: Vec<regex::Regex>,
+    cfg: config::Config,
+) -> Result<()> {
+    // wraps because shared between multiple request handlers within the web server
     let state = web::AppState {
-        client: Arc::new(Client::with_config(oa_cfg)),
+        client: Arc::new(client),
         mapping: Arc::new(mapping),
-        exclusion: Arc::new(RwLock::new(exclusion)), // <-- RwLock wraps Exclusion
+        exclusion: Arc::new(RwLock::new(exclusion)), // RwLock handles mut
         filters: Arc::new(filters),
         system_prompt: cfg.prepend_system_prompt,
     };
@@ -73,7 +89,14 @@ async fn web(model: Option<String>, port: &u16) -> Result<()> {
     Ok(())
 }
 
-async fn cli(model: Option<String>) -> Result<()> {
+async fn cli(
+    model: Option<String>,
+    client: Client<OpenAIConfig>,
+    mapping: HashMap<String, config::ModelMeta>,
+    mut exclusion: config::Exclusion,
+    filters: Vec<regex::Regex>,
+    config: config::Config,
+) -> Result<()> {
     // Enable ANSI colour codes on legacy Windows consoles (cmd.exe).
     // No-op on Windows 10+ / modern terminals / all Unix systems.
     #[cfg(windows)]
@@ -86,20 +109,6 @@ async fn cli(model: Option<String>) -> Result<()> {
         std::process::exit(0);
     });
 
-    let config = config::load_config().map_err(|e| {
-        display::log_error(&e.to_string());
-        e
-    })?;
-    let mapping = config::load_mapping()?;
-    let mut excl = config::load_exclusion()?;
-    let filters = models::compile_regex(&config.exclude_model_name_regex)?;
-
-    let client = Client::with_config(
-        OpenAIConfig::new()
-            .with_api_key(&config.api_key)
-            .with_api_base(&config.base_url),
-    );
-
     let mut forced: Option<String> = model;
     let mut model_cache: Option<Vec<models::EnrichedModel>> = None;
 
@@ -108,12 +117,18 @@ async fn cli(model: Option<String>) -> Result<()> {
         let (model, from_arg) = match forced.take() {
             Some(id) => match models::test_model(&client, &id).await {
                 Ok(()) => {
-                    if let Some(reason) = models::explain_rejection(&id, &mapping, &excl, &filters)
+                    if let Some(reason) =
+                        models::explain_rejection(&id, &mapping, &exclusion, &filters)
                     {
                         display::log_warning(&format!("Model '{id}' is {reason}"));
-                        let m =
-                            pick_from_list(&client, &mut model_cache, &mapping, &excl, &filters)
-                                .await?;
+                        let m = pick_from_list(
+                            &client,
+                            &mut model_cache,
+                            &mapping,
+                            &exclusion,
+                            &filters,
+                        )
+                        .await?;
                         (m, false)
                     } else {
                         display::log_info(&format!("Using model: {id}"));
@@ -122,34 +137,42 @@ async fn cli(model: Option<String>) -> Result<()> {
                 }
                 Err(models::ModelError::NotAllowed) => {
                     display::log_warning(&format!("Model '{id}' not allowed → excluded"));
-                    if !excl.excluded_models.contains(&id) {
-                        excl.excluded_models.push(id);
-                        config::save_exclusion(&excl)?;
+                    if !exclusion.excluded_models.contains(&id) {
+                        exclusion.excluded_models.push(id);
+                        config::save_exclusion(&exclusion)?;
                     }
-                    let m = pick_from_list(&client, &mut model_cache, &mapping, &excl, &filters)
-                        .await?;
+                    let m =
+                        pick_from_list(&client, &mut model_cache, &mapping, &exclusion, &filters)
+                            .await?;
                     (m, false)
                 }
                 Err(_) => {
                     display::log_error(&format!("Model '{id}' is unavailable or does not exist"));
-                    let m = pick_from_list(&client, &mut model_cache, &mapping, &excl, &filters)
-                        .await?;
+                    let m =
+                        pick_from_list(&client, &mut model_cache, &mapping, &exclusion, &filters)
+                            .await?;
                     (m, false)
                 }
             },
             None => {
-                let m =
-                    pick_from_list(&client, &mut model_cache, &mapping, &excl, &filters).await?;
+                let m = pick_from_list(&client, &mut model_cache, &mapping, &exclusion, &filters)
+                    .await?;
                 (m, false)
             }
         };
 
         // ── Run chat session ────────────────────────────────────────────────
-        let outcome =
-            chat::run(&client, &model, model_cache.as_deref(), &mut excl, &config).await?;
+        let outcome = chat::run(
+            &client,
+            &model,
+            model_cache.as_deref(),
+            &mut exclusion,
+            &config,
+        )
+        .await?;
 
         if let chat::ChatOutcome::ModelExcluded = outcome {
-            config::save_exclusion(&excl)?;
+            config::save_exclusion(&exclusion)?;
             model_cache = None; // Force a fresh listing next iteration.
         }
 
