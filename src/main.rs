@@ -130,5 +130,5 @@ async fn pick_from_list(
         std::process::exit(1);
     }
 
-    models::select_model(list)
+    display::select_model(list)
 }

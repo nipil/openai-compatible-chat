@@ -1,6 +1,5 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig, error::OpenAIError};
-use dialoguer::FuzzySelect;
 use regex::Regex;
 
 use crate::config::{Exclusion, Mapping, ModelMeta};
@@ -117,67 +116,4 @@ pub fn explain_rejection(
         }
     }
     None
-}
-
-// ── Display / selection ───────────────────────────────────────────────────────
-
-/// Renders the columnar model grid, then opens an interactive fuzzy-search
-/// prompt. Returns the selected model ID.
-pub fn select_model(models: &[EnrichedModel]) -> Result<String> {
-    if models.len() == 1 {
-        crate::display::log_info(&format!("Auto-selected: {}", models[0].id));
-        return Ok(models[0].id.clone());
-    }
-
-    print_model_grid(models);
-
-    let labels: Vec<String> = models
-        .iter()
-        .map(|m| match &m.model_type {
-            Some(t) => format!("{} ({})", m.id, t),
-            None => m.id.clone(),
-        })
-        .collect();
-
-    let idx = FuzzySelect::new()
-        .with_prompt("Select model")
-        .items(&labels)
-        .default(0)
-        .interact()
-        .map_err(|e| anyhow!("Selection failed: {e}"))?;
-
-    Ok(models[idx].id.clone())
-}
-
-fn print_model_grid(models: &[EnrichedModel]) {
-    let term_w = crossterm::terminal::size()
-        .map(|(w, _)| w as usize)
-        .unwrap_or(120);
-
-    let labels: Vec<String> = models
-        .iter()
-        .enumerate()
-        .map(|(i, m)| match &m.model_type {
-            Some(t) => format!("{}. {} ({})", i + 1, m.id, t),
-            None => format!("{}. {}", i + 1, m.id),
-        })
-        .collect();
-
-    let col_w = labels.iter().map(|l| l.len()).max().unwrap_or(20) + 4;
-    let cols = (term_w / col_w).max(1);
-    let rows = labels.len().div_ceil(cols);
-
-    for row in 0..rows {
-        let mut line = String::new();
-        for col in 0..cols {
-            let idx = col * rows + row;
-            if idx < labels.len() {
-                let lbl = &labels[idx];
-                line.push_str(lbl);
-                (0..col_w.saturating_sub(lbl.len())).for_each(|_| line.push(' '));
-            }
-        }
-        println!("{line}");
-    }
-    println!();
 }
