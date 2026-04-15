@@ -8,4 +8,4 @@ target = "index.html"
 # In production this file is not used — Axum serves everything.
 [[proxy]]
 rewrite = "/api"
-backend = "http://localhost:3000"
+backend = "http://localhost:3000/api"
