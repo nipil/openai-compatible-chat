@@ -27,3 +27,5 @@ TODO: move configs to XDG (and have it explain what it is)
 TODO: keep DRY between frontend and backend
 
 TOOD WEB: favicon pas affichée dans le tab
+
+TODO WEB: respect formatting ? verify web markdown rendering too
