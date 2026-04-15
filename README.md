@@ -123,3 +123,29 @@ Comportement :
 - `CTRL-C` : quitter proprement
 - dépassement de contexte → conversation verrouillée
 - les modèles non autorisés pour la clé API fournie sont ajoutés automatiquement à `exclusion.json`
+
+## Workflow de dev
+
+Installer les prérequis
+
+```shell
+# toolchain wasm
+rustup target add wasm32-unknown-unknown
+
+# outil qui hot-build/reload le wasm et le static
+cargo install trunk
+```
+
+Démarre le backend (prendre le port de `wasm/Trunk.toml [[proxy]] backend`
+
+```shell
+cargo run -- web --port 3000
+```
+
+Hot-build et reload du code rust/wasm et serveur du static
+
+```shell
+cd wasm && trunk serve
+```
+
+Visiter `http://localhost:8080` dans le navigateur
