@@ -418,7 +418,7 @@ fn App() -> impl IntoView {
                         "openai-compatible-chat"
                     </a>
                     <button class="theme-btn" on:click=toggle_theme>
-                        {move || if is_dark.get() { "☀" } else { "🌙" }}
+                        {move || if is_dark.get() { "🌞" } else { "🌚" }}
                     </button>
                 </div>
             </div>
