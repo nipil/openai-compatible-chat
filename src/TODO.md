@@ -25,3 +25,7 @@ TODO CLI: add rustyline instead of simple stdin
 TODO: move configs to XDG (and have it explain what it is)
 
 TODO: keep DRY between frontend and backend
+
+TODO WEB: fix /api/config 404
+
+TOOD WEB: favicon pas affichée dans le tab
