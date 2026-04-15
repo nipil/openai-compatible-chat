@@ -1,5 +1,5 @@
 use gloo_net::http::Request;
-use leptos::prelude::*;
+use leptos::{mount::mount_to_body, prelude::*, task::spawn_local};
 use send_wrapper::SendWrapper;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsCast;
@@ -8,7 +8,8 @@ use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefault
 
 // ── DTOs (mirror backend) ─────────────────────────────────────────────────────
 
-#[derive(Clone, Debug, Deserialize)]
+// PartialEq required by a bound in `leptos::prelude::Memo::<T>::new`
+#[derive(Clone, PartialEq, Debug, Deserialize)]
 struct ModelDto {
     id: String,
     max_tokens: Option<u32>,
@@ -71,7 +72,12 @@ fn to_html(md: &str) -> String {
 // ── Cookie helpers ────────────────────────────────────────────────────────────
 
 fn get_cookie(name: &str) -> Option<String> {
-    let cookies = web_sys::window()?.document().ok()??.cookie().ok()?;
+    let cookies = web_sys::window()?
+        .document()?
+        .dyn_into::<web_sys::HtmlDocument>()
+        .ok()?
+        .cookie()
+        .ok()?;
     cookies.split(';').find_map(|pair| {
         pair.trim()
             .strip_prefix(&format!("{name}="))
@@ -80,23 +86,34 @@ fn get_cookie(name: &str) -> Option<String> {
 }
 
 fn set_cookie(name: &str, value: &str) {
-    if let Some(doc) = web_sys::window().and_then(|w| w.document().ok()) {
-        // max-age=31536000 → survives browser restarts for one year
-        let _ = doc.set_cookie(&format!(
-            "{name}={value}; max-age=31536000; SameSite=Strict; path=/"
-        ));
-    }
+    let Some(windows) = web_sys::window() else {
+        return;
+    };
+    let Some(document) = windows.document() else {
+        return;
+    };
+    // max-age=31536000 → survives browser restarts for one year
+    let Some(html_doc) = document.dyn_into::<web_sys::HtmlDocument>().ok() else {
+        return;
+    };
+    let _ = html_doc.set_cookie(&format!(
+        "{name}={value}; max-age=31536000; SameSite=Strict; path=/"
+    ));
 }
 
 // ── Theme helpers ─────────────────────────────────────────────────────────────
 
 fn apply_theme(dark: bool) {
-    if let Some(el) = web_sys::window()
-        .and_then(|w| w.document().ok())
-        .and_then(|d| d.document_element())
-    {
-        let _ = el.set_attribute("data-theme", if dark { "dark" } else { "light" });
-    }
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let Some(document) = window.document() else {
+        return;
+    };
+    let Some(element) = document.document_element() else {
+        return;
+    };
+    let _ = element.set_attribute("data-theme", if dark { "dark" } else { "light" });
 }
 
 // ── SSE via fetch (POST + ReadableStream) ─────────────────────────────────────
@@ -112,11 +129,11 @@ async fn stream_chat(
     hdrs.set("Content-Type", "application/json")
         .map_err(|e| format!("{e:?}"))?;
 
-    let mut opts = web_sys::RequestInit::new();
-    opts.method("POST");
-    opts.headers(hdrs.as_ref());
-    opts.body(Some(&wasm_bindgen::JsValue::from_str(&body)));
-    opts.signal(Some(&signal));
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_headers(hdrs.as_ref());
+    opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+    opts.set_signal(Some(&signal));
 
     let req = web_sys::Request::new_with_str_and_init("/api/chat", &opts)
         .map_err(|e| format!("{e:?}"))?;
@@ -180,7 +197,7 @@ fn main() {
     // when the user has previously saved "light".
     let dark = get_cookie("theme").map(|v| v != "light").unwrap_or(true);
     apply_theme(dark);
-    leptos::mount_to_body(App);
+    mount_to_body(App);
 }
 
 // ── App component ─────────────────────────────────────────────────────────────
@@ -371,7 +388,7 @@ fn App() -> impl IntoView {
                 >
                     {move || models.get().into_iter().map(|m| {
                         let id = m.id.clone();
-                        view! { <option value=id.clone()>{id}</option> }
+                        view! { <option value=id.clone()>{id.clone()}</option> }
                     }).collect_view()}
                 </select>
 
