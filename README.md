@@ -2,7 +2,13 @@
 
 Simple chatbot en ligne de commande (CLI) en Rust, utilisant l’API OpenAI (publique ou privée).
 
-![sample](sample.png)
+Sample rendering for WEB in light mode
+
+![sample](sample-web.png)
+
+Sample rendering for CLI in dark mode
+
+![sample](sample-cli.png)
 
 ---
 
