@@ -22,7 +22,7 @@ use tower_http::cors::CorsLayer;
 
 use crate::{
     config::{self, Exclusion, Mapping},
-    models,
+    models::{self, ModelError},
 };
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -33,17 +33,34 @@ pub struct AppState {
     pub mapping: Arc<Mapping>,
     pub exclusion: Arc<RwLock<Exclusion>>, // shared mutable exclusion list
     pub filters: Arc<Vec<Regex>>,
-    pub system_prompt: String,
+    pub system_prompt: Arc<String>,
+    pub locked_model: Arc<Option<String>>, // set via CLI --model, None means free choice
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
 pub fn router(state: AppState) -> Router {
     Router::new()
+        .route("/api/config", get(handle_config))
         .route("/api/models", get(handle_models))
         .route("/api/chat", post(handle_chat))
         .layer(CorsLayer::permissive())
         .with_state(state)
+}
+
+// ── GET /api/config ───────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct ConfigDto {
+    system_prompt: String,
+    locked_model: Option<String>,
+}
+
+async fn handle_config(State(s): State<AppState>) -> Json<ConfigDto> {
+    Json(ConfigDto {
+        system_prompt: s.system_prompt.as_ref().clone(),
+        locked_model: s.locked_model.as_ref().clone(),
+    })
 }
 
 // ── GET /api/models ───────────────────────────────────────────────────────────
@@ -59,7 +76,12 @@ struct ModelDto {
 async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
     let exclusion = s.exclusion.read().await;
     let ids = models::list_models(&s.client).await.unwrap_or_default();
-    let enriched = models::filter_and_sort(ids, &s.mapping, &exclusion.excluded_models, &s.filters);
+    let mut enriched =
+        models::filter_and_sort(ids, &s.mapping, &exclusion.excluded_models, &s.filters);
+    // If a model is locked, expose only that model in the list
+    if let Some(lm) = s.locked_model.as_ref() {
+        enriched.retain(|m| &m.id == lm);
+    }
     Json(
         enriched
             .into_iter()
@@ -91,6 +113,12 @@ async fn handle_chat(
     State(s): State<AppState>,
     Json(mut req): Json<ChatRequest>,
 ) -> Sse<BoxStream<'static, Result<Event, Infallible>>> {
+    // Server-side model lock overrides whatever the client sent
+    if let Some(lm) = s.locked_model.as_ref() {
+        req.model = lm.clone();
+    }
+
+    // Inject system prompt if not already provided by the client
     if !s.system_prompt.is_empty()
         && req.messages.first().map(|m| m.role.as_str()) != Some("system")
     {
@@ -98,7 +126,7 @@ async fn handle_chat(
             0,
             MessageDto {
                 role: "system".into(),
-                content: s.system_prompt.clone(),
+                content: s.system_prompt.as_ref().clone(),
             },
         );
     }
@@ -121,6 +149,7 @@ async fn build_chat_stream(
     let messages = req
         .messages
         .iter()
+        .filter(|m| !(m.role == "system" && m.content.trim().is_empty()))
         .map(msg_to_api)
         .collect::<anyhow::Result<Vec<_>>>()?;
 
@@ -155,9 +184,7 @@ async fn build_chat_stream(
                 Err(e) => {
                     // Reuse test_model's exact detection logic to check if this
                     // model is unauthorized, rather than re-parsing the error string
-                    if let Err(models::ModelError::NotAllowed) =
-                        models::test_model(&client, &model).await
-                    {
+                    if let Err(ModelError::NotAllowed) = models::test_model(&client, &model).await {
                         let mut exclusion = exclusion.write().await;
                         if !exclusion.excluded_models.contains(&model) {
                             exclusion.excluded_models.push(model.clone());

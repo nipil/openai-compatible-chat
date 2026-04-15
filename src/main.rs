@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
 use std::{collections::HashMap, sync::Arc};
@@ -46,39 +46,38 @@ async fn main() -> Result<()> {
     let exclusion = config::load_exclusion().unwrap_or_default();
     let filters = models::compile_regex(&cfg.exclude_model_name_regex)?;
 
-    /// TODO: add locked model validation before constructing AppState
-    /// Does it check for actual availability ? try to reuse cli's forced !
-    // let locked_model = match model {
-    //     Some(ref m) => match models::test_model(&client, m).await {
-    //         Ok(()) => model.clone(),
-    //         Err(ModelError::Network(e)) => return Err(anyhow!("Network: {e}")),
-    //         Err(_) => {
-    //             eprintln!("Warning: model '{m}' unavailable, ignoring lock");
-    //             None
-    //         }
-    //     },
-    //     None => None,
-    // };
-
     // Create shared components
     let oa_cfg = OpenAIConfig::new()
         .with_api_key(&cfg.api_key)
         .with_api_base(&cfg.base_url);
     let client = Client::with_config(oa_cfg);
 
+    // check model arg for validity once
+    let locked_model = match args.model {
+        Some(ref m) => match models::test_model(&client, m).await {
+            Ok(()) => args.model.clone(),
+            Err(models::ModelError::Network(e)) => return Err(anyhow!("Network: {e}")),
+            Err(_) => {
+                eprintln!("Warning: model '{m}' unavailable, ignoring lock");
+                None
+            }
+        },
+        None => None,
+    };
+
     match &args.command {
         Commands::Cli => {
-            cli(args.model, client, mapping, exclusion, filters, cfg).await?;
+            cli(locked_model, client, mapping, exclusion, filters, cfg).await?;
         }
         Commands::Web { port } => {
-            web(args.model, port, client, mapping, exclusion, filters, cfg).await?;
+            web(locked_model, port, client, mapping, exclusion, filters, cfg).await?;
         }
     }
     Ok(())
 }
 
 async fn web(
-    model: Option<String>,
+    locked_model: Option<String>,
     port: &u16,
     client: Client<OpenAIConfig>,
     mapping: HashMap<String, config::ModelMeta>,
@@ -92,7 +91,8 @@ async fn web(
         mapping: Arc::new(mapping),
         exclusion: Arc::new(RwLock::new(exclusion)), // RwLock handles mut
         filters: Arc::new(filters),
-        system_prompt: cfg.prepend_system_prompt,
+        system_prompt: Arc::new(cfg.prepend_system_prompt),
+        locked_model: Arc::new(locked_model),
     };
 
     let app = web::router(state);
@@ -104,7 +104,7 @@ async fn web(
 }
 
 async fn cli(
-    model: Option<String>,
+    locked_model: Option<String>,
     client: Client<OpenAIConfig>,
     mapping: HashMap<String, config::ModelMeta>,
     mut exclusion: config::Exclusion,
@@ -123,7 +123,7 @@ async fn cli(
         std::process::exit(0);
     });
 
-    let mut forced: Option<String> = model;
+    let mut forced: Option<String> = locked_model;
     let mut model_cache: Option<Vec<models::EnrichedModel>> = None;
 
     loop {
