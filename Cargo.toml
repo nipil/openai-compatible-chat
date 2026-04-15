@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "frontend"]
+resolver = "2"
+
 [package]
 name = "openai-compatible-cli-chat"
 version = "0.2.1"

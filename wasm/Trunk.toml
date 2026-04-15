@@ -1,0 +1,10 @@
+[build]
+target = "index.html"
+
+# During development, proxy /api/* to the running backend.
+# Trunk serves the frontend on its own port (default 8080);
+# the backend runs separately on 3000.
+# In production this file is not used — Axum serves everything.
+[[proxy]]
+rewrite = "/api"
+backend = "http://localhost:3000"

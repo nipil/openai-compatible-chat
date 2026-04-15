@@ -1,0 +1,3 @@
+[build]
+# Tells what to build, and helps rust-analyzer in IDE
+target = "wasm32-unknown-unknown"
