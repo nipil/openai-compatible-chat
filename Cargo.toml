@@ -4,6 +4,8 @@ resolver = "2"
 
 [workspace.dependencies]
 portable = { path = "portable" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [package]
 name = "openai-compatible-cli-chat"
@@ -31,13 +33,13 @@ dialoguer = { version = "0.12", features = [
 futures = "0.3"
 owo-colors = "4"
 regex = "1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 termimad = "0.34" # markdown → ANSI terminal rendering
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
 
 portable.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 enable-ansi-support = "0.3.1"
