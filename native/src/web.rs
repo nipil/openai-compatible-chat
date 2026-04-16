@@ -24,7 +24,7 @@ use tower_http::cors::CorsLayer;
 use crate::config;
 use crate::models::{self, ModelError};
 
-use portable::{ConfigDto, Exclusion, Mapping, Message, ModelDto};
+use portable::{ConfigDto, Exclusion, Mapping, Message, MessageRole, ModelDto};
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -102,12 +102,12 @@ async fn handle_chat(
 
     // Inject system prompt if not already provided by the client
     if !s.system_prompt.is_empty()
-        && req.messages.first().map(|m| m.role.as_str()) != Some("system")
+        && req.messages.first().map(|m| m.role) != Some(MessageRole::System)
     {
         req.messages.insert(
             0,
             Message {
-                role: "system".into(),
+                role: MessageRole::System,
                 content: s.system_prompt.as_ref().clone(),
             },
         );
@@ -131,7 +131,7 @@ async fn build_chat_stream(
     let messages = req
         .messages
         .iter()
-        .filter(|m| !(m.role == "system" && m.content.trim().is_empty()))
+        .filter(|m| !(m.role == MessageRole::System && m.content.trim().is_empty()))
         .map(msg_to_api)
         .collect::<anyhow::Result<Vec<_>>>()?;
 
@@ -199,17 +199,18 @@ async fn build_chat_stream(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// TODO: make DRY and deduplicate vs chat.rs
 fn msg_to_api(m: &Message) -> anyhow::Result<ChatCompletionRequestMessage> {
-    Ok(match m.role.as_str() {
-        "system" => ChatCompletionRequestSystemMessageArgs::default()
+    Ok(match m.role {
+        MessageRole::System => ChatCompletionRequestSystemMessageArgs::default()
             .content(m.content.as_str())
             .build()?
             .into(),
-        "assistant" => ChatCompletionRequestAssistantMessageArgs::default()
+        MessageRole::Assistant => ChatCompletionRequestAssistantMessageArgs::default()
             .content(m.content.as_str())
             .build()?
             .into(),
-        _ => ChatCompletionRequestUserMessageArgs::default()
+        MessageRole::User => ChatCompletionRequestUserMessageArgs::default()
             .content(m.content.as_str())
             .build()?
             .into(),

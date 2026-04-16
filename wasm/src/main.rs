@@ -5,7 +5,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefaultReader};
 
-use portable::{ConfigDto, Message, ModelDto, estimate_tokens};
+use portable::{ConfigDto, Message, MessageRole, ModelDto, estimate_tokens};
 
 // Token counter: returns an inline style string for the dynamic gradient only.
 // Static layout/padding lives in .token-counter in style.css.
@@ -286,7 +286,7 @@ fn App() -> impl IntoView {
             hist.insert(
                 0,
                 Message {
-                    role: "system".into(),
+                    role: MessageRole::System,
                     content: sys_prompt.get_untracked(),
                 },
             );
@@ -294,11 +294,11 @@ fn App() -> impl IntoView {
         }
 
         hist.push(Message {
-            role: "user".into(),
+            role: MessageRole::User,
             content: text,
         });
         hist.push(Message {
-            role: "assistant".into(),
+            role: MessageRole::Assistant,
             content: String::new(),
         }); // reserved slot
         let send_msgs = hist[..hist.len() - 1].to_vec(); // exclude the empty assistant slot
@@ -420,9 +420,9 @@ fn App() -> impl IntoView {
             // ── Conversation ──────────────────────────────────────────────────
             <div class="conversation" node_ref=conv_ref>
                 {move || messages.get().into_iter()
-                    .filter(|m| m.role != "system")
+                    .filter(|m| m.role != MessageRole::System)
                     .map(|msg| {
-                        let is_user    = msg.role == "user";
+                        let is_user    = msg.role == MessageRole::User;
                         let row_cls    = if is_user { "msg-row user" }      else { "msg-row assistant" };
                         let bubble_cls = if is_user { "msg-bubble user" }   else { "msg-bubble assistant" };
                         view! {

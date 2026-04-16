@@ -20,7 +20,7 @@ use owo_colors::OwoColorize;
 
 use crate::{display::LiveMarkdown, models::EnrichedModel};
 
-use portable::{Config, Exclusion, Message, estimate_tokens};
+use portable::{Config, Exclusion, Message, MessageRole, estimate_tokens};
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -42,7 +42,7 @@ pub async fn run(
 
     let system = build_system_prompt(config).await;
     let mut history = vec![Message {
-        role: "system".into(),
+        role: MessageRole::System,
         content: system,
     }];
 
@@ -64,14 +64,14 @@ pub async fn run(
         }
 
         history.push(Message {
-            role: "user".into(),
+            role: MessageRole::User,
             content: input,
         });
 
         match send_and_stream(client, model, &history).await {
             Ok(reply) => {
                 history.push(Message {
-                    role: "assistant".into(),
+                    role: MessageRole::Assistant,
                     content: reply,
                 });
             }
@@ -204,20 +204,21 @@ async fn send_and_stream(
     Ok(full)
 }
 
+// TODO: make DRY and deduplicate vs web.rs
 fn to_api_messages(history: &[Message]) -> Result<Vec<ChatCompletionRequestMessage>, OpenAIError> {
     history
         .iter()
         .map(|m| {
-            Ok(match m.role.as_str() {
-                "system" => ChatCompletionRequestSystemMessageArgs::default()
+            Ok(match m.role {
+                MessageRole::System => ChatCompletionRequestSystemMessageArgs::default()
                     .content(m.content.as_str())
                     .build()?
                     .into(),
-                "user" => ChatCompletionRequestUserMessageArgs::default()
+                MessageRole::User => ChatCompletionRequestUserMessageArgs::default()
                     .content(m.content.as_str())
                     .build()?
                     .into(),
-                _ => ChatCompletionRequestAssistantMessageArgs::default()
+                MessageRole::Assistant => ChatCompletionRequestAssistantMessageArgs::default()
                     .content(m.content.as_str())
                     .build()?
                     .into(),

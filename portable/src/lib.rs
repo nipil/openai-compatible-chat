@@ -1,6 +1,16 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ── Safer value management ────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MessageRole {
+    System,
+    User,
+    Assistant,
+}
+
 // ── Configurations ────────────────────────────────────────────────────────────
 
 pub type Mapping = HashMap<String, ModelMeta>;
@@ -53,7 +63,7 @@ pub struct ConfigDto {
 /// Might need to split it if they diverge
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Message {
-    pub role: String, // "system" | "user" | "assistant" : TODO: convert to Enums
+    pub role: MessageRole,
     pub content: String,
 }
 
