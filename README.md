@@ -155,3 +155,7 @@ cd wasm && trunk serve
 ```
 
 Visiter `http://localhost:8080` dans le navigateur
+
+## Architecture
+
+![Composants et liens](architecture.svg)
