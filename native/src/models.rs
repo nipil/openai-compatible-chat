@@ -123,10 +123,11 @@ pub fn explain_rejection(
     }
     if let Some(meta) = mapping.get(id) {
         if let Some(ref t) = meta.model_type {
-            if let Ok(ref model_type) = t.parse() {
-                if !ALLOWED_TYPES.contains(model_type) {
-                    return Some(format!("filtered out (type={t} not supported)"));
-                }
+            let Ok(ref model_type) = t.parse() else {
+                return Some(format!("filtered out (type={t} not recognized)"));
+            };
+            if !ALLOWED_TYPES.contains(model_type) {
+                return Some(format!("filtered out (type={t} not supported)"));
             }
         }
     }
