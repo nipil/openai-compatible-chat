@@ -159,3 +159,26 @@ Visiter `http://localhost:8080` dans le navigateur
 ## Architecture
 
 ![Composants et liens](architecture.svg)
+
+That's the entire stack:
+
+- Axum + async-openapi on the back
+- Leptos + Trunk on the front.
+
+No database, no auth middleware, no extra complexity.
+
+### Backend: Axum
+
+It's the simplest, most modern Rust web framework. Lightweight, built on Tokio, and has excellent support for streaming responses via SSE (Server-Sent Events). It will serve two purposes: proxying requests to OpenAI (keeping your API key server-side), and serving the compiled WASM frontend as static files.
+
+### Frontend: Leptos
+
+The best choice for a simple reactive SPA in Rust/WASM right now. It has a clean component model, handles async and reactive state elegantly, and its compiled output is very small. You won't need a router, so you'll only use its core reactivity and component system.
+
+### Build tooling: Trunk
+
+The standard tool for building and bundling Rust WASM frontends. It handles the WASM compilation, asset pipeline, and dev server with hot-reload out of the box. Zero config for a simple project like this.
+
+### Application flow
+
+The streaming flow will be: Leptos frontend sends a fetch request → Axum backend forwards it to OpenAI with streaming enabled → Axum streams tokens back as SSE → Leptos reads the SSE stream and appends tokens to the UI reactively.
