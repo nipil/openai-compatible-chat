@@ -20,7 +20,7 @@ use owo_colors::OwoColorize;
 
 use crate::{display::LiveMarkdown, models::EnrichedModel};
 
-use portable::{Config, Exclusion, Message, estimate};
+use portable::{Config, Exclusion, Message, estimate_tokens};
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -121,7 +121,7 @@ async fn build_system_prompt(config: &Config) -> String {
 }
 
 async fn read_user_input(model: &str, history: &[Message], max_tokens: Option<u32>) -> String {
-    let tok = estimate(history);
+    let tok = estimate_tokens(history);
     let now = Local::now().format("%H:%M:%S").to_string();
     let model = model.to_string();
 

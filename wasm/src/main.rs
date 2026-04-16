@@ -5,7 +5,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefaultReader};
 
-use portable::{ConfigDto, Message, ModelDto, estimate};
+use portable::{ConfigDto, Message, ModelDto, estimate_tokens};
 
 // Token counter: returns an inline style string for the dynamic gradient only.
 // Static layout/padding lives in .token-counter in style.css.
@@ -232,7 +232,7 @@ fn App() -> impl IntoView {
         let id = sel_model.get();
         models.get().into_iter().find(|m| m.id == id)
     });
-    let tok_count = Memo::new(move |_| estimate(&messages.get()));
+    let tok_count = Memo::new(move |_| estimate_tokens(&messages.get()));
     let mdl_locked =
         Memo::new(move |_| started.get() || locked_mdl.get().is_some() || models.get().len() <= 1);
 
