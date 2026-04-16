@@ -9,8 +9,6 @@ TODO: rust-embed for static bundling
 
 TODO: sessionStorage (survives F5, dies when tab closes)
 
-FINAL BUILD ORDER: trunk build --release && cargo build --release
-
 TODO: add a sytemd unit for user so that it auto-starts in web mode
 
 TODO CLI: pre-fill the system prompt and let the user clear it
@@ -27,5 +25,3 @@ TODO: move configs to XDG (and have it explain what it is)
 TODO: keep DRY between frontend and backend
 
 TOOD WEB: favicon pas affichée dans le tab
-
-TODO WEB: respect formatting ? verify web markdown rendering too
