@@ -15,6 +15,7 @@ pub struct Config {
     pub prepend_system_prompt: String,
 }
 
+// TODO: think about a way to merge ModelMeta and ModelDto ?
 #[derive(Debug, Deserialize, Clone)]
 pub struct ModelMeta {
     pub family: Option<String>,
