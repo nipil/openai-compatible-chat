@@ -23,14 +23,13 @@ dialoguer = { version = "0.12", features = [
 ] } # FuzzySelect for model picking
 futures = "0.3"
 owo-colors = "4"
+portable.workspace = true
 regex = "1"
+serde.workspace = true
+serde_json.workspace = true
 termimad = "0.34" # markdown → ANSI terminal rendering
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
-
-portable.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 enable-ansi-support = "0.3.1"

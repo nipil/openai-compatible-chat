@@ -4,25 +4,20 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-leptos = { version = "0.8", features = ["csr"] }
+# turns WASM panics into readable browser console messages
+console_error_panic_hook = "0.1"
 gloo-net = { version = "0.7", features = ["http"] }
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
+leptos = { version = "0.8", features = ["csr"] }
 js-sys = "0.3"
-send_wrapper = "0.6"
 pulldown-cmark = { version = "0.13", default-features = false, features = [
     "html",
 ] }
-# turns WASM panics into readable browser console messages
-console_error_panic_hook = "0.1"
-
 serde.workspace = true
 serde_json.workspace = true
-
-[dependencies.web-sys]
-version = "0.3"
-
-features = [
+send_wrapper = "0.6"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
     "Window",
     "Document",
     "Element",                     # cookie r/w + data-theme attribute + scroll
@@ -36,4 +31,4 @@ features = [
     "AbortSignal",
     "KeyboardEvent",
     "HtmlDocument",
-]
+] }
