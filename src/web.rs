@@ -16,6 +16,7 @@ use axum::{
 use futures::{StreamExt, stream::BoxStream};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::io::{self, Write};
 use std::{convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
 use tower_http::cors::CorsLayer;
@@ -35,6 +36,7 @@ pub struct AppState {
     pub filters: Arc<Vec<Regex>>,
     pub system_prompt: Arc<String>,
     pub locked_model: Arc<Option<String>>, // set via CLI --model, None means free choice
+    pub print_responses: Arc<bool>,        // set via CLI --print-responses
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -164,12 +166,14 @@ async fn build_chat_stream(
     let model = req.model.clone();
     let exclusion = Arc::clone(&s.exclusion);
     let client = Arc::clone(&s.client);
+    let print_responses = Arc::clone(&s.print_responses);
 
     // Use `.then()` (async map) so we can do async writes on unauthorized errors
     let sse = openai_stream.then(move |chunk| {
         let model = model.clone();
         let exclusion = Arc::clone(&exclusion);
         let client = Arc::clone(&client);
+        let print_responses = Arc::clone(&print_responses);
         async move {
             match chunk {
                 Ok(resp) => {
@@ -178,6 +182,10 @@ async fn build_chat_stream(
                         .first()
                         .and_then(|c| c.delta.content.clone())
                         .unwrap_or_default();
+                    if *print_responses {
+                        print!("{token}");
+                        io::stdout().flush().unwrap();
+                    }
                     Ok::<Event, Infallible>(Event::default().data(token))
                 }
 
