@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "app", "portable", "wasm"]
+members = ["native", "portable", "wasm"]
 resolver = "2"
 
 [workspace.dependencies]

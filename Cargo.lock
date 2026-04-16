@@ -88,30 +88,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
-name = "app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-openai",
- "axum",
- "chrono",
- "clap",
- "console",
- "crossterm",
- "dialoguer",
- "enable-ansi-support",
- "futures",
- "owo-colors",
- "portable",
- "regex",
- "serde",
- "serde_json",
- "termimad",
- "tokio",
- "tower-http",
-]
-
-[[package]]
 name = "async-lock"
 version = "3.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1840,6 +1816,30 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "native"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-openai",
+ "axum",
+ "chrono",
+ "clap",
+ "console",
+ "crossterm",
+ "dialoguer",
+ "enable-ansi-support",
+ "futures",
+ "owo-colors",
+ "portable",
+ "regex",
+ "serde",
+ "serde_json",
+ "termimad",
+ "tokio",
+ "tower-http",
 ]
 
 [[package]]

@@ -145,7 +145,7 @@ cargo install trunk
 Démarre le backend (prendre le port de `wasm/Trunk.toml [[proxy]] backend`
 
 ```shell
-cargo run -- web --port 3000
+cargo run -p native -- web --port 3000
 ```
 
 Hot-build et reload du code rust/wasm et serveur du static
