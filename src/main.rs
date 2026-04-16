@@ -70,31 +70,22 @@ async fn main() -> Result<()> {
             cli(locked_model, client, mapping, exclusion, filters, cfg).await?;
         }
         Commands::Web { port } => {
-            web(locked_model, port, client, mapping, exclusion, filters, cfg).await?;
+            // wraps because shared between multiple request handlers within the web server
+            let state = web::AppState {
+                client: Arc::new(client),
+                mapping: Arc::new(mapping),
+                exclusion: Arc::new(RwLock::new(exclusion)), // RwLock handles mut
+                filters: Arc::new(filters),
+                system_prompt: Arc::new(cfg.prepend_system_prompt),
+                locked_model: Arc::new(locked_model),
+            };
+            web(port, state).await?;
         }
     }
     Ok(())
 }
 
-async fn web(
-    locked_model: Option<String>,
-    port: &u16,
-    client: Client<OpenAIConfig>,
-    mapping: HashMap<String, config::ModelMeta>,
-    exclusion: config::Exclusion,
-    filters: Vec<regex::Regex>,
-    cfg: config::Config,
-) -> Result<()> {
-    // wraps because shared between multiple request handlers within the web server
-    let state = web::AppState {
-        client: Arc::new(client),
-        mapping: Arc::new(mapping),
-        exclusion: Arc::new(RwLock::new(exclusion)), // RwLock handles mut
-        filters: Arc::new(filters),
-        system_prompt: Arc::new(cfg.prepend_system_prompt),
-        locked_model: Arc::new(locked_model),
-    };
-
+async fn web(port: &u16, state: web::AppState) -> Result<()> {
     let app = web::router(state);
     let listen_addr = format!("localhost:{port}");
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
