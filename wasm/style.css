@@ -5,7 +5,7 @@
     --bg-banner: #1e1e2e;
     --bg-panel: #252535;
     --bg-input: #313244;
-    --bg-user-msg: #1e3a2e;
+    --bg-user-msg: #193b5c;
     --bg-asst-msg: #2a2a3e;
     --text-primary: #cdd6f4;
     --text-muted: #6c7086;
@@ -26,7 +26,7 @@
     /* keep banner dark in both themes */
     --bg-panel: #ffffff;
     --bg-input: #ffffff;
-    --bg-user-msg: #d9fdd3;
+    --bg-user-msg: #a7b2a6;
     --bg-asst-msg: #ffffff;
     --text-primary: #1a1a2e;
     --text-muted: #9ca3af;
