@@ -1,10 +1,27 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig, error::OpenAIError};
+use portable::{Exclusion, Mapping};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
+//use std::str::FromStr;
 
-use portable::{Exclusion, Mapping, ModelMeta};
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumString)]
+#[strum(serialize_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum ModelType {
+    Chat,
+    Multimodal,
+    Reasoning,
+    Instruct,
+}
 
-pub const ALLOWED_TYPES: &[&str] = &["chat", "multimodal", "reasoning", "instruct"];
+pub const ALLOWED_TYPES: &[ModelType] = &[
+    ModelType::Chat,
+    ModelType::Multimodal,
+    ModelType::Reasoning,
+    ModelType::Instruct,
+];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -72,20 +89,16 @@ pub fn filter_and_sort(
         .filter(|id| !excluded.contains(id))
         .filter(|id| !filters.iter().any(|r| r.is_match(id)))
         .filter_map(|id| {
-            let meta: Option<&ModelMeta> = mapping.get(&id);
-            let ty = meta.and_then(|m| m.model_type.clone());
+            let meta = mapping.get(&id)?;
+            let model_type = meta.model_type.clone()?.parse().ok()?;
             // Drop models whose type is known but not in the allowed set.
-            if let Some(ref t) = ty {
-                if !ALLOWED_TYPES.contains(&t.as_str()) {
-                    return None;
-                }
+            if !ALLOWED_TYPES.contains(&model_type) {
+                return None;
             }
             Some(EnrichedModel {
-                family: meta
-                    .and_then(|m| m.family.clone())
-                    .unwrap_or_else(|| "zzz".into()),
-                max_tokens: meta.and_then(|m| m.max_tokens),
-                model_type: ty,
+                family: meta.family.clone().unwrap_or_default(),
+                max_tokens: meta.max_tokens,
+                model_type: Some(model_type.to_string()),
                 id,
             })
         })
@@ -110,8 +123,10 @@ pub fn explain_rejection(
     }
     if let Some(meta) = mapping.get(id) {
         if let Some(ref t) = meta.model_type {
-            if !ALLOWED_TYPES.contains(&t.as_str()) {
-                return Some(format!("filtered out (type={t} not supported)"));
+            if let Ok(ref model_type) = t.parse() {
+                if !ALLOWED_TYPES.contains(model_type) {
+                    return Some(format!("filtered out (type={t} not supported)"));
+                }
             }
         }
     }
