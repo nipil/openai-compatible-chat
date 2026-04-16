@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig, error::OpenAIError};
 use regex::Regex;
 
-use crate::config::{Exclusion, Mapping, ModelMeta};
+use portable::{Exclusion, Mapping, ModelMeta};
 
 pub const ALLOWED_TYPES: &[&str] = &["chat", "multimodal", "reasoning", "instruct"];
 

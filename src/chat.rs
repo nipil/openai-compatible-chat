@@ -18,12 +18,9 @@ use chrono::Local;
 use futures::StreamExt;
 use owo_colors::OwoColorize;
 
-use crate::{
-    config::{Config, Exclusion},
-    display::LiveMarkdown,
-    models::EnrichedModel,
-    tokens,
-};
+use crate::{display::LiveMarkdown, models::EnrichedModel, tokens};
+
+use portable::{Config, Exclusion};
 
 // ── Public types ──────────────────────────────────────────────────────────────
 

@@ -2,6 +2,9 @@
 members = [".", "portable", "wasm"]
 resolver = "2"
 
+[workspace.dependencies]
+portable = { path = "portable" }
+
 [package]
 name = "openai-compatible-cli-chat"
 version = "0.2.1"
@@ -33,6 +36,8 @@ serde_json = "1"
 termimad = "0.34" # markdown → ANSI terminal rendering
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
+
+portable.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 enable-ansi-support = "0.3.1"

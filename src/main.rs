@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
+use portable::{Config, Exclusion, Mapping, ModelMeta};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -105,10 +106,10 @@ async fn web(port: &u16, state: web::AppState) -> Result<()> {
 async fn cli(
     locked_model: Option<String>,
     client: Client<OpenAIConfig>,
-    mapping: HashMap<String, config::ModelMeta>,
-    mut exclusion: config::Exclusion,
+    mapping: HashMap<String, ModelMeta>,
+    mut exclusion: Exclusion,
     filters: Vec<regex::Regex>,
-    config: config::Config,
+    config: Config,
 ) -> Result<()> {
     // Enable ANSI colour codes on legacy Windows consoles (cmd.exe).
     // No-op on Windows 10+ / modern terminals / all Unix systems.
@@ -200,8 +201,8 @@ async fn cli(
 async fn pick_from_list(
     client: &Client<OpenAIConfig>,
     cache: &mut Option<Vec<models::EnrichedModel>>,
-    mapping: &config::Mapping,
-    excl: &config::Exclusion,
+    mapping: &Mapping,
+    excl: &Exclusion,
     filters: &[regex::Regex],
 ) -> Result<String> {
     if cache.is_none() {

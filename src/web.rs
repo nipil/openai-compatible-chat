@@ -21,10 +21,10 @@ use std::{convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
 use tower_http::cors::CorsLayer;
 
-use crate::{
-    config::{self, Exclusion, Mapping},
-    models::{self, ModelError},
-};
+use crate::config;
+use crate::models::{self, ModelError};
+
+use portable::{Exclusion, Mapping};
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
