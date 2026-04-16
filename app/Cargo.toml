@@ -1,0 +1,36 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "chat"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+async-openai = { version = "0.34", features = [
+    "chat-completion",
+    "model",
+] } # pin to a known-good release; bump carefully
+axum = "0.8"
+chrono = { version = "0.4", features = ["clock"] }
+clap = { version = "4", features = ["derive"] }
+console = "0.16" # strip_ansi_codes + Term helpers
+crossterm = "0.29"
+dialoguer = { version = "0.12", features = [
+    "fuzzy-select",
+] } # FuzzySelect for model picking
+futures = "0.3"
+owo-colors = "4"
+regex = "1"
+termimad = "0.34" # markdown → ANSI terminal rendering
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "fs"] }
+
+portable.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+enable-ansi-support = "0.3.1"
