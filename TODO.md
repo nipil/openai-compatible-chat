@@ -25,3 +25,7 @@ TODO: move configs to XDG (and have it explain what it is)
 TODO: keep DRY between frontend and backend
 
 TOOD WEB: favicon pas affichée dans le tab
+
+TODO: make more robust enums vs strings
+
+TODO: make consts out of fixes strings which are not variables
