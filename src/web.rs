@@ -186,6 +186,10 @@ async fn build_chat_stream(
                         print!("{token}");
                         io::stdout().flush().unwrap();
                     }
+                    // encode the token in json so that newlines in the token
+                    // does not break the SSE frame, and are preserved to frontend
+                    // but the frontend should now decode the json data
+                    let token = serde_json::to_string(&token).unwrap_or_default();
                     Ok::<Event, Infallible>(Event::default().data(token))
                 }
 

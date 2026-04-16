@@ -175,12 +175,23 @@ async fn stream_chat(
         let arr: js_sys::Uint8Array = value.dyn_into().map_err(|e| format!("{e:?}"))?;
         buf.push_str(&String::from_utf8_lossy(&arr.to_vec()));
 
+        // processes all complete lines from the buffer in one chunk,
+        // since a single network chunk may contain multiple \n-terminated SSE frames
         while let Some(nl) = buf.find('\n') {
             let line = buf[..nl].trim_end_matches('\r').to_string();
             buf = buf[nl + 1..].to_string();
             if let Some(data) = line.strip_prefix("data: ") {
                 if data != "[DONE]" {
-                    on_token(data.to_string());
+                    // decode the token from json so that newlines in the token
+                    // were not lost in the SSE frame, and are preserved for frontend
+                    // and if not decodable, use as it
+                    let token: String =
+                        serde_json::from_str(data).unwrap_or_else(|_| data.to_string());
+                    // log tokens to console if in debug mode
+                    #[cfg(debug_assertions)]
+                    web_sys::console::log_1(&format!("token: {:?}", token).into());
+                    // call the callback for each token
+                    on_token(token);
                 }
             }
         }
