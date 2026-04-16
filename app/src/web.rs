@@ -15,7 +15,7 @@ use axum::{
 };
 use futures::{StreamExt, stream::BoxStream};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::io::{self, Write};
 use std::{convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
@@ -24,7 +24,7 @@ use tower_http::cors::CorsLayer;
 use crate::config;
 use crate::models::{self, ModelError};
 
-use portable::{Exclusion, Mapping};
+use portable::{ConfigDto, Exclusion, Mapping, Message, ModelDto};
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -52,12 +52,6 @@ pub fn router(state: AppState) -> Router {
 
 // ── GET /api/config ───────────────────────────────────────────────────────────
 
-#[derive(Serialize)]
-struct ConfigDto {
-    system_prompt: String,
-    locked_model: Option<String>,
-}
-
 async fn handle_config(State(s): State<AppState>) -> Json<ConfigDto> {
     Json(ConfigDto {
         system_prompt: s.system_prompt.as_ref().clone(),
@@ -66,14 +60,6 @@ async fn handle_config(State(s): State<AppState>) -> Json<ConfigDto> {
 }
 
 // ── GET /api/models ───────────────────────────────────────────────────────────
-
-#[derive(Serialize)]
-struct ModelDto {
-    id: String,
-    family: String,
-    model_type: Option<String>,
-    max_tokens: Option<u32>,
-}
 
 async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
     let exclusion = s.exclusion.read().await;
@@ -102,13 +88,7 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
 #[derive(Deserialize)]
 pub struct ChatRequest {
     pub model: String,
-    pub messages: Vec<MessageDto>,
-}
-
-#[derive(Deserialize)]
-pub struct MessageDto {
-    pub role: String,
-    pub content: String,
+    pub messages: Vec<Message>,
 }
 
 async fn handle_chat(
@@ -126,7 +106,7 @@ async fn handle_chat(
     {
         req.messages.insert(
             0,
-            MessageDto {
+            Message {
                 role: "system".into(),
                 content: s.system_prompt.as_ref().clone(),
             },
@@ -219,7 +199,7 @@ async fn build_chat_stream(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn msg_to_api(m: &MessageDto) -> anyhow::Result<ChatCompletionRequestMessage> {
+fn msg_to_api(m: &Message) -> anyhow::Result<ChatCompletionRequestMessage> {
     Ok(match m.role.as_str() {
         "system" => ChatCompletionRequestSystemMessageArgs::default()
             .content(m.content.as_str())

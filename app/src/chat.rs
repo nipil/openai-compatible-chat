@@ -18,16 +18,11 @@ use chrono::Local;
 use futures::StreamExt;
 use owo_colors::OwoColorize;
 
-use crate::{display::LiveMarkdown, models::EnrichedModel, tokens};
+use crate::{display::LiveMarkdown, models::EnrichedModel};
 
-use portable::{Config, Exclusion};
+use portable::{Config, Exclusion, Message, estimate};
 
 // ── Public types ──────────────────────────────────────────────────────────────
-
-pub struct Message {
-    pub role: &'static str, // "system" | "user" | "assistant"
-    pub content: String,
-}
 
 pub enum ChatOutcome {
     /// Model was excluded mid-session; caller must persist the exclusion list.
@@ -47,7 +42,7 @@ pub async fn run(
 
     let system = build_system_prompt(config).await;
     let mut history = vec![Message {
-        role: "system",
+        role: "system".into(),
         content: system,
     }];
 
@@ -69,14 +64,14 @@ pub async fn run(
         }
 
         history.push(Message {
-            role: "user",
+            role: "user".into(),
             content: input,
         });
 
         match send_and_stream(client, model, &history).await {
             Ok(reply) => {
                 history.push(Message {
-                    role: "assistant",
+                    role: "assistant".into(),
                     content: reply,
                 });
             }
@@ -126,7 +121,7 @@ async fn build_system_prompt(config: &Config) -> String {
 }
 
 async fn read_user_input(model: &str, history: &[Message], max_tokens: Option<u32>) -> String {
-    let tok = tokens::estimate(history);
+    let tok = estimate(history);
     let now = Local::now().format("%H:%M:%S").to_string();
     let model = model.to_string();
 
@@ -213,7 +208,7 @@ fn to_api_messages(history: &[Message]) -> Result<Vec<ChatCompletionRequestMessa
     history
         .iter()
         .map(|m| {
-            Ok(match m.role {
+            Ok(match m.role.as_str() {
                 "system" => ChatCompletionRequestSystemMessageArgs::default()
                     .content(m.content.as_str())
                     .build()?

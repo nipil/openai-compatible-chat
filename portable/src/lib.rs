@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ── Configurations ────────────────────────────────────────────────────────────
+
 pub type Mapping = HashMap<String, ModelMeta>;
 
 #[derive(Debug, Deserialize)]
@@ -25,4 +27,43 @@ pub struct ModelMeta {
 pub struct Exclusion {
     #[serde(default)]
     pub excluded_models: Vec<String>,
+}
+
+// ── DTOs ──────────────────────────────────────────────────────────────────────
+
+// PartialEq required by a bound in `leptos::prelude::Memo::<T>::new`
+#[derive(Clone, PartialEq, Deserialize, Serialize)]
+pub struct ModelDto {
+    pub id: String,
+    pub family: String,
+    pub model_type: Option<String>,
+    pub max_tokens: Option<u32>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct ConfigDto {
+    pub system_prompt: String,
+    pub locked_model: Option<String>,
+}
+
+/// We reuse the same structure for :
+/// - Frontend <-> Backend
+/// - Backend <-> OpenAI-compatible provider
+/// Might need to split it if they diverge
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Message {
+    pub role: String, // "system" | "user" | "assistant" : TODO: convert to Enums
+    pub content: String,
+}
+
+// ── Token estimate ────────────────────────────────────────────────────────────
+
+/// Rough estimate: 1 token ≈ 4 UTF-8 chars, 3 tokens overhead per message,
+/// plus 3 for the reply primer — mirrors the Python fallback heuristic.
+pub fn estimate(messages: &[Message]) -> usize {
+    messages
+        .iter()
+        .map(|m| 3 + m.content.chars().count() / 4)
+        .sum::<usize>()
+        + 3
 }

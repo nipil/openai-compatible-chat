@@ -9,6 +9,7 @@ console_error_panic_hook = "0.1"
 gloo-net = { version = "0.7", features = ["http"] }
 leptos = { version = "0.8", features = ["csr"] }
 js-sys = "0.3"
+portable.workspace = true
 pulldown-cmark = { version = "0.13", default-features = false, features = [
     "html",
 ] }

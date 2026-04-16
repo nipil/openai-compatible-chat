@@ -9,7 +9,6 @@ mod chat;
 mod config;
 mod display;
 mod models;
-mod tokens;
 mod web;
 
 #[derive(Parser)]

@@ -1,40 +1,11 @@
 use gloo_net::http::Request;
 use leptos::{mount::mount_to_body, prelude::*, task::spawn_local};
 use send_wrapper::SendWrapper;
-use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefaultReader};
 
-// ── DTOs (mirror backend) ─────────────────────────────────────────────────────
-
-// PartialEq required by a bound in `leptos::prelude::Memo::<T>::new`
-#[derive(Clone, PartialEq, Debug, Deserialize)]
-struct ModelDto {
-    id: String,
-    max_tokens: Option<u32>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct ConfigDto {
-    system_prompt: String,
-    locked_model: Option<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct Message {
-    role: String,
-    content: String,
-}
-
-// ── Token estimate (mirrors backend logic) ────────────────────────────────────
-
-fn estimate(msgs: &[Message]) -> usize {
-    msgs.iter()
-        .map(|m| 3 + m.content.chars().count() / 4)
-        .sum::<usize>()
-        + 3
-}
+use portable::{ConfigDto, Message, ModelDto, estimate};
 
 // Token counter: returns an inline style string for the dynamic gradient only.
 // Static layout/padding lives in .token-counter in style.css.
