@@ -141,6 +141,8 @@ rustup target add wasm32-unknown-unknown
 cargo install trunk
 ```
 
+### Debug
+
 Démarre le backend (prendre le port de `wasm/Trunk.toml [[proxy]] backend`
 
 ```shell
@@ -154,6 +156,17 @@ cd wasm && trunk serve
 ```
 
 Visiter `http://localhost:8080` dans le navigateur
+
+### Release
+
+```shell
+cd wasm && trunk build --release
+```
+
+```shell
+cd ..
+cargo build --release
+```
 
 ## Architecture
 
