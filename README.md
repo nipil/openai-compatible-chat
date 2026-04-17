@@ -18,8 +18,7 @@ Les binaires sont générés automatiquement à chaque release.
 
 ### 📦 Télécharger un binaire
 
-1. Aller sur la page des releases :  
-   <https://github.com/><repo>/releases
+1. Aller sur la [page des releases)(https://github.com/nipil/openai-compatible-chat/releases)
 
 2. Télécharger l’archive correspondant à votre système :
    - 🪟 Windows : `chatbot-x86_64-pc-windows-msvc.zip`
