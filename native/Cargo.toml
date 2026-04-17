@@ -34,3 +34,6 @@ tower-http = { version = "0.6", features = ["cors", "fs"] }
 
 [target.'cfg(windows)'.dependencies]
 enable-ansi-support = "0.3.1"
+
+[features]
+cors-permissive = []

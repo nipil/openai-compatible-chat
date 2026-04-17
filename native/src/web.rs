@@ -19,7 +19,6 @@ use serde::Deserialize;
 use std::io::{self, Write};
 use std::{convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
-use tower_http::cors::CorsLayer;
 
 use crate::config;
 use crate::models::{self, ModelError};
@@ -42,12 +41,18 @@ pub struct AppState {
 // ── Router ────────────────────────────────────────────────────────────────────
 
 pub fn router(state: AppState) -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/api/config", get(handle_config))
         .route("/api/models", get(handle_models))
         .route("/api/chat", post(handle_chat))
-        .layer(CorsLayer::permissive())
-        .with_state(state)
+        .with_state(state);
+    #[cfg(feature = "cors-permissive")]
+    {
+        use tower_http::cors::CorsLayer;
+        router.layer(CorsLayer::permissive())
+    }
+    #[cfg(not(feature = "cors-permissive"))]
+    router
 }
 
 // ── GET /api/config ───────────────────────────────────────────────────────────
