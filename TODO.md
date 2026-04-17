@@ -4,19 +4,21 @@
 
 rust-embed for static bundling (use feature flag to disable)
 
-WEB: sessionStorage (survives F5, dies when tab closes)
-
 NIX: add a sytemd unit for user so that it auto-starts in web mode
+
+UX: selected model does not reflect "model" cookie (even if not locked !)
 
 CLI: pre-fill the system prompt and let the user clear it
 
 CLI: add rustyline instead of simple stdin
 
+UX: add a new conversation button which opens a new tab for the same address ?
+
+UX: add a clear conversation which clears history and reloads tab ?
+
 move configs to XDG (and have it explain what it is)
 
 WEB: favicon pas affichée dans le tab
-
-WEB: sessionStorage (survives F5, dies when tab closes)
 
 ## Code quality
 
