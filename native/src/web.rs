@@ -18,11 +18,14 @@ use regex::Regex;
 use serde::Deserialize;
 use std::{convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
+use tower_http::services::ServeDir;
 
 use crate::config;
 use crate::models::{self, ModelError};
 
 use portable::{ConfigDto, Exclusion, Mapping, Message, MessageRole, ModelDto};
+
+const DIST_FOLDER: &str = "wasm/dist";
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -43,6 +46,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/config", get(handle_config))
         .route("/api/models", get(handle_models))
         .route("/api/chat", post(handle_chat))
+        .fallback_service(ServeDir::new(DIST_FOLDER).append_index_html_on_directories(true))
         .with_state(state);
     #[cfg(feature = "cors-permissive")]
     {
