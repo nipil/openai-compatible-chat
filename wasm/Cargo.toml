@@ -28,6 +28,7 @@ web-sys = { version = "0.3", features = [
     "Response",
     "ReadableStream",
     "ReadableStreamDefaultReader",
+    "Storage",
     "AbortController",
     "AbortSignal",
     "KeyboardEvent",

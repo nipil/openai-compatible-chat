@@ -3,7 +3,7 @@ use leptos::{mount::mount_to_body, prelude::*, task::spawn_local};
 use send_wrapper::SendWrapper;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefaultReader};
+use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefaultReader, window};
 
 use portable::{ConfigDto, Message, MessageRole, ModelDto, estimate_tokens};
 
@@ -181,6 +181,28 @@ fn main() {
     mount_to_body(App);
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+fn save_chat(messages: &[Message]) {
+    let Ok(Some(storage)) = window().unwrap().session_storage() else {
+        return;
+    };
+    let Ok(json) = serde_json::to_string(messages) else {
+        return;
+    };
+    let _ = storage.set_item("openai", &json);
+}
+
+fn load_chat() -> Vec<Message> {
+    let Ok(Some(storage)) = window().unwrap().session_storage() else {
+        return vec![];
+    };
+    let Ok(Some(json)) = storage.get_item("openai") else {
+        return vec![];
+    };
+    serde_json::from_str(&json).unwrap_or_default()
+}
+
 // ── App component ─────────────────────────────────────────────────────────────
 
 #[component]
@@ -190,7 +212,7 @@ fn App() -> impl IntoView {
     let sel_model = RwSignal::new(String::new());
     let locked_mdl = RwSignal::new(None::<String>);
     let sys_prompt = RwSignal::new(String::new());
-    let messages = RwSignal::new(vec![]);
+    let messages = RwSignal::new(load_chat()); // load from sessionStorage in case tab reloads
     let input = RwSignal::new(String::new());
     let streaming = RwSignal::new(false);
     let started = RwSignal::new(false);
@@ -301,6 +323,9 @@ fn App() -> impl IntoView {
             content: String::new(),
         }); // reserved slot
         let send_msgs = hist[..hist.len() - 1].to_vec(); // exclude the empty assistant slot
+
+        save_chat(&send_msgs); // persist to sessionStorage in case tab is reloaded
+
         messages.set(hist);
         input.set(String::new());
         streaming.set(true);
@@ -333,6 +358,8 @@ fn App() -> impl IntoView {
                         }
                     });
                 }
+            } else {
+                save_chat(&messages.get()); // only save reply to sessionStorage upon success
             }
         });
     };
