@@ -1,31 +1,33 @@
 # TODO
 
-CorsLayer::permissive: only for dev environment where `trunk serve` is on a different port than `cargo run --web`. It sets Access-Control-Allow-Origin: *, meaning any website on the internet can make requests to your API from a browser. For a personal local tool this is harmless, but if you ever expose it publicly, a malicious site could use a visitor's browser to hit your API and consume your OpenAI credits.
+## UX
 
-For a personal server, replacing it swith CorsLayer::new().allow_origin("<http://localhost:PORT".parse>::<HeaderValue>().unwrap()) is the right move. Since Axum will serve the frontend on the same origin as the API, you actually don't need CORS at all in production — you can remove the layer entirely and only add it back for local dev where Trunk's dev server runs on a different port.
-TODO: switch to same origin for CORS release (make config-able ?)
+rust-embed for static bundling (use feature flag to disable)
 
-TODO: rust-embed for static bundling
+WEB: sessionStorage (survives F5, dies when tab closes)
 
-TODO: sessionStorage (survives F5, dies when tab closes)
+NIX: add a sytemd unit for user so that it auto-starts in web mode
 
-TODO: add a sytemd unit for user so that it auto-starts in web mode
+CLI: pre-fill the system prompt and let the user clear it
 
-TODO CLI: pre-fill the system prompt and let the user clear it
+CLI: add rustyline instead of simple stdin
 
-TODO: check/understand
+move configs to XDG (and have it explain what it is)
 
-- Abort/stop: AbortController is wrapped in send_wrapper::SendWrapper to satisfy Leptos 0.7's RwSignal<T: Send+Sync> requirement (safe here since WASM is single-threaded)
-- finalize() guard: both on_done and stop() call the same finalize helper, which guards on streaming to prevent double-execution.
+WEB: favicon pas affichée dans le tab
 
-TODO CLI: add rustyline instead of simple stdin
+WEB: sessionStorage (survives F5, dies when tab closes)
 
-TODO: move configs to XDG (and have it explain what it is)
+## Code quality
 
-TODO: keep DRY between frontend and backend
+keep DRY between frontend and backend
 
-TOOD WEB: favicon pas affichée dans le tab
+make more robust enums vs strings
 
-TODO: make more robust enums vs strings
+make consts out of fixes strings which are not variables
 
-TODO: make consts out of fixes strings which are not variables
+## Understand
+
+Abort/stop: AbortController is wrapped in send_wrapper::SendWrapper to satisfy Leptos 0.7's RwSignal<T: Send+Sync> requirement (safe here since WASM is single-threaded)
+
+finalize() guard: both on_done and stop() call the same finalize helper, which guards on streaming to prevent double-execution.
