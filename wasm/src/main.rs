@@ -215,7 +215,7 @@ fn App() -> impl IntoView {
     let messages = RwSignal::new(load_chat()); // load from sessionStorage in case tab reloads
     let input = RwSignal::new(String::new());
     let streaming = RwSignal::new(false);
-    let started = RwSignal::new(false);
+    let started = RwSignal::new(!messages.get_untracked().is_empty()); // reflect stored chat state
     let abort_ctl = RwSignal::new(None::<SendWrapper<AbortController>>);
     let is_dark = RwSignal::new(get_cookie("theme").map(|v| v != "light").unwrap_or(true));
     let conv_ref: NodeRef<leptos::html::Div> = NodeRef::new();
