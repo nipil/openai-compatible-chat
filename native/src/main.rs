@@ -5,10 +5,16 @@ use portable::{Config, Exclusion, Mapping, ModelMeta};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
+#[cfg(all(not(feature = "cli"), not(feature = "web")))]
+compile_error!("At lease one of the main features should be enabled !");
+
+#[cfg(feature = "cli")]
 mod chat;
 mod config;
+#[cfg(feature = "cli")]
 mod display;
 mod models;
+#[cfg(feature = "web")]
 mod web;
 
 #[derive(Parser)]
@@ -24,8 +30,10 @@ struct Args {
 #[derive(Subcommand)]
 enum Commands {
     /// CLI subcommand
+    #[cfg(feature = "cli")]
     Cli,
     /// Web subcommand
+    #[cfg(feature = "web")]
     Web {
         /// Port to listen on
         #[arg(short = 'p', long = "port")]
@@ -39,6 +47,7 @@ async fn main() -> Result<()> {
 
     // Load configuration once
     let cfg = config::load_config().map_err(|e| {
+        #[cfg(feature = "cli")]
         display::log_error(&e.to_string());
         e
     })?;
@@ -65,10 +74,13 @@ async fn main() -> Result<()> {
         None => None,
     };
 
+    #[cfg(all(feature = "cli", feature = "web"))]
     match &args.command {
+        #[cfg(feature = "cli")]
         Commands::Cli => {
             cli(locked_model, client, mapping, exclusion, filters, cfg).await?;
         }
+        #[cfg(feature = "web")]
         Commands::Web { port } => {
             // wraps because shared between multiple request handlers within the web server
             let state = web::AppState {
@@ -85,6 +97,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "web")]
 async fn web(port: &u16, state: web::AppState) -> Result<()> {
     let app = web::router(state);
     let listen_addr = format!("localhost:{port}");
@@ -94,6 +107,7 @@ async fn web(port: &u16, state: web::AppState) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "cli")]
 async fn cli(
     locked_model: Option<String>,
     client: Client<OpenAIConfig>,
@@ -189,6 +203,7 @@ async fn cli(
 }
 
 /// Lazily populate `cache`, then run the interactive fuzzy model selector.
+#[cfg(feature = "cli")]
 async fn pick_from_list(
     client: &Client<OpenAIConfig>,
     cache: &mut Option<Vec<models::EnrichedModel>>,
