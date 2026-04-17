@@ -30,10 +30,6 @@ enum Commands {
         /// Port to listen on
         #[arg(short = 'p', long = "port")]
         port: u16,
-
-        /// Dump the chat content to the console for debugging
-        #[arg(long)]
-        print_responses: bool,
     },
 }
 
@@ -73,10 +69,7 @@ async fn main() -> Result<()> {
         Commands::Cli => {
             cli(locked_model, client, mapping, exclusion, filters, cfg).await?;
         }
-        Commands::Web {
-            port,
-            print_responses,
-        } => {
+        Commands::Web { port } => {
             // wraps because shared between multiple request handlers within the web server
             let state = web::AppState {
                 client: Arc::new(client),
@@ -85,7 +78,6 @@ async fn main() -> Result<()> {
                 filters: Arc::new(filters),
                 system_prompt: Arc::new(cfg.prepend_system_prompt),
                 locked_model: Arc::new(locked_model),
-                print_responses: Arc::new(*print_responses),
             };
             web(port, state).await?;
         }

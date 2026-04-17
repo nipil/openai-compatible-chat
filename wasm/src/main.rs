@@ -158,8 +158,7 @@ async fn stream_chat(
                     // and if not decodable, use as it
                     let token: String =
                         serde_json::from_str(data).unwrap_or_else(|_| data.to_string());
-                    // log tokens to console if in debug mode
-                    #[cfg(debug_assertions)]
+                    #[cfg(feature = "print-tokens")]
                     web_sys::console::log_1(&format!("token: {:?}", token).into());
                     // call the callback for each token
                     on_token(token);
