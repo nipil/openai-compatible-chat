@@ -10,6 +10,8 @@ Sample rendering for CLI in dark mode
 
 ![sample](docs/sample-cli.png)
 
+A noter que la majorité du code a été écrit par Claude.ai, ue j'ai utilisé ChatGPT pour plein de trucs, et que je me suis amusé à nettoyer/refactorer/améliorer pour ce qui en valait la peine à mon avis (principalement la robustesse).
+
 ---
 
 ## Installation
