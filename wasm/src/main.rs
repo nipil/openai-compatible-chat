@@ -9,8 +9,8 @@ use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefault
 use portable::{ConfigDto, Message, MessageRole, ModelDto, Theme, estimate_tokens};
 
 const COOKIE_MODEL: &str = "model";
-const COOKIE_THEME: &str = "theme";
 const COOKIE_THEME_DEFAULT: Theme = Theme::Dark;
+const COOKIE_THEME: &str = "theme";
 const STORAGE_KEY_OPENAI: &str = "openai";
 
 // Token counter: returns an inline style string for the dynamic gradient only.

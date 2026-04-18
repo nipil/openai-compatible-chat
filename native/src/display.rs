@@ -12,9 +12,10 @@ use termimad::{
     crossterm::style::{Attribute::*, Attributes, Color::*},
     gray,
 };
+
 const BULLET_CHAR: char = '●';
-const QUOTE_CHAR: char = '▐';
 const HRULE_CHAR: char = '─';
+const QUOTE_CHAR: char = '▐';
 const SCROLLBAR_THUMB: char = '▐';
 const SCROLLBAR_TRACK: char = '│';
 

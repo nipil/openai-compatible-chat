@@ -1,8 +1,4 @@
-use std::{
-    io::{Write, stdin, stdout},
-    time::Instant,
-};
-
+use crate::{display::LiveMarkdown, models::EnrichedModel};
 use anyhow::Result;
 use async_openai::{
     Client,
@@ -17,10 +13,11 @@ use async_openai::{
 use chrono::Local;
 use futures::StreamExt;
 use owo_colors::OwoColorize;
-
-use crate::{display::LiveMarkdown, models::EnrichedModel};
-
 use portable::{Config, Exclusion, Message, MessageRole, estimate_tokens};
+use std::{
+    io::{Write, stdin, stdout},
+    time::Instant,
+};
 
 // ── Public types ──────────────────────────────────────────────────────────────
 

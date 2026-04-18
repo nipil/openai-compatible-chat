@@ -29,9 +29,9 @@ pub enum ModelType {
 // TODO: add strum?
 #[serde(rename_all = "lowercase")]
 pub enum MessageRole {
+    Assistant,
     System,
     User,
-    Assistant,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Display, EnumString, AsRefStr)]

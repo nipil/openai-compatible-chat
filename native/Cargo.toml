@@ -25,8 +25,8 @@ futures = "0.3"
 owo-colors = "4"
 portable.workspace = true
 regex = "1"
-serde.workspace = true
 serde_json.workspace = true
+serde.workspace = true
 strum.workspace = true
 termimad = "0.34" # markdown → ANSI terminal rendering
 tokio = { version = "1", features = ["full"] }
@@ -36,8 +36,8 @@ tower-http = { version = "0.6", features = ["cors", "fs"] }
 enable-ansi-support = "0.3.1"
 
 [features]
-default = ["cli", "web"]
-cors-permissive = []
-print-tokens = []
 cli = []
+cors-permissive = []
+default = ["cli", "web"]
+print-tokens = []
 web = []

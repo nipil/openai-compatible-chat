@@ -5,9 +5,9 @@ use regex::Regex;
 
 pub const ALLOWED_TYPES: &[ModelType] = &[
     ModelType::Chat,
+    ModelType::Instruct,
     ModelType::Multimodal,
     ModelType::Reasoning,
-    ModelType::Instruct,
 ];
 
 // ── Types ─────────────────────────────────────────────────────────────────────

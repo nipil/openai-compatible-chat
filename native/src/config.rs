@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use portable::{Config, Exclusion, ModelInfoMap};
 use std::{collections::HashMap, fs, path::Path};
-// use config::
+
 pub const CONFIG_PATH: &str = "config.json";
-pub const MAPPING_PATH: &str = "ai_model_info/openai.json";
 pub const EXCLUSION_PATH: &str = "exclusion.json";
+pub const MAPPING_PATH: &str = "ai_model_info/openai.json";
 
 // ── I/O helpers ──────────────────────────────────────────────────────────────
 
