@@ -1,5 +1,5 @@
 [workspace]
-members = ["native", "portable", "wasm"]
+members = ["ai_model_info", "native", "portable", "wasm"]
 resolver = "2"
 
 [workspace.dependencies]
