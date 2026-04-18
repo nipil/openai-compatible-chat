@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig, error::OpenAIError};
-use portable::{Exclusion, ModelInfoMap, ModelType};
+use portable::{Exclusion, ModelInfo, ModelInfoMap, ModelType};
 use regex::Regex;
 
 pub const ALLOWED_TYPES: &[ModelType] = &[
@@ -15,9 +15,7 @@ pub const ALLOWED_TYPES: &[ModelType] = &[
 #[derive(Debug, Clone)]
 pub struct EnrichedModel {
     pub id: String,
-    pub family: String,
-    pub model_type: ModelType,
-    pub context_window: Option<u32>,
+    pub info: ModelInfo,
 }
 
 #[derive(Debug)]
@@ -69,7 +67,7 @@ pub fn compile_regex(patterns: &[String]) -> Result<Vec<Regex>> {
 
 pub fn filter_and_sort(
     ids: Vec<String>,
-    models: &ModelInfoMap,
+    infos: &ModelInfoMap,
     excluded: &[String],
     filters: &[Regex],
 ) -> Vec<EnrichedModel> {
@@ -78,21 +76,19 @@ pub fn filter_and_sort(
         .filter(|id| !excluded.contains(id))
         .filter(|id| !filters.iter().any(|r| r.is_match(id)))
         .filter_map(|id| {
-            let model_info = models.get(&id)?;
+            let model_info = infos.get(&id)?; // TODO: thiserror
             // Drop models whose type is known but not in the allowed set.
             if !ALLOWED_TYPES.contains(&model_info.model_type) {
                 return None;
             }
             Some(EnrichedModel {
-                family: model_info.family.clone(),
-                context_window: model_info.context_window,
-                model_type: model_info.model_type.clone(),
                 id,
+                info: model_info.clone(),
             })
         })
         .collect();
 
-    models.sort_by(|a, b| a.family.cmp(&b.family).then(a.id.cmp(&b.id)));
+    models.sort_by(|a, b| a.info.family.cmp(&b.info.family).then(a.id.cmp(&b.id)));
     models
 }
 

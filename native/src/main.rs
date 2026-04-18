@@ -85,7 +85,7 @@ async fn main() -> Result<()> {
             // wraps because shared between multiple request handlers within the web server
             let state = web::AppState {
                 client: Arc::new(client),
-                models: Arc::new(mapping),
+                infos: Arc::new(mapping),
                 exclusion: Arc::new(RwLock::new(exclusion)), // RwLock handles mut
                 filters: Arc::new(filters),
                 system_prompt: Arc::new(cfg.prepend_system_prompt),
@@ -207,15 +207,15 @@ async fn cli(
 async fn pick_from_list(
     client: &Client<OpenAIConfig>,
     cache: &mut Option<Vec<models::EnrichedModel>>,
-    models: &ModelInfoMap,
+    infos: &ModelInfoMap,
     excl: &Exclusion,
     filters: &[regex::Regex],
 ) -> Result<String> {
     if cache.is_none() {
-        let raw = models::list_models(client).await?;
+        let ids = models::list_models(client).await?; // TODO: move to caller and provide as ref here !!!
         *cache = Some(models::filter_and_sort(
-            raw,
-            models,
+            ids,
+            infos,
             &excl.excluded_models,
             filters,
         ));
