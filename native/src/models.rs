@@ -50,6 +50,8 @@ pub async fn test_model(
         Ok(_) => Ok(()),
         Err(OpenAIError::ApiError(e)) => {
             let msg = e.message.to_lowercase();
+            // TODO: check API exact error to see if it works actually
+            // TODO: thiserror
             if msg.contains("not allowed") || msg.contains("permission") {
                 Err(ModelError::NotAllowed)
             } else {

@@ -108,11 +108,11 @@ async fn stream_chat(
     signal: AbortSignal,
     on_token: impl Fn(String),
 ) -> Result<(), String> {
-    let win = web_sys::window().ok_or("no window")?;
+    let win = web_sys::window().ok_or("no window")?; // TODO: thiserror
 
     let hdrs = web_sys::Headers::new().map_err(|e| format!("{e:?}"))?;
     hdrs.set("Content-Type", "application/json")
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(|e| format!("{e:?}"))?; // TODO: thiserror
 
     let opts = web_sys::RequestInit::new();
     opts.set_method("POST");
@@ -121,7 +121,7 @@ async fn stream_chat(
     opts.set_signal(Some(&signal));
 
     let req = web_sys::Request::new_with_str_and_init("/api/chat", &opts)
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(|e| format!("{e:?}"))?; // TODO: thiserror
 
     let resp: web_sys::Response = JsFuture::from(win.fetch_with_request(&req))
         .await
@@ -130,15 +130,15 @@ async fn stream_chat(
         .map_err(|e| format!("{e:?}"))?;
 
     if !resp.ok() {
-        return Err(format!("HTTP {}", resp.status()));
+        return Err(format!("HTTP {}", resp.status())); // TODO: thiserror
     }
 
     let reader: ReadableStreamDefaultReader = resp
         .body()
-        .ok_or("no body")?
+        .ok_or("no body")? // TODO: thiserror
         .get_reader()
         .dyn_into()
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(|e| format!("{e:?}"))?; // TODO: thiserror
 
     let mut buf = String::new();
 
@@ -147,7 +147,7 @@ async fn stream_chat(
             .await
             .map_err(|e| format!("{e:?}"))?;
 
-        let done = js_sys::Reflect::get(&chunk, &"done".into())
+        let done = js_sys::Reflect::get(&chunk, &"done".into()) // TODO: to enum https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read#return_value
             .ok()
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
@@ -156,16 +156,22 @@ async fn stream_chat(
             break;
         }
 
-        let value = js_sys::Reflect::get(&chunk, &"value".into()).map_err(|e| format!("{e:?}"))?;
-        let arr: js_sys::Uint8Array = value.dyn_into().map_err(|e| format!("{e:?}"))?;
-        buf.push_str(&String::from_utf8_lossy(&arr.to_vec()));
+        let value = js_sys::Reflect::get(&chunk, &"value".into()) // TODO: to enum https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read#return_value
+            .map_err(|e| format!("{e:?}"))?; // TODO: thiserror
+        let arr: js_sys::Uint8Array = value.dyn_into().map_err(|e| format!("{e:?}"))?; // TODO: thiserror
+
+        buf.push_str(&String::from_utf8_lossy(&arr.to_vec())); // TODO: must be valid UTF-8, according to spec, so lossy is not really good
 
         // processes all complete lines from the buffer in one chunk,
         // since a single network chunk may contain multiple \n-terminated SSE frames
+
+        // TODO: does not handle other line endings according to spec (simple \r)
         while let Some(nl) = buf.find('\n') {
             let line = buf[..nl].trim_end_matches('\r').to_string();
             buf = buf[nl + 1..].to_string();
+            // TODO: the space after the colon is not mandatory, but 1 space is stripped if present
             if let Some(data) = line.strip_prefix("data: ") {
+                // this is openai stuff, not SSE spec
                 if data != "[DONE]" {
                     // decode the token from json so that newlines in the token
                     // were not lost in the SSE frame, and are preserved for frontend
@@ -349,6 +355,7 @@ fn App() -> impl IntoView {
         let sig = ac.signal();
         abort_ctl.set(Some(SendWrapper::new(ac)));
 
+        // TODO: serde struct
         let body = serde_json::json!({ "model": model, "messages": send_msgs }).to_string();
 
         spawn_local(async move {
@@ -365,6 +372,7 @@ fn App() -> impl IntoView {
             abort_ctl.set(None);
 
             if let Err(e) = res {
+                // TODO: thiserror
                 let e_low = e.to_lowercase();
                 if !e_low.contains("abort") && !e_low.contains("cancel") {
                     messages.update(|v| {
