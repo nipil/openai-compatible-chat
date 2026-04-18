@@ -109,7 +109,7 @@ async fn handle_chat(
 
     // Inject system prompt if not already provided by the client
     if !s.system_prompt.is_empty()
-        && req.messages.first().map(|m| m.role) != Some(MessageRole::System)
+        && req.messages.first().map(|m| &m.role) != Some(&MessageRole::System)
     {
         req.messages.insert(
             0,

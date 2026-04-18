@@ -1,11 +1,15 @@
 use gloo_net::http::Request;
 use leptos::{mount::mount_to_body, prelude::*, task::spawn_local};
 use send_wrapper::SendWrapper;
+use std::str::FromStr;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefaultReader, window};
 
-use portable::{ConfigDto, Message, MessageRole, ModelDto, estimate_tokens};
+use portable::{ConfigDto, Message, MessageRole, ModelDto, Theme, estimate_tokens};
+
+const COOKIE_THEME: &str = "theme";
+const COOKIE_THEME_DEFAULT: Theme = Theme::Dark;
 
 // Token counter: returns an inline style string for the dynamic gradient only.
 // Static layout/padding lives in .token-counter in style.css.
@@ -74,7 +78,7 @@ fn set_cookie(name: &str, value: &str) {
 
 // ── Theme helpers ─────────────────────────────────────────────────────────────
 
-fn apply_theme(dark: bool) {
+fn apply_theme(theme: &Theme) {
     let Some(window) = web_sys::window() else {
         return;
     };
@@ -84,7 +88,15 @@ fn apply_theme(dark: bool) {
     let Some(element) = document.document_element() else {
         return;
     };
-    let _ = element.set_attribute("data-theme", if dark { "dark" } else { "light" });
+    let _ = element.set_attribute("data-theme", theme.as_ref());
+}
+
+fn get_cookie_theme_or_default() -> Theme {
+    match get_cookie(COOKIE_THEME).as_deref().map(Theme::from_str) {
+        Some(Ok(theme)) => theme,
+        Some(Err(_)) => COOKIE_THEME_DEFAULT,
+        None => COOKIE_THEME_DEFAULT,
+    }
 }
 
 // ── SSE via fetch (POST + ReadableStream) ─────────────────────────────────────
@@ -174,10 +186,8 @@ async fn stream_chat(
 fn main() {
     console_error_panic_hook::set_once();
     // Restore theme from cookie BEFORE mounting to avoid any flash.
-    // index.html already defaults to data-theme="dark"; this only fires
-    // when the user has previously saved "light".
-    let dark = get_cookie("theme").map(|v| v != "light").unwrap_or(true);
-    apply_theme(dark);
+    // index.html already defaults to data-theme=Theme::Dark
+    apply_theme(&get_cookie_theme_or_default());
     mount_to_body(App);
 }
 
@@ -217,7 +227,7 @@ fn App() -> impl IntoView {
     let streaming = RwSignal::new(false);
     let started = RwSignal::new(!messages.get_untracked().is_empty()); // reflect stored chat state
     let abort_ctl = RwSignal::new(None::<SendWrapper<AbortController>>);
-    let is_dark = RwSignal::new(get_cookie("theme").map(|v| v != "light").unwrap_or(true));
+    let theme = RwSignal::new(get_cookie_theme_or_default());
     let conv_ref: NodeRef<leptos::html::Div> = NodeRef::new();
 
     // ── Bootstrap: load config then models ────────────────────────────────────
@@ -279,10 +289,13 @@ fn App() -> impl IntoView {
 
     // ── Theme toggle ──────────────────────────────────────────────────────────
     let toggle_theme = move |_| {
-        let new_dark = !is_dark.get_untracked();
-        is_dark.set(new_dark);
-        apply_theme(new_dark);
-        set_cookie("theme", if new_dark { "dark" } else { "light" });
+        let new_theme = match theme.get_untracked() {
+            Theme::Dark => Theme::Light,
+            Theme::Light => Theme::Dark,
+        };
+        apply_theme(&new_theme);
+        set_cookie(COOKIE_THEME, new_theme.as_ref());
+        theme.set(new_theme);
     };
 
     // ── Send ──────────────────────────────────────────────────────────────────
@@ -426,7 +439,7 @@ fn App() -> impl IntoView {
                         "openai-compatible-chat"
                     </a>
                     <button class="theme-btn" on:click=toggle_theme>
-                        {move || if is_dark.get() { "🌞" } else { "🌚" }}
+                        {move || match theme.get() { Theme::Dark => "🌞" , Theme::Light => "🌚" }}
                     </button>
                 </div>
             </div>

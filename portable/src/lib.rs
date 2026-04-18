@@ -1,14 +1,24 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use strum::{AsRefStr, Display, EnumString};
 
 // ── Safer value management ────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+// TODO: add strum?
 #[serde(rename_all = "lowercase")]
 pub enum MessageRole {
     System,
     User,
     Assistant,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Display, EnumString, AsRefStr)]
+#[strum(serialize_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    Dark,
+    Light,
 }
 
 // ── Configurations ────────────────────────────────────────────────────────────
