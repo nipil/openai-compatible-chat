@@ -172,13 +172,17 @@ Et soumettre le "prompt" ci-dessous avec votre liste de modèles manquants :
 
 Attendre, et claquer son résultat dans le fichier json d'origine.
 
-Puis, exécuter la commande ci-dessous pour pretty-fier les json,ce qui permet lors des commits d'avoir un diff propre, qui peut être analysé pour suivre les changements.
+Puis, exécuter la commande ci-dessous pour **pretty-fier les json**,ce qui permet lors des commits d'avoir un diff propre, qui peut être analysé pour suivre les changements.
 
 ```bash
 cargo run -p ai_model_info ai_model_info
 ```
 
-Revoir les modifications apportées, vérifier qu'elles sont "cohérentes" et commiter.
+**Revoir les modifications** apportées, vérifier qu'elles sont "cohérentes".
+
+Copier le récapitulatif des actions de Claude (utiliser le bouton "copy" pour récupérer **au format markdown !**)
+
+Commiter en s'assurant de bien **archiver l'explication** de Claude au message de commit
 
 ### Debug
 
