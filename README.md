@@ -146,6 +146,40 @@ cargo install trunk
 cargo install watchexec-cli
 ```
 
+### Model infos
+
+Il faut garder les fichiers json dans `ai_model_info` à jour, car ils sont utilisés en tant que métadonnées pour filtrer quels modèles utiliser pour chaque fonction.
+
+Cependant, ces données ne sont pas disponibles de manière officielles et centralisées, et il faut les mettre à jour périodiquement pour ajouter les nouveaux modèles (que l'api remonte) en utilisant des données publiques.
+
+Personnellement, j'utilise le workflow suivant pour faire mettre à jour les infos
+
+- utiliser [Claude.ia](https://claude.ai) car il a accès à internet... et fait le boulot
+- pour un fichier d'infos de modèles pour lequel il y a des évolutions à faire
+  - extraire de chaque fichier json tous les modèles **incomplets** (avec des null)
+  - obtenir la liste des *id* modèle récupérés pour lesquels on a pas d'info (cf. logs)
+
+Lui *Ctrl-V le lot de JSON incomplets*, avant de faire votre demande.
+
+Et soumettre le "prompt" ci-dessous avec votre liste de modèles manquants :
+
+    Can you please update my attached incomplete json model metadata compilation WITH ACCURATE DATA (no hallucinating !!) from up-to-date sources, for all AI model id listed below, which i just got from the AI prover API
+
+    ```
+    gpt-5.4-nano-2026-03-17
+    gpt-5.4-mini-2026-03-17
+    ```
+
+Attendre, et claquer son résultat dans le fichier json d'origine.
+
+Puis, exécuter la commande ci-dessous pour pretty-fier les json,ce qui permet lors des commits d'avoir un diff propre, qui peut être analysé pour suivre les changements.
+
+```bash
+cargo run -p ai_model_info ai_model_info
+```
+
+Revoir les modifications apportées, vérifier qu'elles sont "cohérentes" et commiter.
+
 ### Debug
 
 Démarre le backend (prendre le port de `wasm/Trunk.toml [[proxy]] backend`)
