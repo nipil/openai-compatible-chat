@@ -14,6 +14,11 @@ dependencies = [
 [[package]]
 name = "ai_model_info"
 version = "0.1.0"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "android_system_properties"

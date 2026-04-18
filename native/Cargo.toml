@@ -15,7 +15,7 @@ async-openai = { version = "0.34", features = [
 ] } # pin to a known-good release; bump carefully
 axum = "0.8"
 chrono = { version = "0.4", features = ["clock"] }
-clap = { version = "4", features = ["derive"] }
+clap.workspace = true
 console = "0.16" # strip_ansi_codes + Term helpers
 crossterm = "0.29"
 dialoguer = { version = "0.12", features = [
