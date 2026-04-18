@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig, error::OpenAIError};
-use portable::{Exclusion, ModelType, ProviderModels};
+use portable::{Exclusion, ModelInfoMap, ModelType};
 use regex::Regex;
 
 pub const ALLOWED_TYPES: &[ModelType] = &[
@@ -17,7 +17,7 @@ pub struct EnrichedModel {
     pub id: String,
     pub family: String,
     pub model_type: Option<String>, // TODO: mandatory
-    pub max_tokens: Option<u32>,    // TODO: update naming
+    pub context_window: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -69,7 +69,7 @@ pub fn compile_regex(patterns: &[String]) -> Result<Vec<Regex>> {
 
 pub fn filter_and_sort(
     ids: Vec<String>,
-    mapping: &ProviderModels,
+    models: &ModelInfoMap,
     excluded: &[String],
     filters: &[Regex],
 ) -> Vec<EnrichedModel> {
@@ -78,15 +78,15 @@ pub fn filter_and_sort(
         .filter(|id| !excluded.contains(id))
         .filter(|id| !filters.iter().any(|r| r.is_match(id)))
         .filter_map(|id| {
-            let meta = mapping.get(&id)?;
+            let model_info = models.get(&id)?;
             // Drop models whose type is known but not in the allowed set.
-            if !ALLOWED_TYPES.contains(&meta.model_type) {
+            if !ALLOWED_TYPES.contains(&model_info.model_type) {
                 return None;
             }
             Some(EnrichedModel {
-                family: meta.family.clone(),
-                max_tokens: meta.context_window,
-                model_type: Some(meta.model_type.to_string()),
+                family: model_info.family.clone(),
+                context_window: model_info.context_window,
+                model_type: Some(model_info.model_type.to_string()),
                 id,
             })
         })
@@ -99,7 +99,7 @@ pub fn filter_and_sort(
 /// Returns a human-readable rejection reason, or `None` if the model passes.
 pub fn explain_rejection(
     id: &str,
-    mapping: &ProviderModels,
+    models: &ModelInfoMap,
     excl: &Exclusion,
     filters: &[Regex],
 ) -> Option<String> {
@@ -109,7 +109,7 @@ pub fn explain_rejection(
     if filters.iter().any(|r| r.is_match(id)) {
         return Some("filtered out by exclude_model_name_regex".into());
     }
-    if let Some(meta) = mapping.get(id) {
+    if let Some(meta) = models.get(id) {
         if !ALLOWED_TYPES.contains(&meta.model_type) {
             return Some(format!(
                 "filtered out (type={} not supported)",

@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
-use portable::{Config, Exclusion, ModelInfo, ProviderModels};
+use portable::{Config, Exclusion, ModelInfo, ModelInfoMap};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -51,8 +51,8 @@ async fn main() -> Result<()> {
         display::log_error(&e.to_string());
         e
     })?;
-    let mapping = config::load_mapping()?;
-    let exclusion = config::load_exclusion().unwrap_or_default();
+    let mapping = config::load_model_info_map()?;
+    let exclusion = config::load_model_id_exclusion_list().unwrap_or_default(); // TODO: make fail
     let filters = models::compile_regex(&cfg.exclude_model_name_regex)?;
 
     // Create shared components
@@ -85,7 +85,7 @@ async fn main() -> Result<()> {
             // wraps because shared between multiple request handlers within the web server
             let state = web::AppState {
                 client: Arc::new(client),
-                mapping: Arc::new(mapping),
+                models: Arc::new(mapping),
                 exclusion: Arc::new(RwLock::new(exclusion)), // RwLock handles mut
                 filters: Arc::new(filters),
                 system_prompt: Arc::new(cfg.prepend_system_prompt),
@@ -158,7 +158,7 @@ async fn cli(
                     display::log_warning(&format!("Model '{id}' not allowed → excluded"));
                     if !exclusion.excluded_models.contains(&id) {
                         exclusion.excluded_models.push(id);
-                        config::save_exclusion(&exclusion)?;
+                        config::save_model_id_exclusion_list(&exclusion)?;
                     }
                     let m =
                         pick_from_list(&client, &mut model_cache, &mapping, &exclusion, &filters)
@@ -191,7 +191,7 @@ async fn cli(
         .await?;
 
         if let chat::ChatOutcome::ModelExcluded = outcome {
-            config::save_exclusion(&exclusion)?;
+            config::save_model_id_exclusion_list(&exclusion)?;
             model_cache = None; // Force a fresh listing next iteration.
         }
 
@@ -207,7 +207,7 @@ async fn cli(
 async fn pick_from_list(
     client: &Client<OpenAIConfig>,
     cache: &mut Option<Vec<models::EnrichedModel>>,
-    mapping: &ProviderModels,
+    models: &ModelInfoMap,
     excl: &Exclusion,
     filters: &[regex::Regex],
 ) -> Result<String> {
@@ -215,7 +215,7 @@ async fn pick_from_list(
         let raw = models::list_models(client).await?;
         *cache = Some(models::filter_and_sort(
             raw,
-            mapping,
+            models,
             &excl.excluded_models,
             filters,
         ));

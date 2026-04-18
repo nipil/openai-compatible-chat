@@ -48,7 +48,7 @@ pub async fn run(
 
     let max_tokens = models_meta
         .and_then(|ms| ms.iter().find(|m| m.id == model))
-        .and_then(|m| m.max_tokens);
+        .and_then(|m| m.context_window);
 
     let mut context_closed = false;
 

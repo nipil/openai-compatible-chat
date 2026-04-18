@@ -35,14 +35,14 @@ pub enum Theme {
 
 // ── Configurations ────────────────────────────────────────────────────────────
 
-pub type ProviderModels = HashMap<String, ModelInfo>;
+pub type ModelInfoMap = HashMap<String, ModelInfo>;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub api_key: String,
     pub base_url: String,
     #[serde(default)]
-    pub exclude_model_name_regex: Vec<String>,
+    pub exclude_model_name_regex: Vec<String>, // TODO: make regex ?
     #[serde(default)]
     pub prepend_system_prompt: String,
 }

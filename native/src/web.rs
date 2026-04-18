@@ -23,7 +23,7 @@ use tower_http::services::ServeDir;
 use crate::config;
 use crate::models::{self, ModelError};
 
-use portable::{ConfigDto, Exclusion, Message, MessageRole, ModelDto, ProviderModels};
+use portable::{ConfigDto, Exclusion, Message, MessageRole, ModelDto, ModelInfoMap};
 
 // TODO: make configurable using Clap
 const DIST_FOLDER: &str = "wasm/dist";
@@ -34,7 +34,7 @@ const SSE_EVENT_ERROR: &str = "error";
 #[derive(Clone)]
 pub struct AppState {
     pub client: Arc<Client<OpenAIConfig>>,
-    pub mapping: Arc<ProviderModels>,
+    pub models: Arc<ModelInfoMap>,
     pub exclusion: Arc<RwLock<Exclusion>>, // shared mutable exclusion list
     pub filters: Arc<Vec<Regex>>,
     pub system_prompt: Arc<String>,
@@ -74,7 +74,7 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
     let exclusion = s.exclusion.read().await;
     let ids = models::list_models(&s.client).await.unwrap_or_default();
     let mut enriched =
-        models::filter_and_sort(ids, &s.mapping, &exclusion.excluded_models, &s.filters);
+        models::filter_and_sort(ids, &s.models, &exclusion.excluded_models, &s.filters);
     // If a model is locked, expose only that model in the list
     if let Some(lm) = s.locked_model.as_ref() {
         enriched.retain(|m| &m.id == lm);
@@ -84,7 +84,7 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
             .into_iter()
             .map(|m| ModelDto {
                 id: m.id,
-                context_window: m.max_tokens,
+                context_window: m.context_window,
             })
             .collect(),
     )
@@ -187,7 +187,7 @@ async fn build_chat_stream(
                         let mut exclusion = exclusion.write().await;
                         if !exclusion.excluded_models.contains(&model) {
                             exclusion.excluded_models.push(model.clone());
-                            if let Err(io) = config::save_exclusion(&exclusion) {
+                            if let Err(io) = config::save_model_id_exclusion_list(&exclusion) {
                                 eprintln!("Failed to persist exclusion list: {io}");
                             }
                         }
