@@ -2,6 +2,18 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use strum::{AsRefStr, Display, EnumString};
 
+// ── OpenAI info ───────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumString)]
+#[strum(serialize_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum ModelType {
+    Chat,
+    Multimodal,
+    Reasoning,
+    Instruct,
+}
+
 // ── Safer value management ────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -40,7 +52,7 @@ pub struct ModelInfo {
     pub description: String,
     pub family: String,
     #[serde(rename = "type")]
-    pub model_type: String, //TODO: switch to ModelType?
+    pub model_type: ModelType,
     pub context_window: Option<u32>,
     pub release: Option<String>,
 }

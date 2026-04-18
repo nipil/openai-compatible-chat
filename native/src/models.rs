@@ -1,19 +1,7 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig, error::OpenAIError};
-use portable::{Exclusion, ProviderModels};
+use portable::{Exclusion, ModelType, ProviderModels};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumString)]
-#[strum(serialize_all = "lowercase")]
-#[serde(rename_all = "lowercase")]
-pub enum ModelType {
-    Chat,
-    Multimodal,
-    Reasoning,
-    Instruct,
-}
 
 pub const ALLOWED_TYPES: &[ModelType] = &[
     ModelType::Chat,
@@ -28,8 +16,8 @@ pub const ALLOWED_TYPES: &[ModelType] = &[
 pub struct EnrichedModel {
     pub id: String,
     pub family: String,
-    pub model_type: Option<String>,
-    pub max_tokens: Option<u32>,
+    pub model_type: Option<String>, // TODO: mandatory
+    pub max_tokens: Option<u32>,    // TODO: update naming
 }
 
 #[derive(Debug)]
@@ -91,15 +79,14 @@ pub fn filter_and_sort(
         .filter(|id| !filters.iter().any(|r| r.is_match(id)))
         .filter_map(|id| {
             let meta = mapping.get(&id)?;
-            let model_type = meta.model_type.clone().parse().ok()?;
             // Drop models whose type is known but not in the allowed set.
-            if !ALLOWED_TYPES.contains(&model_type) {
+            if !ALLOWED_TYPES.contains(&meta.model_type) {
                 return None;
             }
             Some(EnrichedModel {
                 family: meta.family.clone(),
                 max_tokens: meta.context_window,
-                model_type: Some(model_type.to_string()),
+                model_type: Some(meta.model_type.to_string()),
                 id,
             })
         })
@@ -123,14 +110,11 @@ pub fn explain_rejection(
         return Some("filtered out by exclude_model_name_regex".into());
     }
     if let Some(meta) = mapping.get(id) {
-        let Ok(model_type) = &meta.model_type.parse() else {
+        if !ALLOWED_TYPES.contains(&meta.model_type) {
             return Some(format!(
-                "filtered out (type={} not recognized)",
+                "filtered out (type={} not supported)",
                 meta.model_type
             ));
-        };
-        if !ALLOWED_TYPES.contains(model_type) {
-            return Some(format!("filtered out (type={model_type} not supported)"));
         }
     }
     None
