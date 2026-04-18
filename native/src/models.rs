@@ -16,7 +16,7 @@ pub const ALLOWED_TYPES: &[ModelType] = &[
 pub struct EnrichedModel {
     pub id: String,
     pub family: String,
-    pub model_type: String,
+    pub model_type: ModelType,
     pub context_window: Option<u32>,
 }
 
@@ -86,7 +86,7 @@ pub fn filter_and_sort(
             Some(EnrichedModel {
                 family: model_info.family.clone(),
                 context_window: model_info.context_window,
-                model_type: model_info.model_type.to_string(),
+                model_type: model_info.model_type.clone(),
                 id,
             })
         })
