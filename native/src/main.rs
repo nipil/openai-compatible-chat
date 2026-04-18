@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
         e
     })?;
     let mapping = config::load_model_info_map()?;
-    let exclusion = config::load_model_id_exclusion_list().unwrap_or_default(); // TODO: make fail
+    let exclusion = config::load_model_id_exclusion_list()?;
     let filters = models::compile_regex(&cfg.exclude_model_name_regex)?;
 
     // Create shared components
