@@ -6,6 +6,8 @@ rust-embed for static bundling (use feature flag to disable)
 
 NIX: add a sytemd unit for user so that it auto-starts in web mode
 
+UX: compare raw list of models fetched with known mapping, warn about unknown models, and advice to update mapping file
+
 UX: mapping file is obsolete. Try to get info from API or remove the feature.
 
 CLI: pre-fill the system prompt and let the user clear it
