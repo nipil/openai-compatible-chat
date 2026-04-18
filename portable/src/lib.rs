@@ -8,10 +8,19 @@ use strum::{AsRefStr, Display, EnumString};
 #[strum(serialize_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum ModelType {
+    Audio,
     Chat,
-    Multimodal,
-    Reasoning,
+    Completion,
+    Embedding,
+    Image,
     Instruct,
+    Moderation,
+    Multimodal,
+    Realtime,
+    Reasoning,
+    Search,
+    Transcription,
+    Video,
 }
 
 // ── Safer value management ────────────────────────────────────────────────────
