@@ -6,7 +6,7 @@ rust-embed for static bundling (use feature flag to disable)
 
 NIX: add a sytemd unit for user so that it auto-starts in web mode
 
-UX: selected model does not reflect "model" cookie (even if not locked !)
+UX: mapping file is obsolete. Try to get info from API or remove the feature.
 
 CLI: pre-fill the system prompt and let the user clear it
 
