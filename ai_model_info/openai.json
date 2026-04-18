@@ -1,42 +1,77 @@
 {
+  "babbage-002": {
+    "context_window": 16384,
+    "description": "Legacy fine-tunable lightweight completion model",
+    "family": "legacy",
+    "release": null,
+    "type": "completion"
+  },
+  "chatgpt-image-latest": {
+    "context_window": null,
+    "description": "Alias for latest ChatGPT image generation model (currently gpt-image-1.5)",
+    "family": "image",
+    "release": "2025-12-15",
+    "type": "image"
+  },
   "dall-e-2": {
     "context_window": null,
-    "description": "Image generation (legacy)",
+    "description": "DALL-E 2 image generation (legacy)",
     "family": "image",
-    "release": "2022-04-01",
+    "release": "2022-04-06",
     "type": "image"
   },
   "dall-e-3": {
     "context_window": null,
-    "description": "Advanced image generation",
+    "description": "Advanced DALL-E image generation",
     "family": "image",
     "release": "2023-10-01",
     "type": "image"
   },
+  "davinci-002": {
+    "context_window": 16384,
+    "description": "Legacy fine-tunable base completion model (replaces text-davinci-003)",
+    "family": "legacy",
+    "release": null,
+    "type": "completion"
+  },
   "gpt-3.5-turbo": {
     "context_window": 16384,
-    "description": "Fast and cost-effective chat model",
+    "description": "Fast, cost-effective chat model",
     "family": "gpt-3.5",
     "release": "2023-03-01",
     "type": "chat"
   },
   "gpt-3.5-turbo-0125": {
     "context_window": 16384,
-    "description": "Latest GPT-3.5 snapshot",
+    "description": "Latest GPT-3.5 Turbo snapshot",
     "family": "gpt-3.5",
     "release": "2024-01-25",
     "type": "chat"
   },
   "gpt-3.5-turbo-1106": {
     "context_window": 16384,
-    "description": "Improved GPT-3.5 with tools",
+    "description": "GPT-3.5 with improved instruction following and JSON mode",
     "family": "gpt-3.5",
     "release": "2023-11-06",
     "type": "chat"
   },
+  "gpt-3.5-turbo-16k": {
+    "context_window": 16384,
+    "description": "GPT-3.5 Turbo with extended 16K context (legacy, now deprecated)",
+    "family": "gpt-3.5",
+    "release": "2023-06-13",
+    "type": "chat"
+  },
   "gpt-3.5-turbo-instruct": {
     "context_window": 4096,
-    "description": "Instruction-following model",
+    "description": "GPT-3.5 instruction-following completion model",
+    "family": "gpt-3.5",
+    "release": "2023-09-14",
+    "type": "instruct"
+  },
+  "gpt-3.5-turbo-instruct-0914": {
+    "context_window": 4096,
+    "description": "GPT-3.5 instruct initial release snapshot",
     "family": "gpt-3.5",
     "release": "2023-09-14",
     "type": "instruct"
@@ -57,7 +92,7 @@
   },
   "gpt-4-turbo": {
     "context_window": 128000,
-    "description": "Optimized GPT-4 (faster, cheaper)",
+    "description": "Faster, cheaper GPT-4 with 128K context",
     "family": "gpt-4",
     "release": "2023-11-06",
     "type": "chat"
@@ -70,46 +105,585 @@
     "type": "chat"
   },
   "gpt-4.1": {
-    "context_window": 128000,
-    "description": "Improved GPT-4 generation",
+    "context_window": 1047576,
+    "description": "Improved instruction following and coding, up to 1M context",
+    "family": "gpt-4.1",
+    "release": "2025-04-14",
+    "type": "chat"
+  },
+  "gpt-4.1-2025-04-14": {
+    "context_window": 1047576,
+    "description": "GPT-4.1 initial release snapshot",
     "family": "gpt-4.1",
     "release": "2025-04-14",
     "type": "chat"
   },
   "gpt-4.1-mini": {
-    "context_window": 128000,
-    "description": "Fast and cheap GPT-4.1 variant",
+    "context_window": 1047576,
+    "description": "Fast, efficient GPT-4.1 with up to 1M context",
+    "family": "gpt-4.1",
+    "release": "2025-04-14",
+    "type": "chat"
+  },
+  "gpt-4.1-mini-2025-04-14": {
+    "context_window": 1047576,
+    "description": "GPT-4.1 mini initial release snapshot",
     "family": "gpt-4.1",
     "release": "2025-04-14",
     "type": "chat"
   },
   "gpt-4.1-nano": {
-    "context_window": 128000,
-    "description": "Ultra-light GPT-4.1",
+    "context_window": 1047576,
+    "description": "Ultra-lightweight GPT-4.1 with up to 1M context",
+    "family": "gpt-4.1",
+    "release": "2025-04-14",
+    "type": "chat"
+  },
+  "gpt-4.1-nano-2025-04-14": {
+    "context_window": 1047576,
+    "description": "GPT-4.1 nano initial release snapshot",
     "family": "gpt-4.1",
     "release": "2025-04-14",
     "type": "chat"
   },
   "gpt-4o": {
     "context_window": 128000,
-    "description": "Omni model (text, vision, audio)",
+    "description": "Omni model (text, vision, audio input/output)",
     "family": "gpt-4o",
     "release": "2024-05-13",
     "type": "multimodal"
   },
+  "gpt-4o-2024-05-13": {
+    "context_window": 128000,
+    "description": "GPT-4o initial release snapshot",
+    "family": "gpt-4o",
+    "release": "2024-05-13",
+    "type": "multimodal"
+  },
+  "gpt-4o-2024-08-06": {
+    "context_window": 128000,
+    "description": "GPT-4o snapshot with structured outputs support",
+    "family": "gpt-4o",
+    "release": "2024-08-06",
+    "type": "multimodal"
+  },
+  "gpt-4o-2024-11-20": {
+    "context_window": 128000,
+    "description": "Latest GPT-4o snapshot",
+    "family": "gpt-4o",
+    "release": "2024-11-20",
+    "type": "multimodal"
+  },
+  "gpt-4o-audio-preview": {
+    "context_window": 128000,
+    "description": "GPT-4o with audio input and output via chat completions API",
+    "family": "gpt-4o-audio",
+    "release": "2024-10-01",
+    "type": "multimodal"
+  },
+  "gpt-4o-audio-preview-2024-12-17": {
+    "context_window": 128000,
+    "description": "GPT-4o audio preview snapshot",
+    "family": "gpt-4o-audio",
+    "release": "2024-12-17",
+    "type": "multimodal"
+  },
+  "gpt-4o-audio-preview-2025-06-03": {
+    "context_window": 128000,
+    "description": "GPT-4o audio preview snapshot",
+    "family": "gpt-4o-audio",
+    "release": "2025-06-03",
+    "type": "multimodal"
+  },
   "gpt-4o-mini": {
     "context_window": 128000,
-    "description": "Lightweight GPT-4o",
+    "description": "Lightweight, cost-efficient GPT-4o",
     "family": "gpt-4o",
     "release": "2024-07-18",
     "type": "multimodal"
   },
+  "gpt-4o-mini-2024-07-18": {
+    "context_window": 128000,
+    "description": "GPT-4o mini initial release snapshot",
+    "family": "gpt-4o",
+    "release": "2024-07-18",
+    "type": "multimodal"
+  },
+  "gpt-4o-mini-audio-preview": {
+    "context_window": 128000,
+    "description": "Lightweight GPT-4o with audio input and output",
+    "family": "gpt-4o-audio",
+    "release": "2024-12-17",
+    "type": "multimodal"
+  },
+  "gpt-4o-mini-audio-preview-2024-12-17": {
+    "context_window": 128000,
+    "description": "GPT-4o mini audio preview snapshot",
+    "family": "gpt-4o-audio",
+    "release": "2024-12-17",
+    "type": "multimodal"
+  },
+  "gpt-4o-mini-realtime-preview": {
+    "context_window": 128000,
+    "description": "Lightweight GPT-4o realtime model",
+    "family": "gpt-4o-realtime",
+    "release": "2024-12-17",
+    "type": "realtime"
+  },
+  "gpt-4o-mini-realtime-preview-2024-12-17": {
+    "context_window": 128000,
+    "description": "GPT-4o mini realtime preview snapshot",
+    "family": "gpt-4o-realtime",
+    "release": "2024-12-17",
+    "type": "realtime"
+  },
+  "gpt-4o-mini-search-preview": {
+    "context_window": 128000,
+    "description": "Lightweight GPT-4o with built-in web search",
+    "family": "gpt-4o-search",
+    "release": "2025-03-11",
+    "type": "search"
+  },
+  "gpt-4o-mini-search-preview-2025-03-11": {
+    "context_window": 128000,
+    "description": "GPT-4o mini search preview snapshot",
+    "family": "gpt-4o-search",
+    "release": "2025-03-11",
+    "type": "search"
+  },
+  "gpt-4o-mini-transcribe": {
+    "context_window": null,
+    "description": "Lightweight GPT-4o speech-to-text transcription",
+    "family": "gpt-4o-audio",
+    "release": "2025-03-20",
+    "type": "transcription"
+  },
+  "gpt-4o-mini-transcribe-2025-03-20": {
+    "context_window": null,
+    "description": "GPT-4o mini transcribe initial snapshot",
+    "family": "gpt-4o-audio",
+    "release": "2025-03-20",
+    "type": "transcription"
+  },
+  "gpt-4o-mini-transcribe-2025-12-15": {
+    "context_window": null,
+    "description": "GPT-4o mini transcribe updated snapshot",
+    "family": "gpt-4o-audio",
+    "release": "2025-12-15",
+    "type": "transcription"
+  },
+  "gpt-4o-mini-tts": {
+    "context_window": null,
+    "description": "Lightweight GPT-4o text-to-speech",
+    "family": "gpt-4o-audio",
+    "release": "2025-03-20",
+    "type": "audio"
+  },
+  "gpt-4o-mini-tts-2025-03-20": {
+    "context_window": null,
+    "description": "GPT-4o mini TTS initial snapshot",
+    "family": "gpt-4o-audio",
+    "release": "2025-03-20",
+    "type": "audio"
+  },
+  "gpt-4o-mini-tts-2025-12-15": {
+    "context_window": null,
+    "description": "GPT-4o mini TTS updated snapshot",
+    "family": "gpt-4o-audio",
+    "release": "2025-12-15",
+    "type": "audio"
+  },
+  "gpt-4o-realtime-preview": {
+    "context_window": 128000,
+    "description": "GPT-4o low-latency bidirectional realtime speech-to-speech",
+    "family": "gpt-4o-realtime",
+    "release": "2024-10-01",
+    "type": "realtime"
+  },
+  "gpt-4o-realtime-preview-2024-12-17": {
+    "context_window": 128000,
+    "description": "GPT-4o realtime preview snapshot",
+    "family": "gpt-4o-realtime",
+    "release": "2024-12-17",
+    "type": "realtime"
+  },
+  "gpt-4o-realtime-preview-2025-06-03": {
+    "context_window": 128000,
+    "description": "GPT-4o realtime preview snapshot",
+    "family": "gpt-4o-realtime",
+    "release": "2025-06-03",
+    "type": "realtime"
+  },
+  "gpt-4o-search-preview": {
+    "context_window": 128000,
+    "description": "GPT-4o with built-in web search",
+    "family": "gpt-4o-search",
+    "release": "2025-03-11",
+    "type": "search"
+  },
+  "gpt-4o-search-preview-2025-03-11": {
+    "context_window": 128000,
+    "description": "GPT-4o search preview snapshot",
+    "family": "gpt-4o-search",
+    "release": "2025-03-11",
+    "type": "search"
+  },
+  "gpt-4o-transcribe": {
+    "context_window": null,
+    "description": "GPT-4o-based speech-to-text transcription",
+    "family": "gpt-4o-audio",
+    "release": "2025-03-20",
+    "type": "transcription"
+  },
+  "gpt-4o-transcribe-diarize": {
+    "context_window": null,
+    "description": "GPT-4o transcription with speaker diarization",
+    "family": "gpt-4o-audio",
+    "release": null,
+    "type": "transcription"
+  },
+  "gpt-5": {
+    "context_window": 400000,
+    "description": "Unified reasoning flagship combining GPT-4o and o-series capabilities; 272K input + 128K output",
+    "family": "gpt-5",
+    "release": "2025-08-07",
+    "type": "reasoning"
+  },
+  "gpt-5-2025-08-07": {
+    "context_window": 400000,
+    "description": "GPT-5 initial release snapshot",
+    "family": "gpt-5",
+    "release": "2025-08-07",
+    "type": "reasoning"
+  },
+  "gpt-5-chat-latest": {
+    "context_window": 400000,
+    "description": "Alias pointing to latest GPT-5 chat model",
+    "family": "gpt-5",
+    "release": "2025-08-07",
+    "type": "reasoning"
+  },
+  "gpt-5-codex": {
+    "context_window": 400000,
+    "description": "GPT-5 optimized for agentic coding in Codex CLI",
+    "family": "gpt-5-codex",
+    "release": null,
+    "type": "reasoning"
+  },
+  "gpt-5-mini": {
+    "context_window": 400000,
+    "description": "Faster, more affordable GPT-5 variant",
+    "family": "gpt-5",
+    "release": "2025-08-07",
+    "type": "reasoning"
+  },
+  "gpt-5-mini-2025-08-07": {
+    "context_window": 400000,
+    "description": "GPT-5 mini initial release snapshot",
+    "family": "gpt-5",
+    "release": "2025-08-07",
+    "type": "reasoning"
+  },
+  "gpt-5-nano": {
+    "context_window": 400000,
+    "description": "Ultra-lightweight GPT-5 for high-volume tasks",
+    "family": "gpt-5",
+    "release": "2025-08-07",
+    "type": "reasoning"
+  },
+  "gpt-5-nano-2025-08-07": {
+    "context_window": 400000,
+    "description": "GPT-5 nano initial release snapshot",
+    "family": "gpt-5",
+    "release": "2025-08-07",
+    "type": "reasoning"
+  },
+  "gpt-5-pro": {
+    "context_window": 400000,
+    "description": "Extended reasoning GPT-5 for the hardest tasks",
+    "family": "gpt-5",
+    "release": "2025-10-06",
+    "type": "reasoning"
+  },
+  "gpt-5-pro-2025-10-06": {
+    "context_window": 400000,
+    "description": "GPT-5 pro initial release snapshot",
+    "family": "gpt-5",
+    "release": "2025-10-06",
+    "type": "reasoning"
+  },
+  "gpt-5-search-api": {
+    "context_window": 400000,
+    "description": "GPT-5 with built-in web search for Search API",
+    "family": "gpt-5-search",
+    "release": "2025-10-14",
+    "type": "search"
+  },
+  "gpt-5-search-api-2025-10-14": {
+    "context_window": 400000,
+    "description": "GPT-5 search API initial snapshot",
+    "family": "gpt-5-search",
+    "release": "2025-10-14",
+    "type": "search"
+  },
+  "gpt-5.1": {
+    "context_window": 400000,
+    "description": "GPT-5.1 with adaptive reasoning, 2-3x faster on simple tasks",
+    "family": "gpt-5.1",
+    "release": "2025-11-13",
+    "type": "reasoning"
+  },
+  "gpt-5.1-2025-11-13": {
+    "context_window": 400000,
+    "description": "GPT-5.1 initial release snapshot",
+    "family": "gpt-5.1",
+    "release": "2025-11-13",
+    "type": "reasoning"
+  },
+  "gpt-5.1-chat-latest": {
+    "context_window": 400000,
+    "description": "Alias pointing to latest GPT-5.1 chat model",
+    "family": "gpt-5.1",
+    "release": "2025-11-13",
+    "type": "reasoning"
+  },
+  "gpt-5.1-codex": {
+    "context_window": 400000,
+    "description": "GPT-5.1 optimized for agentic coding",
+    "family": "gpt-5.1-codex",
+    "release": null,
+    "type": "reasoning"
+  },
+  "gpt-5.1-codex-max": {
+    "context_window": 400000,
+    "description": "Frontier GPT-5.1 agentic coding model for long-running project-scale work",
+    "family": "gpt-5.1-codex",
+    "release": null,
+    "type": "reasoning"
+  },
+  "gpt-5.1-codex-mini": {
+    "context_window": 400000,
+    "description": "Lightweight GPT-5.1 codex for cost-efficient coding; up to 4x more usage",
+    "family": "gpt-5.1-codex",
+    "release": null,
+    "type": "reasoning"
+  },
+  "gpt-5.2": {
+    "context_window": 400000,
+    "description": "38% fewer errors than GPT-5.1; state-of-the-art at professional knowledge work",
+    "family": "gpt-5.2",
+    "release": "2025-12-11",
+    "type": "reasoning"
+  },
+  "gpt-5.2-2025-12-11": {
+    "context_window": 400000,
+    "description": "GPT-5.2 initial release snapshot",
+    "family": "gpt-5.2",
+    "release": "2025-12-11",
+    "type": "reasoning"
+  },
+  "gpt-5.2-chat-latest": {
+    "context_window": 400000,
+    "description": "Alias pointing to latest GPT-5.2 chat model",
+    "family": "gpt-5.2",
+    "release": "2025-12-11",
+    "type": "reasoning"
+  },
+  "gpt-5.2-codex": {
+    "context_window": 400000,
+    "description": "GPT-5.2 agentic coding model with native context compaction",
+    "family": "gpt-5.2-codex",
+    "release": "2026-01-14",
+    "type": "reasoning"
+  },
+  "gpt-5.2-pro": {
+    "context_window": 400000,
+    "description": "GPT-5.2 high-compute variant for the hardest professional tasks",
+    "family": "gpt-5.2",
+    "release": "2025-12-11",
+    "type": "reasoning"
+  },
+  "gpt-5.2-pro-2025-12-11": {
+    "context_window": 400000,
+    "description": "GPT-5.2 pro initial release snapshot",
+    "family": "gpt-5.2",
+    "release": "2025-12-11",
+    "type": "reasoning"
+  },
+  "gpt-5.3-chat-latest": {
+    "context_window": 400000,
+    "description": "GPT-5.3 Instant; improved tone, info-seeking, and technical writing",
+    "family": "gpt-5.3",
+    "release": "2026-03-03",
+    "type": "reasoning"
+  },
+  "gpt-5.3-codex": {
+    "context_window": 1000000,
+    "description": "GPT-5.3 agentic coding with 1M context; 25% faster than GPT-5.2-Codex",
+    "family": "gpt-5.3-codex",
+    "release": "2026-02-05",
+    "type": "reasoning"
+  },
+  "gpt-5.4": {
+    "context_window": 1050000,
+    "description": "Current frontier model with native computer use, 1M context, and 47% token efficiency gain",
+    "family": "gpt-5.4",
+    "release": "2026-03-05",
+    "type": "reasoning"
+  },
+  "gpt-5.4-2026-03-05": {
+    "context_window": 1050000,
+    "description": "GPT-5.4 initial release snapshot",
+    "family": "gpt-5.4",
+    "release": "2026-03-05",
+    "type": "reasoning"
+  },
+  "gpt-5.4-mini": {
+    "context_window": 400000,
+    "description": "Strongest mini model for coding, computer use, and subagents",
+    "family": "gpt-5.4",
+    "release": "2026-03-17",
+    "type": "reasoning"
+  },
+  "gpt-5.4-mini-2026-03-17": {
+    "context_window": 400000,
+    "description": "GPT-5.4 mini initial release snapshot",
+    "family": "gpt-5.4",
+    "release": "2026-03-17",
+    "type": "reasoning"
+  },
+  "gpt-5.4-nano": {
+    "context_window": 400000,
+    "description": "Cheapest GPT-5.4-class model for simple high-volume tasks",
+    "family": "gpt-5.4",
+    "release": "2026-03-17",
+    "type": "reasoning"
+  },
+  "gpt-5.4-nano-2026-03-17": {
+    "context_window": 400000,
+    "description": "GPT-5.4 nano initial release snapshot",
+    "family": "gpt-5.4",
+    "release": "2026-03-17",
+    "type": "reasoning"
+  },
+  "gpt-5.4-pro": {
+    "context_window": 1050000,
+    "description": "GPT-5.4 high-compute variant for toughest problems",
+    "family": "gpt-5.4",
+    "release": "2026-03-05",
+    "type": "reasoning"
+  },
+  "gpt-5.4-pro-2026-03-05": {
+    "context_window": 1050000,
+    "description": "GPT-5.4 pro initial release snapshot",
+    "family": "gpt-5.4",
+    "release": "2026-03-05",
+    "type": "reasoning"
+  },
+  "gpt-audio": {
+    "context_window": null,
+    "description": "Alias for latest GPT audio generation model (GA)",
+    "family": "gpt-audio",
+    "release": "2025-08-28",
+    "type": "audio"
+  },
+  "gpt-audio-1.5": {
+    "context_window": null,
+    "description": "Advanced GPT audio model v1.5",
+    "family": "gpt-audio",
+    "release": null,
+    "type": "audio"
+  },
+  "gpt-audio-2025-08-28": {
+    "context_window": null,
+    "description": "GPT audio model GA initial snapshot",
+    "family": "gpt-audio",
+    "release": "2025-08-28",
+    "type": "audio"
+  },
+  "gpt-audio-mini": {
+    "context_window": null,
+    "description": "Alias for latest lightweight GPT audio model",
+    "family": "gpt-audio",
+    "release": "2025-10-06",
+    "type": "audio"
+  },
+  "gpt-audio-mini-2025-10-06": {
+    "context_window": null,
+    "description": "Lightweight GPT audio model initial snapshot",
+    "family": "gpt-audio",
+    "release": "2025-10-06",
+    "type": "audio"
+  },
+  "gpt-audio-mini-2025-12-15": {
+    "context_window": null,
+    "description": "Lightweight GPT audio model updated snapshot",
+    "family": "gpt-audio",
+    "release": "2025-12-15",
+    "type": "audio"
+  },
   "gpt-image-1": {
     "context_window": null,
-    "description": "Unified image model",
+    "description": "Unified image model with instruction following, editing, and image input",
     "family": "image",
-    "release": "2025-01-01",
+    "release": "2025-04-15",
     "type": "image"
+  },
+  "gpt-image-1-mini": {
+    "context_window": null,
+    "description": "Cost-efficient GPT Image 1 variant",
+    "family": "image",
+    "release": "2025-10-06",
+    "type": "image"
+  },
+  "gpt-image-1.5": {
+    "context_window": null,
+    "description": "Advanced GPT image model with improved quality and edit consistency",
+    "family": "image",
+    "release": "2025-12-15",
+    "type": "image"
+  },
+  "gpt-realtime": {
+    "context_window": null,
+    "description": "Alias for latest GPT realtime speech-to-speech model (GA)",
+    "family": "gpt-realtime",
+    "release": "2025-08-28",
+    "type": "realtime"
+  },
+  "gpt-realtime-1.5": {
+    "context_window": null,
+    "description": "Advanced GPT realtime model v1.5",
+    "family": "gpt-realtime",
+    "release": null,
+    "type": "realtime"
+  },
+  "gpt-realtime-2025-08-28": {
+    "context_window": null,
+    "description": "GPT realtime model GA initial snapshot",
+    "family": "gpt-realtime",
+    "release": "2025-08-28",
+    "type": "realtime"
+  },
+  "gpt-realtime-mini": {
+    "context_window": null,
+    "description": "Alias for latest lightweight GPT realtime model",
+    "family": "gpt-realtime",
+    "release": "2025-10-06",
+    "type": "realtime"
+  },
+  "gpt-realtime-mini-2025-10-06": {
+    "context_window": null,
+    "description": "Lightweight GPT realtime model, ~70% cheaper than prior advanced voice models",
+    "family": "gpt-realtime",
+    "release": "2025-10-06",
+    "type": "realtime"
+  },
+  "gpt-realtime-mini-2025-12-15": {
+    "context_window": null,
+    "description": "Lightweight GPT realtime model updated snapshot",
+    "family": "gpt-realtime",
+    "release": "2025-12-15",
+    "type": "realtime"
   },
   "o1": {
     "context_window": 200000,
@@ -118,81 +692,151 @@
     "release": "2024-12-17",
     "type": "reasoning"
   },
+  "o1-2024-12-17": {
+    "context_window": 200000,
+    "description": "o1 initial release snapshot",
+    "family": "o-series",
+    "release": "2024-12-17",
+    "type": "reasoning"
+  },
   "o1-pro": {
     "context_window": 200000,
-    "description": "High-performance reasoning model",
+    "description": "High-compute o1 variant for the hardest problems",
+    "family": "o-series",
+    "release": "2025-03-19",
+    "type": "reasoning"
+  },
+  "o1-pro-2025-03-19": {
+    "context_window": 200000,
+    "description": "o1 pro initial release snapshot",
     "family": "o-series",
     "release": "2025-03-19",
     "type": "reasoning"
   },
   "o3": {
     "context_window": 200000,
-    "description": "Next-gen reasoning model",
+    "description": "Next-generation reasoning model",
+    "family": "o-series",
+    "release": "2025-04-16",
+    "type": "reasoning"
+  },
+  "o3-2025-04-16": {
+    "context_window": 200000,
+    "description": "o3 initial release snapshot",
     "family": "o-series",
     "release": "2025-04-16",
     "type": "reasoning"
   },
   "o3-mini": {
     "context_window": 200000,
-    "description": "Compact reasoning model",
+    "description": "Compact, efficient reasoning model",
+    "family": "o-series",
+    "release": "2025-01-31",
+    "type": "reasoning"
+  },
+  "o3-mini-2025-01-31": {
+    "context_window": 200000,
+    "description": "o3-mini initial release snapshot",
     "family": "o-series",
     "release": "2025-01-31",
     "type": "reasoning"
   },
   "o4-mini": {
     "context_window": 200000,
-    "description": "Efficient reasoning model",
+    "description": "Efficient next-gen reasoning model",
     "family": "o-series",
     "release": "2025-04-16",
     "type": "reasoning"
   },
-  "omni-moderation-latest": {
+  "o4-mini-2025-04-16": {
+    "context_window": 200000,
+    "description": "o4-mini initial release snapshot",
+    "family": "o-series",
+    "release": "2025-04-16",
+    "type": "reasoning"
+  },
+  "omni-moderation-2024-09-26": {
     "context_window": null,
-    "description": "Content moderation model",
+    "description": "Multimodal content moderation model initial snapshot",
     "family": "moderation",
     "release": "2024-09-26",
     "type": "moderation"
   },
+  "omni-moderation-latest": {
+    "context_window": null,
+    "description": "Alias for latest multimodal content moderation model",
+    "family": "moderation",
+    "release": "2024-09-26",
+    "type": "moderation"
+  },
+  "sora-2": {
+    "context_window": null,
+    "description": "Advanced video generation with synchronized audio, improved physics, and multi-shot consistency",
+    "family": "sora",
+    "release": "2025-09-30",
+    "type": "video"
+  },
+  "sora-2-pro": {
+    "context_window": null,
+    "description": "High-quality Sora 2 variant supporting 1080p output at $0.70/second",
+    "family": "sora",
+    "release": "2025-10-06",
+    "type": "video"
+  },
   "text-embedding-3-large": {
     "context_window": null,
-    "description": "High-quality embedding model",
+    "description": "High-quality text embedding model",
     "family": "embedding",
     "release": "2024-01-25",
     "type": "embedding"
   },
   "text-embedding-3-small": {
     "context_window": null,
-    "description": "Lightweight embedding model",
+    "description": "Lightweight text embedding model",
     "family": "embedding",
     "release": "2024-01-25",
     "type": "embedding"
   },
   "text-embedding-ada-002": {
     "context_window": null,
-    "description": "Legacy embedding model",
+    "description": "Legacy text embedding model",
     "family": "embedding",
     "release": "2022-12-01",
     "type": "embedding"
   },
   "tts-1": {
     "context_window": null,
-    "description": "Text-to-speech",
+    "description": "Text-to-speech, standard quality",
     "family": "tts",
     "release": "2024-01-01",
+    "type": "audio"
+  },
+  "tts-1-1106": {
+    "context_window": null,
+    "description": "TTS-1 snapshot",
+    "family": "tts",
+    "release": "2023-11-06",
     "type": "audio"
   },
   "tts-1-hd": {
     "context_window": null,
-    "description": "High-quality text-to-speech",
+    "description": "Text-to-speech, high quality",
     "family": "tts",
     "release": "2024-01-01",
     "type": "audio"
   },
+  "tts-1-hd-1106": {
+    "context_window": null,
+    "description": "TTS-1 HD snapshot",
+    "family": "tts",
+    "release": "2023-11-06",
+    "type": "audio"
+  },
   "whisper-1": {
     "context_window": null,
-    "description": "Speech-to-text model",
+    "description": "Speech-to-text transcription model",
     "family": "audio",
-    "release": "2022-09-01",
+    "release": "2022-09-21",
     "type": "transcription"
   }
 }
