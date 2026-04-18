@@ -1,4 +1,4 @@
-# TODO
+# What remains to be done
 
 ## UX
 
@@ -22,11 +22,7 @@ WEB: favicon pas affichée dans le tab
 
 ## Code quality
 
-keep DRY between frontend and backend
-
 make more robust enums vs strings
-
-make consts out of fixes strings which are not variables
 
 ## Understand
 
