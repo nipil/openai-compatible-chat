@@ -25,7 +25,9 @@ use crate::models::{self, ModelError};
 
 use portable::{ConfigDto, Exclusion, Mapping, Message, MessageRole, ModelDto};
 
+// TODO: make configurable using Clap
 const DIST_FOLDER: &str = "wasm/dist";
+const SSE_EVENT_ERROR: &str = "error";
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -124,7 +126,7 @@ async fn handle_chat(
         match build_chat_stream(s, req).await {
             Ok(s) => s,
             Err(e) => Box::pin(futures::stream::once(async move {
-                Ok(Event::default().event("error").data(e.to_string()))
+                Ok(Event::default().event(SSE_EVENT_ERROR).data(e.to_string()))
             })),
         };
 
@@ -192,10 +194,10 @@ async fn build_chat_stream(
                             }
                         }
                         return Ok(Event::default()
-                            .event("error")
+                            .event(SSE_EVENT_ERROR)
                             .data(format!("Model '{model}' has been excluded: {e}")));
                     }
-                    Ok(Event::default().event("error").data(e.to_string()))
+                    Ok(Event::default().event(SSE_EVENT_ERROR).data(e.to_string()))
                 }
             }
         }
