@@ -38,9 +38,9 @@ pub struct Config {
 #[derive(Debug, Deserialize, Clone)]
 pub struct ModelInfo {
     pub description: String,
-    pub family: Option<String>, // TODO: switch to must be present
+    pub family: String,
     #[serde(rename = "type")]
-    pub model_type: Option<String>, // TODO: switch to must be present
+    pub model_type: String, //TODO: switch to ModelType?
     pub context_window: Option<u32>,
     pub release: Option<String>,
 }

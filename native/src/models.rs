@@ -4,7 +4,6 @@ use portable::{Exclusion, ProviderModels};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
-//use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumString)]
 #[strum(serialize_all = "lowercase")]
@@ -92,13 +91,13 @@ pub fn filter_and_sort(
         .filter(|id| !filters.iter().any(|r| r.is_match(id)))
         .filter_map(|id| {
             let meta = mapping.get(&id)?;
-            let model_type = meta.model_type.clone()?.parse().ok()?;
+            let model_type = meta.model_type.clone().parse().ok()?;
             // Drop models whose type is known but not in the allowed set.
             if !ALLOWED_TYPES.contains(&model_type) {
                 return None;
             }
             Some(EnrichedModel {
-                family: meta.family.clone().unwrap_or_default(),
+                family: meta.family.clone(),
                 max_tokens: meta.context_window,
                 model_type: Some(model_type.to_string()),
                 id,
@@ -124,13 +123,14 @@ pub fn explain_rejection(
         return Some("filtered out by exclude_model_name_regex".into());
     }
     if let Some(meta) = mapping.get(id) {
-        if let Some(ref t) = meta.model_type {
-            let Ok(ref model_type) = t.parse() else {
-                return Some(format!("filtered out (type={t} not recognized)"));
-            };
-            if !ALLOWED_TYPES.contains(model_type) {
-                return Some(format!("filtered out (type={t} not supported)"));
-            }
+        let Ok(model_type) = &meta.model_type.parse() else {
+            return Some(format!(
+                "filtered out (type={} not recognized)",
+                meta.model_type
+            ));
+        };
+        if !ALLOWED_TYPES.contains(model_type) {
+            return Some(format!("filtered out (type={model_type} not supported)"));
         }
     }
     None
