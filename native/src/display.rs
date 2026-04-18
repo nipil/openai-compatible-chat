@@ -230,10 +230,7 @@ pub fn select_model(models: &[EnrichedModel]) -> Result<String> {
 
     let labels: Vec<String> = models
         .iter()
-        .map(|m| match &m.model_type {
-            Some(t) => format!("{} ({})", m.id, t),
-            None => m.id.clone(),
-        })
+        .map(|m| format!("{} ({})", m.id, m.model_type))
         .collect();
 
     let idx = FuzzySelect::new()
@@ -254,10 +251,7 @@ fn print_model_grid(models: &[EnrichedModel]) {
     let labels: Vec<String> = models
         .iter()
         .enumerate()
-        .map(|(i, m)| match &m.model_type {
-            Some(t) => format!("{}. {} ({})", i + 1, m.id, t),
-            None => format!("{}. {}", i + 1, m.id),
-        })
+        .map(|(i, m)| format!("{}. {} ({})", i + 1, m.id, m.model_type))
         .collect();
 
     let col_w = labels.iter().map(|l| l.len()).max().unwrap_or(20) + 4;
