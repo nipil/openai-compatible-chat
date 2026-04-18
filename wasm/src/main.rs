@@ -8,6 +8,7 @@ use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefault
 
 use portable::{ConfigDto, Message, MessageRole, ModelDto, Theme, estimate_tokens};
 
+const COOKIE_MODEL: &str = "model";
 const COOKIE_THEME: &str = "theme";
 const COOKIE_THEME_DEFAULT: Theme = Theme::Dark;
 
@@ -243,7 +244,7 @@ fn App() -> impl IntoView {
                 let locked = locked_mdl.get_untracked();
                 let initial = if locked.is_none() {
                     // Try saved model cookie; fall back to first in list if absent/stale
-                    get_cookie("model")
+                    get_cookie(COOKIE_MODEL)
                         .and_then(|s| list.iter().find(|m| m.id == s).map(|m| m.id.clone()))
                         .or_else(|| list.first().map(|m| m.id.clone()))
                 } else {
@@ -403,7 +404,7 @@ fn App() -> impl IntoView {
                         sel_model.set(val.clone());
                         // Only persist to cookie when the user freely chose the model
                         if locked_mdl.get_untracked().is_none() {
-                            set_cookie("model", &val);
+                            set_cookie(COOKIE_MODEL, &val);
                         }
                     }
                 >
