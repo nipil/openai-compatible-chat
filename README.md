@@ -4,11 +4,11 @@ Simple chatbot en ligne de commande (CLI) en Rust, utilisant l’API OpenAI (pub
 
 Sample rendering for WEB in light mode
 
-![sample](sample-web.png)
+![sample](docs/sample-web.png)
 
 Sample rendering for CLI in dark mode
 
-![sample](sample-cli.png)
+![sample](docs/sample-cli.png)
 
 ---
 
@@ -174,7 +174,7 @@ cargo build --release
 
 ## Architecture
 
-![Composants et liens](architecture.svg)
+![Composants et liens](docs/architecture.svg)
 
 That's the entire stack:
 
@@ -198,3 +198,7 @@ The standard tool for building and bundling Rust WASM frontends. It handles the 
 ### Application flow
 
 The streaming flow will be: Leptos frontend sends a fetch request → Axum backend forwards it to OpenAI with streaming enabled → Axum streams tokens back as SSE → Leptos reads the SSE stream and appends tokens to the UI reactively.
+
+## What's next ?
+
+There is surely [something fun to do !](docs/TODO.md)
