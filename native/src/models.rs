@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 //use std::str::FromStr;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumString)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumString)]
 #[strum(serialize_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum ModelType {
