@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig, error::OpenAIError};
-use portable::{Exclusion, Mapping};
+use portable::{Exclusion, ProviderModels};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -82,7 +82,7 @@ pub fn compile_regex(patterns: &[String]) -> Result<Vec<Regex>> {
 
 pub fn filter_and_sort(
     ids: Vec<String>,
-    mapping: &Mapping,
+    mapping: &ProviderModels,
     excluded: &[String],
     filters: &[Regex],
 ) -> Vec<EnrichedModel> {
@@ -99,7 +99,7 @@ pub fn filter_and_sort(
             }
             Some(EnrichedModel {
                 family: meta.family.clone().unwrap_or_default(),
-                max_tokens: meta.max_tokens,
+                max_tokens: meta.context_window,
                 model_type: Some(model_type.to_string()),
                 id,
             })
@@ -113,7 +113,7 @@ pub fn filter_and_sort(
 /// Returns a human-readable rejection reason, or `None` if the model passes.
 pub fn explain_rejection(
     id: &str,
-    mapping: &Mapping,
+    mapping: &ProviderModels,
     excl: &Exclusion,
     filters: &[Regex],
 ) -> Option<String> {

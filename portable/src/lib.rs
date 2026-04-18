@@ -23,7 +23,7 @@ pub enum Theme {
 
 // ── Configurations ────────────────────────────────────────────────────────────
 
-pub type Mapping = HashMap<String, ModelMeta>;
+pub type ProviderModels = HashMap<String, ModelInfo>;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -37,11 +37,13 @@ pub struct Config {
 
 // TODO: think about a way to merge ModelMeta and ModelDto ?
 #[derive(Debug, Deserialize, Clone)]
-pub struct ModelMeta {
-    pub family: Option<String>,
+pub struct ModelInfo {
+    pub description: String,
+    pub family: Option<String>, // TODO: switch to must be present
     #[serde(rename = "type")]
-    pub model_type: Option<String>,
-    pub max_tokens: Option<u32>,
+    pub model_type: Option<String>, // TODO: switch to must be present
+    pub context_window: Option<u32>,
+    pub release: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]

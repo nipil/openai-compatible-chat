@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use portable::{Config, Exclusion, Mapping};
+use portable::{Config, Exclusion, ProviderModels};
 use std::{collections::HashMap, fs, path::Path};
 // use config::
 pub const CONFIG_PATH: &str = "config.json";
@@ -14,7 +14,7 @@ pub fn load_config() -> Result<Config> {
     serde_json::from_str(&raw).with_context(|| format!("Invalid JSON in '{CONFIG_PATH}'"))
 }
 
-pub fn load_mapping() -> Result<Mapping> {
+pub fn load_mapping() -> Result<ProviderModels> {
     if !Path::new(MAPPING_PATH).exists() {
         return Ok(HashMap::new());
     }

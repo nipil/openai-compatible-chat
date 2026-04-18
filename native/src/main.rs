@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
-use portable::{Config, Exclusion, Mapping, ModelMeta};
+use portable::{Config, Exclusion, ModelInfo, ProviderModels};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -111,7 +111,7 @@ async fn web(port: &u16, state: web::AppState) -> Result<()> {
 async fn cli(
     locked_model: Option<String>,
     client: Client<OpenAIConfig>,
-    mapping: HashMap<String, ModelMeta>,
+    mapping: HashMap<String, ModelInfo>,
     mut exclusion: Exclusion,
     filters: Vec<regex::Regex>,
     config: Config,
@@ -207,7 +207,7 @@ async fn cli(
 async fn pick_from_list(
     client: &Client<OpenAIConfig>,
     cache: &mut Option<Vec<models::EnrichedModel>>,
-    mapping: &Mapping,
+    mapping: &ProviderModels,
     excl: &Exclusion,
     filters: &[regex::Regex],
 ) -> Result<String> {

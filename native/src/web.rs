@@ -23,7 +23,7 @@ use tower_http::services::ServeDir;
 use crate::config;
 use crate::models::{self, ModelError};
 
-use portable::{ConfigDto, Exclusion, Mapping, Message, MessageRole, ModelDto};
+use portable::{ConfigDto, Exclusion, ProviderModels, Message, MessageRole, ModelDto};
 
 // TODO: make configurable using Clap
 const DIST_FOLDER: &str = "wasm/dist";
@@ -34,7 +34,7 @@ const SSE_EVENT_ERROR: &str = "error";
 #[derive(Clone)]
 pub struct AppState {
     pub client: Arc<Client<OpenAIConfig>>,
-    pub mapping: Arc<Mapping>,
+    pub mapping: Arc<ProviderModels>,
     pub exclusion: Arc<RwLock<Exclusion>>, // shared mutable exclusion list
     pub filters: Arc<Vec<Regex>>,
     pub system_prompt: Arc<String>,
