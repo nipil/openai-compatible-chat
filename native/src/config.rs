@@ -3,7 +3,7 @@ use portable::{Config, Exclusion, Mapping};
 use std::{collections::HashMap, fs, path::Path};
 // use config::
 pub const CONFIG_PATH: &str = "config.json";
-pub const MAPPING_PATH: &str = "mapping.json";
+pub const MAPPING_PATH: &str = "mapping-openai.json";
 pub const EXCLUSION_PATH: &str = "exclusion.json";
 
 // ── I/O helpers ──────────────────────────────────────────────────────────────
