@@ -139,14 +139,17 @@ rustup target add wasm32-unknown-unknown
 
 # outil qui hot-build/reload le wasm et le static
 cargo install trunk
+
+# outil qui hot-build/reload le code natif
+cargo install watchexec-cli
 ```
 
 ### Debug
 
-Démarre le backend (prendre le port de `wasm/Trunk.toml [[proxy]] backend`
+Démarre le backend (prendre le port de `wasm/Trunk.toml [[proxy]] backend`)
 
 ```shell
-cargo run -p native -- web --port 3000
+watchexec --clear --quiet --restart --debounce 1000 --stop-signal SIGTERM --ignore "wasm/**" --exts rs cargo run -p native -- web --port 3000
 ```
 
 Hot-build et reload du code rust/wasm et serveur du static
