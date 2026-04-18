@@ -35,7 +35,6 @@ pub struct Config {
     pub prepend_system_prompt: String,
 }
 
-// TODO: think about a way to merge ModelMeta and ModelDto ?
 #[derive(Debug, Deserialize, Clone)]
 pub struct ModelInfo {
     pub description: String,
@@ -58,9 +57,7 @@ pub struct Exclusion {
 #[derive(Clone, PartialEq, Deserialize, Serialize)]
 pub struct ModelDto {
     pub id: String,
-    pub family: String,
-    pub model_type: Option<String>,
-    pub max_tokens: Option<u32>,
+    pub context_window: Option<u32>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]

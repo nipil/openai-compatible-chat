@@ -23,7 +23,7 @@ use tower_http::services::ServeDir;
 use crate::config;
 use crate::models::{self, ModelError};
 
-use portable::{ConfigDto, Exclusion, ProviderModels, Message, MessageRole, ModelDto};
+use portable::{ConfigDto, Exclusion, Message, MessageRole, ModelDto, ProviderModels};
 
 // TODO: make configurable using Clap
 const DIST_FOLDER: &str = "wasm/dist";
@@ -84,9 +84,7 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
             .into_iter()
             .map(|m| ModelDto {
                 id: m.id,
-                family: m.family,
-                model_type: m.model_type,
-                max_tokens: m.max_tokens,
+                context_window: m.max_tokens,
             })
             .collect(),
     )

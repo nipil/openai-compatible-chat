@@ -429,10 +429,10 @@ fn App() -> impl IntoView {
                         class="token-counter"
                         style=move || token_color_style(
                             tok_count.get(),
-                            sel_meta.get().and_then(|m| m.max_tokens),
+                            sel_meta.get().and_then(|m| m.context_window),
                         )
                     >
-                        {move || match sel_meta.get().and_then(|m| m.max_tokens) {
+                        {move || match sel_meta.get().and_then(|m| m.context_window) {
                             Some(max) => format!("~{} / {} tok", tok_count.get(), max),
                             None      => format!("~{} tok", tok_count.get()),
                         }}
