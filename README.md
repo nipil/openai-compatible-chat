@@ -155,7 +155,8 @@ watchexec --clear --quiet --restart --debounce 1000 --stop-signal SIGTERM --igno
 Hot-build et reload du code rust/wasm et serveur du static
 
 ```shell
-cd wasm && trunk serve
+cd wasm
+watchexec --clear --quiet --restart --debounce 1000 --stop-signal SIGTERM --watch "../portable" --exts rs trunk serve
 ```
 
 Visiter `http://localhost:8080` dans le navigateur
