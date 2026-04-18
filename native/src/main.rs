@@ -129,6 +129,7 @@ async fn cli(
     });
 
     let mut forced: Option<String> = locked_model;
+    // TODO: If caching is done once anyway on first pick, why not do at startup ?!
     let mut model_cache: Option<Vec<models::EnrichedModel>> = None;
 
     loop {
@@ -188,7 +189,7 @@ async fn cli(
             &mut exclusion,
             &config,
         )
-        .await?;
+        .await?; // TODO: maybe more error once we stop swallowing them
 
         if let chat::ChatOutcome::ModelExcluded = outcome {
             config::save_model_id_exclusion_list(&exclusion)?;

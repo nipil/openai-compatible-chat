@@ -226,6 +226,7 @@ pub fn select_model(models: &[EnrichedModel]) -> Result<String> {
         return Ok(models[0].id.clone());
     }
 
+    // TODO: why draw model grid if we have a fuzzy select ?
     print_model_grid(models);
 
     let labels: Vec<String> = models
@@ -238,6 +239,8 @@ pub fn select_model(models: &[EnrichedModel]) -> Result<String> {
         .with_prompt("Select model")
         .items(&labels)
         .default(0)
+        // We do not need to handle user cancel as ctrl-c = exit, but otherwise we
+        // would need to use interact_opt to get a result<option> handling q or Esc
         .interact()
         .map_err(|e| anyhow!("Selection failed: {e}"))?;
 

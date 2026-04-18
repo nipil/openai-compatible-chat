@@ -13,6 +13,7 @@ pub const ALLOWED_TYPES: &[ModelType] = &[
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
+// TODO: move to portable
 pub struct EnrichedModel {
     pub id: String,
     pub info: ModelInfo,
@@ -88,6 +89,7 @@ pub fn filter_and_sort(
         })
         .collect();
 
+    // TODO: implement PartialEq on ModelInfo ?
     models.sort_by(|a, b| a.info.family.cmp(&b.info.family).then(a.id.cmp(&b.id)));
     models
 }

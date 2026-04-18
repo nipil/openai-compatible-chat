@@ -54,6 +54,7 @@ pub async fn run(
 
         if context_closed {
             crate::display::log_warning("Context closed — start a new session (Ctrl-C to exit).");
+            // TODO: handle like a command or key to exit back to
             continue;
         }
         if input.is_empty() {
@@ -75,6 +76,7 @@ pub async fn run(
             Err(e) => {
                 history.pop(); // drop the unsatisfied user turn
                 let msg = e.to_string().to_lowercase();
+                // TODO: check error by type ?
 
                 if msg.contains("context_length") || msg.contains("context length") {
                     crate::display::log_warning(
@@ -202,6 +204,7 @@ async fn send_and_stream(
 }
 
 // TODO: make DRY and deduplicate vs web.rs
+// TODO: thiserror OpenAiError ? or not because of defaults
 fn to_api_messages(history: &[Message]) -> Result<Vec<ChatCompletionRequestMessage>, OpenAIError> {
     history
         .iter()

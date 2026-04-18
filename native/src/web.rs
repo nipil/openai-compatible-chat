@@ -83,6 +83,7 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
         enriched
             .into_iter()
             .map(|m| ModelDto {
+                // TODO: implement From<EnrichedModel> to easily convert
                 id: m.id,
                 context_window: m.info.context_window,
             })
@@ -123,6 +124,7 @@ async fn handle_chat(
     let stream: BoxStream<'static, Result<Event, Infallible>> =
         match build_chat_stream(s, req).await {
             Ok(s) => s,
+            // TODO: display error or not ?
             Err(e) => Box::pin(futures::stream::once(async move {
                 Ok(Event::default().event(SSE_EVENT_ERROR).data(e.to_string()))
             })),
@@ -140,14 +142,20 @@ async fn build_chat_stream(
         .iter()
         .filter(|m| !(m.role == MessageRole::System && m.content.trim().is_empty()))
         .map(msg_to_api)
+        // There are two possible way to collect "list of results" :
+        // - collect::<Vec<Result<_,_>>>() → keep every result
+        //   → what we would do if we wanted to log each error (for example)
+        // - collect::<Result<Vec<_>>>() → first error wins, rest is ignored
+        //   → what we do here, as we do nothing like logging each err
+        // TODO: RECHECK once msg_to_api is not anyhow ... or make thiserror or openai or with_context
         .collect::<anyhow::Result<Vec<_>>>()?;
 
     let request = CreateChatCompletionRequestArgs::default()
         .model(&req.model)
         .messages(messages)
-        .build()?;
+        .build()?; // TODO: thiserror or openai or with_context
 
-    let openai_stream = s.client.chat().create_stream(request).await?;
+    let openai_stream = s.client.chat().create_stream(request).await?; // TODO: thiserror or openai
 
     // Capture what we need for the exclusion side-effect inside the stream
     let model = req.model.clone();
@@ -207,6 +215,7 @@ async fn build_chat_stream(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // TODO: make DRY and deduplicate vs chat.rs
+// TODO: thiserror OpenAiError ? or not because of defaults ?
 fn msg_to_api(m: &Message) -> anyhow::Result<ChatCompletionRequestMessage> {
     Ok(match m.role {
         MessageRole::System => ChatCompletionRequestSystemMessageArgs::default()

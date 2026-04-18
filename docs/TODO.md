@@ -30,6 +30,8 @@ use a self-configured reqwest client, as async_openai uses internally, but witho
 
 make more robust enums vs strings
 
+add context to each anyhow error
+
 ## Understand
 
 Abort/stop: AbortController is wrapped in send_wrapper::SendWrapper to satisfy Leptos 0.7's RwSignal<T: Send+Sync> requirement (safe here since WASM is single-threaded)
