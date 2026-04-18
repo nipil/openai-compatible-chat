@@ -20,6 +20,12 @@ move configs to XDG (and have it explain what it is)
 
 WEB: favicon pas affichée dans le tab
 
+CFG: add providers (multiple key+url)
+
+CFG: add more provider knobs : env proxy + auth headers + cookies
+
+use a self-configured reqwest client, as async_openai uses internally, but without default features (including system-proxy), as it selects only json/multipart/
+
 ## Code quality
 
 make more robust enums vs strings
