@@ -11,6 +11,7 @@ use portable::{ConfigDto, Message, MessageRole, ModelDto, Theme, estimate_tokens
 const COOKIE_MODEL: &str = "model";
 const COOKIE_THEME: &str = "theme";
 const COOKIE_THEME_DEFAULT: Theme = Theme::Dark;
+const STORAGE_KEY_OPENAI: &str = "openai";
 
 // Token counter: returns an inline style string for the dynamic gradient only.
 // Static layout/padding lives in .token-counter in style.css.
@@ -201,14 +202,14 @@ fn save_chat(messages: &[Message]) {
     let Ok(json) = serde_json::to_string(messages) else {
         return;
     };
-    let _ = storage.set_item("openai", &json);
+    let _ = storage.set_item(STORAGE_KEY_OPENAI, &json);
 }
 
 fn load_chat() -> Vec<Message> {
     let Ok(Some(storage)) = window().unwrap().session_storage() else {
         return vec![];
     };
-    let Ok(Some(json)) = storage.get_item("openai") else {
+    let Ok(Some(json)) = storage.get_item(STORAGE_KEY_OPENAI) else {
         return vec![];
     };
     serde_json::from_str(&json).unwrap_or_default()
