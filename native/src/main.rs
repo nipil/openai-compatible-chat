@@ -148,7 +148,7 @@ async fn cli(
                         models::explain_rejection(&id, &mapping, &exclusion, &filters)
                     {
                         display::log_warning(&format!("Model '{id}' is {reason}"));
-                        let m = pick_from_list(&models).await?;
+                        let m = display::select_model(&models)?;
                         (m, false)
                     } else {
                         display::log_info(&format!("Using model: {id}"));
@@ -161,19 +161,14 @@ async fn cli(
                         exclusion.excluded_models.push(id);
                         config::save_model_id_exclusion_list(&exclusion)?;
                     }
-                    let m = pick_from_list(&models).await?;
-                    (m, false)
+                    (display::select_model(&models)?, false)
                 }
                 Err(_) => {
                     display::log_error(&format!("Model '{id}' is unavailable or does not exist"));
-                    let m = pick_from_list(&models).await?;
-                    (m, false)
+                    (display::select_model(&models)?, false)
                 }
             },
-            None => {
-                let m = pick_from_list(&models).await?;
-                (m, false)
-            }
+            None => (display::select_model(&models)?, false),
         };
 
         // ── Run chat session ────────────────────────────────────────────────
@@ -190,14 +185,4 @@ async fn cli(
             return Ok(());
         }
     }
-}
-
-/// Run the interactive fuzzy model selector.
-#[cfg(feature = "cli")]
-async fn pick_from_list(cache: &Vec<EnrichedModel>) -> Result<String> {
-    if cache.is_empty() {
-        display::log_critical("No models available.");
-        std::process::exit(1);
-    }
-    display::select_model(cache)
 }

@@ -218,9 +218,12 @@ fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
 
 // ── Display / selection ───────────────────────────────────────────────────────
 
-/// Renders the columnar model grid, then opens an interactive fuzzy-search
-/// prompt. Returns the selected model ID.
+/// Opens an interactive fuzzy-search and returns the selected model ID.
 pub fn select_model(models: &[EnrichedModel]) -> Result<String> {
+    if models.is_empty() {
+        return Err(anyhow!("No models available."));
+    }
+
     if models.len() == 1 {
         crate::display::log_info(&format!("Auto-selected: {}", models[0].id));
         return Ok(models[0].id.clone());
