@@ -226,11 +226,7 @@ pub fn select_model(models: &[EnrichedModel]) -> Result<String> {
         return Ok(models[0].id.clone());
     }
 
-    let labels: Vec<String> = models
-        .iter()
-        // TODO: implementEnrichModel Display (id/model_type) (if whole print_model_grid is not removed / useless)
-        .map(|m| format!("{} ({})", m.id, m.info.model_type))
-        .collect();
+    let labels: Vec<String> = models.iter().map(|m| m.to_string()).collect();
 
     let idx = FuzzySelect::new()
         .with_prompt("Select model")

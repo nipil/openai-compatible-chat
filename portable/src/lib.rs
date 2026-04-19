@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 use strum::{AsRefStr, Display, EnumString};
 
 // ── OpenAI info ───────────────────────────────────────────────────────────────
@@ -27,6 +27,12 @@ pub enum ModelType {
 pub struct EnrichedModel {
     pub id: String,
     pub info: ModelInfo,
+}
+
+impl Display for EnrichedModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.id, self.info.model_type)
+    }
 }
 
 // ── Safer value management ────────────────────────────────────────────────────
