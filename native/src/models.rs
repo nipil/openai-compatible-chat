@@ -15,6 +15,7 @@ pub const COMPATIBLE_MODEL_TYPES: &[ModelType] = &[
 // ── API ───────────────────────────────────────────────────────────────────────
 
 pub async fn list_models(client: &Client<OpenAIConfig>) -> Result<Vec<String>> {
+    // TODO: deduplicate ? just in case ?
     client
         .models()
         .list()
@@ -26,6 +27,7 @@ pub async fn list_models(client: &Client<OpenAIConfig>) -> Result<Vec<String>> {
 // ── Filtering / sorting ───────────────────────────────────────────────────────
 
 pub fn compile_regex(patterns: Vec<String>) -> Result<Vec<Regex>> {
+    // TODO: Can it be done during deserializing ?
     patterns
         .iter()
         .map(|p| Regex::new(p).map_err(|e| anyhow!("Invalid regex '{p}': {e}")))

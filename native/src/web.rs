@@ -93,8 +93,13 @@ async fn handle_chat(
         return Err(res);
     }
 
+    // TODO: implement pathological cases here if needed (huge payload)
+    // TODO: implement message-based busines logic here (logging)
+
     // Prepend the system prompt to the one provided by the client
     let prepend = s.prepend_system_prompt.trim();
+    // TODO: remove this part once we change the input crate and actually
+    //       give power to the user to not be limited BY HIS OWN config !
     if !prepend.is_empty() {
         match req
             .messages
@@ -141,6 +146,7 @@ async fn handle_chat(
                 // there is no reason the async_openai crate could not
                 // fail on its own, so we have to handle this anyway.
                 Box::pin(futures::stream::once(async move {
+                    // TODO: logging ?
                     // On server-side error **DURING SSE CREATION**,
                     // send an SSE "error event" to notify the client
                     Ok(Event::default().event(SSE_EVENT_ERROR).data(e.to_string()))
@@ -189,6 +195,7 @@ async fn build_chat_stream(
                     #[cfg(feature = "print-tokens")]
                     {
                         use std::io::{Write, stdout};
+                        // TODO: switch to write to handle failures
                         print!("{token}");
                         stdout().flush().unwrap();
                     }
@@ -200,6 +207,7 @@ async fn build_chat_stream(
                 }
 
                 Err(e) => {
+                    // TODO: logging ?
                     // On server-side error **DURING CHUNKS PROCESSING**,
                     // send an SSE "error event" to notify the client
                     Ok(Event::default().event(SSE_EVENT_ERROR).data(e.to_string()))

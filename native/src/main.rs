@@ -112,10 +112,12 @@ async fn cli(
 ) -> Result<()> {
     // Enable ANSI colour codes on legacy Windows consoles (cmd.exe).
     // No-op on Windows 10+ / modern terminals / all Unix systems.
+    // TODO: move to main
     #[cfg(windows)]
     enable_ansi_support::enable_ansi_support().ok();
 
     // Clean Ctrl-C exit from anywhere in the program.
+    // TODO: move to main
     tokio::spawn(async {
         tokio::signal::ctrl_c().await.ok();
         eprintln!("\nExiting.");

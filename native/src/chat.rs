@@ -129,8 +129,10 @@ pub async fn run(
 // ── Prompt / stdin ────────────────────────────────────────────────────────────
 
 async fn get_system_prompt_from_user(prepend_system_prompt: &str) -> String {
+    // TODO: switch to a readline crate whch will allow editing the default prompt before submitting
     let user = tokio::task::spawn_blocking(|| {
         print!("System prompt: ");
+        // TODO: switch from print! to write! and bubble up all stout Err
         stdout().flush().ok();
         let mut buf = String::new();
         stdin().read_line(&mut buf).ok();

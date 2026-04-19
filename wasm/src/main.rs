@@ -117,6 +117,8 @@ async fn stream_chat(
     opts.set_method("POST");
     opts.set_headers(hdrs.as_ref());
     opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
+    // pass the abord signal notifying end to the request
+    // so that the browser/request can be cancelled from UI
     opts.set_signal(Some(&signal));
 
     let req = web_sys::Request::new_with_str_and_init("/api/chat", &opts)
@@ -124,8 +126,10 @@ async fn stream_chat(
 
     let resp: web_sys::Response = JsFuture::from(win.fetch_with_request(&req))
         .await
+        // TODO: which errors to handle ?
         .map_err(|e| format!("{e:?}"))?
         .dyn_into()
+        // TODO: which errors to handle ?
         .map_err(|e| format!("{e:?}"))?;
 
     if !resp.ok() {
@@ -144,11 +148,13 @@ async fn stream_chat(
     loop {
         let chunk = JsFuture::from(reader.read())
             .await
+            // TODO: which errors to handle ?
             .map_err(|e| format!("{e:?}"))?;
 
         let done = js_sys::Reflect::get(&chunk, &"done".into()) // TODO: to enum https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read#return_value
             .ok()
             .and_then(|v| v.as_bool())
+            // TODO: which errors to handle ?
             .unwrap_or(true);
 
         if done {
@@ -191,10 +197,17 @@ async fn stream_chat(
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 fn main() {
+    // when a Rust panic occurs in WebAssembly, the browser just
+    // shows a cryptic error like "unreachable executed" or similar.
+    // installs a panic hook that intercepts panics and prints
+    // the actual Rust panic message and stack trace to console
     console_error_panic_hook::set_once();
+
     // Restore theme from cookie BEFORE mounting to avoid any flash.
     // index.html already defaults to data-theme=Theme::Dark
     apply_theme(&get_cookie_theme_or_default());
+
+    // takes root component (App) renders it into html body
     mount_to_body(App);
 }
 
@@ -202,19 +215,24 @@ fn main() {
 
 fn save_chat(messages: &[Message]) {
     let Ok(Some(storage)) = window().unwrap().session_storage() else {
+        // TODO: log errors ?
         return;
     };
     let Ok(json) = serde_json::to_string(messages) else {
+        // TODO: log errors ?
         return;
     };
+    // Ignore errors as browser privacy settings can disable storage
     let _ = storage.set_item(STORAGE_KEY_OPENAI, &json);
 }
 
 fn load_chat() -> Vec<Message> {
     let Ok(Some(storage)) = window().unwrap().session_storage() else {
+        // TODO: log errors ? but only if Err? not if Ok(None) !
         return vec![];
     };
     let Ok(Some(json)) = storage.get_item(STORAGE_KEY_OPENAI) else {
+        // TODO: log errors ? but only if Err? not if Ok(None) !
         return vec![];
     };
     serde_json::from_str(&json).unwrap_or_default()
@@ -225,24 +243,55 @@ fn load_chat() -> Vec<Message> {
 #[component]
 fn App() -> impl IntoView {
     // ── Signals ───────────────────────────────────────────────────────────────
+
+    // the list of models available, compatible, and allowed for the config
     let models = RwSignal::new(vec![]);
+
+    // used to get the currently selected model, if any
     let sel_model = RwSignal::new(String::new());
 
+    // used to read the system prompt the user can modify
     let sys_prompt = RwSignal::new(String::new());
-    let messages = RwSignal::new(load_chat()); // load from sessionStorage in case tab reloads
+
+    // holds every conversation message, and receives the reply token in last one
+    // stored to, and restored from, sessionStorage in case tab reloads
+    let messages = RwSignal::new(load_chat());
+
+    // used to interact with the input field for the user
     let input = RwSignal::new(String::new());
+
+    // used to show/hide send/cancel buttons
     let streaming = RwSignal::new(false);
+
+    // handles transition from new conversation to started conversation
+    // - upon reload, reflects stored message history
+    // - if conversation is started,
+    //   - disables the system prompt
+    //   - adds a system message if none were present
+    //   - locks the model selection
     let started = RwSignal::new(!messages.get_untracked().is_empty()); // reflect stored chat state
+
+    // used to allow anything in the UI to cancel ongoing requests
+    // holds an abort controller which we can notify about cancelations
     let abort_ctl = RwSignal::new(None::<SendWrapper<AbortController>>);
+
+    // used to update the UI (button icons) when the theme is changed (button clicked)
     let theme = RwSignal::new(get_cookie_theme_or_default());
+
+    // a slot where the "conversation reference" will be stored
     let conv_ref: NodeRef<leptos::html::Div> = NodeRef::new();
 
     // ── Bootstrap: load config then models ────────────────────────────────────
     spawn_local(async move {
         if let Ok(r) = Request::get("/api/config").send().await {
             if let Ok(cfg) = r.json::<ConfigDto>().await {
+                // load the predefined system prompt from config
                 sys_prompt.set(cfg.prepend_system_prompt);
+            } else {
+                // TODO: Handle errors (parsing failed)
             }
+        } else {
+            // TODO: Handle errors (req failed)
         }
         if let Ok(r) = Request::get("/api/models").send().await {
             if let Ok(list) = r.json::<Vec<ModelDto>>().await {
@@ -254,34 +303,57 @@ fn App() -> impl IntoView {
                 {
                     sel_model.set(id);
                 }
+                // Sets up selection dropdown
                 models.set(list);
+                // TODO: handle empty list of models ... disable send button ?
+            } else {
+                // TODO: Handle errors (parsing failed)
             }
+        } else {
+            // TODO: Handle errors (req failed)
         }
     });
 
     // ── Derived ───────────────────────────────────────────────────────────────
+
+    // holds and updates metadata for the selected model
     let sel_meta = Memo::new(move |_| {
         let id = sel_model.get();
+        // on a signal, .get() returns an owned *clone*,
+        // so items could be moved out of it, if needed
         models.get().into_iter().find(|m| m.id == id)
     });
+
+    // updates tok_count every time messages change
     let tok_count = Memo::new(move |_| estimate_tokens(&messages.get()));
+
+    // allows locking model selection if started or no real "choice"
+    // TODO: is it necessary to lock the selection if there is no real choice, i'd say no.
     let mdl_locked = Memo::new(move |_| started.get() || models.get().len() <= 1);
 
     // ── Auto-scroll on every new token ────────────────────────────────────────
     Effect::new(move |_| {
+        // automatically "watches" what you .get() and looks for any changes
         let _ = messages.get();
+        // if we alread have a "conversation reference" (DOM element) to use
         if let Some(el) = conv_ref.get() {
+            // scroll down, to the bottom of the div
             el.set_scroll_top(el.scroll_height());
         }
     });
 
     // ── Escape key stops streaming ────────────────────────────────────────────
     let esc = window_event_listener(leptos::ev::keydown, move |e: KeyboardEvent| {
+        // if escape is pressed while streaming
         if e.key() == "Escape" && streaming.get_untracked() {
+            // check if abort controller signal holds an abord controller
             if let Some(ac) = abort_ctl.get_untracked() {
+                // trigger an abort (sig)
                 ac.abort();
             }
+            // clear streaming to update UI (hide stop, show send)
             streaming.set(false);
+            // removes the abort controller from the abort controller signal
             abort_ctl.set(None);
         }
     });
@@ -301,15 +373,20 @@ fn App() -> impl IntoView {
     // ── Send ──────────────────────────────────────────────────────────────────
     let do_send = move || {
         if streaming.get_untracked() {
+            // prevent multiple send
             return;
         }
+
+        // get user input
         let text = input.get_untracked().trim().to_string();
         if text.is_empty() {
             return;
         }
 
+        // get selected model name
         let model = sel_model.get_untracked();
 
+        // get whole history (stored across reloads, thrown away on tab discard)
         let mut hist = messages.get_untracked();
 
         if !started.get_untracked() {
@@ -325,47 +402,79 @@ fn App() -> impl IntoView {
             started.set(true);
         }
 
+        // Add the input message to the history
         hist.push(Message {
             role: MessageRole::User,
             content: text,
         });
+
+        // Add an empty message and add it to the list
         hist.push(Message {
             role: MessageRole::Assistant,
             content: String::new(),
         }); // reserved slot
-        let send_msgs = hist[..hist.len() - 1].to_vec(); // exclude the empty assistant slot
 
-        save_chat(&send_msgs); // persist to sessionStorage in case tab is reloaded
+        // Do not send the last empty assistant slot
+        // FIXME: seems suboptimal, play with it !
+        let send_msgs = hist[..hist.len() - 1].to_vec();
 
+        // Persist the history (except last empty) to sessionStorage (in case tab is reloaded)
+        save_chat(&send_msgs);
+
+        // Now when the , the display will update
         messages.set(hist);
+
+        // Clear the input so the user can prepare his next message while streaming
         input.set(String::new());
+
+        // Set the UI to streaming state (shows cancel button instead of send button)
         streaming.set(true);
 
+        // This is the only way to link the browser (req) to the ui :
+        // 'ac' is an abort-controller, linked to a abort-signal 'sig'
+        // TODO: which errors to handle ?
         let ac = AbortController::new().unwrap();
+        // 'sig' will be passed/moved into the promise so it could notify it
         let sig = ac.signal();
+        // 'ac' is stored in a rwsignal, so that the UI could abord the req
         abort_ctl.set(Some(SendWrapper::new(ac)));
 
-        // TODO: serde struct
+        // Builds the actual JSON payload to send to the server
+        // TODO: serde struct, and move it
         let body = serde_json::json!({ "model": model, "messages": send_msgs }).to_string();
 
+        // Launch an additional async task, which will stream and update, and let it run freely
         spawn_local(async move {
+            // do the work, providing a closure to handle each new token
             let res = stream_chat(body, sig, move |tok| {
+                // update the message list by
                 messages.update(|v| {
+                    // looking for the last one (that is why we added an empty one)
                     if let Some(last) = v.last_mut() {
+                        // and appending the newest token to its content
                         last.content.push_str(&tok);
                     }
                 });
             })
+            // run until completion
             .await;
 
+            // we got a complete response (either successfully or not)
             streaming.set(false);
+
+            // removes the abort controller from the abort controller signal
             abort_ctl.set(None);
 
+            // If we had any error while sending the chat
             if let Err(e) = res {
-                // TODO: thiserror
+                // TODO: thiserror instead of string handling ?
                 let e_low = e.to_lowercase();
                 if !e_low.contains("abort") && !e_low.contains("cancel") {
+                    // TODO: maybe move to a dedicated error notification area ?
                     messages.update(|v| {
+                        // last message (whatever it is, user or assistant)
+                        // but due to the workflow, the assistant
+                        // gets the error message, for the user to read
                         if let Some(last) = v.last_mut() {
                             last.content = format!("⚠ Error: {e}");
                         }
@@ -379,10 +488,13 @@ fn App() -> impl IntoView {
 
     // ── Stop ──────────────────────────────────────────────────────────────────
     let do_stop = move || {
+        // if we have an abort-controller, notify it
         if let Some(ac) = abort_ctl.get_untracked() {
             ac.abort();
         }
+        // revert the UI back to normal
         streaming.set(false);
+        // removes the abort controller from the abort controller signal
         abort_ctl.set(None);
     };
 
@@ -400,6 +512,7 @@ fn App() -> impl IntoView {
                     prop:disabled=move || mdl_locked.get()
                     on:change=move |e| {
                         let val = event_target_value(&e);
+                        // notify the rest of the UI hat model changed
                         sel_model.set(val.clone());
                         // persist to cookie
                         set_cookie(COOKIE_MODEL, &val);
@@ -455,7 +568,12 @@ fn App() -> impl IntoView {
             </div>
 
             // ── Conversation ──────────────────────────────────────────────────
+
+            // on first render, Leptos stores a reference to this DOM element
+            // (aka a node_ref) in conv_ref for later reference/use
             <div class="conversation" node_ref=conv_ref>
+                // populates the UI with the app DOM elements every
+                // time messages (tracked by .get()) is updated
                 {move || messages.get().into_iter()
                     .filter(|m| m.role != MessageRole::System)
                     .map(|msg| {
@@ -480,6 +598,7 @@ fn App() -> impl IntoView {
                     on:input=move |e| input.set(event_target_value(&e))
                     on:keydown=move |e: KeyboardEvent| {
                         if e.ctrl_key() && e.key() == "Enter" && !streaming.get_untracked() {
+                            // prevent multiple send ?
                             do_send();
                         }
                     }

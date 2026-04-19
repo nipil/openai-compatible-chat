@@ -80,7 +80,8 @@ pub struct ModelInfo {
 
 // ── DTOs ──────────────────────────────────────────────────────────────────────
 
-// PartialEq required by a bound in `leptos::prelude::Memo::<T>::new`
+// PartialEq required by leptos Memo
+// Clone required by leptos RwSignal.get()
 #[derive(Clone, PartialEq, Deserialize, Serialize)]
 pub struct ModelDto {
     pub id: String,
