@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig, error::OpenAIError};
-use portable::{EnrichedModel, Exclusion, ModelInfoMap, ModelType};
+use portable::{EnrichedModel, ModelInfoMap, ModelType};
 use regex::Regex;
 
 pub const ALLOWED_TYPES: &[ModelType] = &[
@@ -62,12 +62,10 @@ pub fn compile_regex(patterns: &[String]) -> Result<Vec<Regex>> {
 pub fn filter_and_sort(
     ids: Vec<String>,
     infos: &ModelInfoMap,
-    excluded: &[String],
     filters: &[Regex],
 ) -> Vec<EnrichedModel> {
     let mut models: Vec<EnrichedModel> = ids
         .into_iter()
-        .filter(|id| !excluded.contains(id))
         .filter(|id| !filters.iter().any(|r| r.is_match(id)))
         .filter_map(|id| {
             let model_info = infos.get(&id)?; // TODO: thiserror
@@ -88,15 +86,7 @@ pub fn filter_and_sort(
 }
 
 /// Returns a human-readable rejection reason, or `None` if the model passes.
-pub fn explain_rejection(
-    id: &str,
-    models: &ModelInfoMap,
-    excl: &Exclusion,
-    filters: &[Regex],
-) -> Option<String> {
-    if excl.excluded_models.contains(&id.to_string()) {
-        return Some("excluded (previously marked as not allowed)".into());
-    }
+pub fn explain_rejection(id: &str, models: &ModelInfoMap, filters: &[Regex]) -> Option<String> {
     if filters.iter().any(|r| r.is_match(id)) {
         return Some("filtered out by exclude_model_name_regex".into());
     }

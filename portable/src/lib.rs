@@ -78,12 +78,6 @@ pub struct ModelInfo {
     pub release: Option<String>,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct Exclusion {
-    #[serde(default)]
-    pub excluded_models: Vec<String>,
-}
-
 // ── DTOs ──────────────────────────────────────────────────────────────────────
 
 // PartialEq required by a bound in `leptos::prelude::Memo::<T>::new`

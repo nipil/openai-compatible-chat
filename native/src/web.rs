@@ -16,11 +16,10 @@ use axum::{
     routing::{get, post},
 };
 use futures::{StreamExt, stream::BoxStream};
-use portable::{ConfigDto, Exclusion, Message, MessageRole, ModelDto, ModelInfoMap};
+use portable::{ConfigDto, Message, MessageRole, ModelDto, ModelInfoMap};
 use regex::Regex;
 use serde::Deserialize;
 use std::{convert::Infallible, sync::Arc};
-use tokio::sync::RwLock;
 use tower_http::services::ServeDir;
 
 // TODO: make configurable using Clap
@@ -33,7 +32,6 @@ const SSE_EVENT_ERROR: &str = "error";
 pub struct AppState {
     pub client: Arc<Client<OpenAIConfig>>,
     pub infos: Arc<ModelInfoMap>,
-    pub exclusion: Arc<RwLock<Exclusion>>, // shared mutable exclusion list
     pub filters: Arc<Vec<Regex>>,
     pub system_prompt: Arc<String>,
     pub locked_model: Arc<Option<String>>, // set via CLI --model, None means free choice
@@ -69,12 +67,10 @@ async fn handle_config(State(s): State<AppState>) -> Json<ConfigDto> {
 // ── GET /api/models ───────────────────────────────────────────────────────────
 
 async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
-    let exclusion = s.exclusion.read().await;
     // TODO: do not fetch every time, reuse from main
     let ids = models::list_models(&s.client).await.unwrap_or_default();
     // TODO: DRY in regards to main call too ?
-    let mut enriched =
-        models::filter_and_sort(ids, &s.infos, &exclusion.excluded_models, &s.filters);
+    let mut enriched = models::filter_and_sort(ids, &s.infos, &s.filters);
     // If a model is locked, expose only that model in the list
     if let Some(lm) = s.locked_model.as_ref() {
         enriched.retain(|m| &m.id == lm);
@@ -150,13 +146,11 @@ async fn build_chat_stream(
 
     // Capture what we need for the exclusion side-effect inside the stream
     let model = req.model.clone();
-    let exclusion = Arc::clone(&s.exclusion);
     let client = Arc::clone(&s.client);
 
     // Use `.then()` (async map) so we can do async writes on unauthorized errors
     let sse = openai_stream.then(move |chunk| {
         let model = model.clone();
-        let exclusion = Arc::clone(&exclusion);
         let client = Arc::clone(&client);
         async move {
             match chunk {
@@ -183,16 +177,9 @@ async fn build_chat_stream(
                     // Reuse test_model's exact detection logic to check if this
                     // model is unauthorized, rather than re-parsing the error string
                     if let Err(ModelError::NotAllowed) = models::test_model(&client, &model).await {
-                        let mut exclusion = exclusion.write().await;
-                        if !exclusion.excluded_models.contains(&model) {
-                            exclusion.excluded_models.push(model.clone());
-                            if let Err(io) = config::save_model_id_exclusion_list(&exclusion) {
-                                eprintln!("Failed to persist exclusion list: {io}");
-                            }
-                        }
                         return Ok(Event::default()
                             .event(SSE_EVENT_ERROR)
-                            .data(format!("Model '{model}' has been excluded: {e}")));
+                            .data(format!("Model '{model}' is not allowed: {e}")));
                     }
                     Ok(Event::default().event(SSE_EVENT_ERROR).data(e.to_string()))
                 }

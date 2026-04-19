@@ -13,7 +13,7 @@ use async_openai::{
 use chrono::Local;
 use futures::StreamExt;
 use owo_colors::OwoColorize;
-use portable::{Config, EnrichedModel, Exclusion, Message, MessageRole, estimate_tokens};
+use portable::{Config, EnrichedModel, Message, MessageRole, estimate_tokens};
 use std::{
     io::{Write, stdin, stdout},
     time::Instant,
@@ -32,7 +32,6 @@ pub async fn run(
     client: &Client<OpenAIConfig>,
     model: &str,
     models_meta: &[EnrichedModel],
-    exclusion: &mut Exclusion,
     config: &Config,
 ) -> Result<ChatOutcome> {
     println!("\n{}\n", "─── Conversation ───".white().bold());
@@ -86,12 +85,10 @@ pub async fn run(
                     context_closed = true;
                     continue;
                 }
+                // TODO: deduplicate from main.rs:156
                 if msg.contains("not allowed") || msg.contains("permission") {
-                    crate::display::log_warning(&format!("Model '{model}' not allowed → excluded"));
-                    if !exclusion.excluded_models.contains(&model.to_string()) {
-                        exclusion.excluded_models.push(model.to_string());
-                    }
-                    return Ok(ChatOutcome::ModelExcluded);
+                    crate::display::log_warning(&format!("Model '{model}' not allowed"));
+                    return Ok(ChatOutcome::ModelForbidden);
                 }
                 crate::display::log_error(&e.to_string());
             }

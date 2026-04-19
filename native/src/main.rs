@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
-use portable::{Config, EnrichedModel, Exclusion, ModelInfo, ModelInfoMap};
+use portable::{Config, EnrichedModel, ModelInfo, ModelInfoMap};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -52,7 +52,6 @@ async fn main() -> Result<()> {
         e
     })?;
     let mapping = config::load_model_info_map()?;
-    let exclusion = config::load_model_id_exclusion_list()?;
     let filters = models::compile_regex(&cfg.exclude_model_name_regex)?;
 
     // Create shared components
@@ -78,7 +77,7 @@ async fn main() -> Result<()> {
     match &args.command {
         #[cfg(feature = "cli")]
         Commands::Cli => {
-            cli(locked_model, client, mapping, exclusion, filters, cfg).await?;
+            cli(locked_model, client, mapping, filters, cfg).await?;
         }
         #[cfg(feature = "web")]
         Commands::Web { port } => {
@@ -86,7 +85,6 @@ async fn main() -> Result<()> {
             let state = web::AppState {
                 client: Arc::new(client),
                 infos: Arc::new(mapping),
-                exclusion: Arc::new(RwLock::new(exclusion)), // RwLock handles mut
                 filters: Arc::new(filters),
                 system_prompt: Arc::new(cfg.prepend_system_prompt),
                 locked_model: Arc::new(locked_model),
@@ -112,7 +110,6 @@ async fn cli(
     locked_model: Option<String>,
     client: Client<OpenAIConfig>,
     mapping: HashMap<String, ModelInfo>,
-    mut exclusion: Exclusion,
     filters: Vec<regex::Regex>,
     config: Config,
 ) -> Result<()> {
@@ -132,21 +129,15 @@ async fn cli(
 
     // Fetch models once per run
     // TODO: move to main ?
-    let enriched_models = models::filter_and_sort(
-        models::list_models(&client).await?,
-        &mapping,
-        &exclusion.excluded_models,
-        &filters,
-    );
+    let enriched_models =
+        models::filter_and_sort(models::list_models(&client).await?, &mapping, &filters);
 
     loop {
         // ── Resolve which model to use ──────────────────────────────────────
         let (model, from_arg) = match forced.take() {
             Some(id) => match models::test_model(&client, &id).await {
                 Ok(()) => {
-                    if let Some(reason) =
-                        models::explain_rejection(&id, &mapping, &exclusion, &filters)
-                    {
+                    if let Some(reason) = models::explain_rejection(&id, &mapping, &filters) {
                         display::log_warning(&format!("Model '{id}' is {reason}"));
                         let m = display::select_model(&enriched_models)?;
                         (m, false)
@@ -156,11 +147,8 @@ async fn cli(
                     }
                 }
                 Err(models::ModelError::NotAllowed) => {
-                    display::log_warning(&format!("Model '{id}' not allowed → excluded"));
-                    if !exclusion.excluded_models.contains(&id) {
-                        exclusion.excluded_models.push(id);
-                        config::save_model_id_exclusion_list(&exclusion)?;
-                    }
+                    // TODO: deduplicate from chat.rs:88
+                    display::log_warning(&format!("Model '{id}' not allowed"));
                     (display::select_model(&enriched_models)?, false)
                 }
                 Err(_) => {
@@ -172,13 +160,9 @@ async fn cli(
         };
 
         // ── Run chat session ────────────────────────────────────────────────
-        let outcome = chat::run(&client, &model, &enriched_models, &mut exclusion, &config).await?; // TODO: maybe more error once we stop swallowing them
+        let outcome = chat::run(&client, &model, &enriched_models, &config).await?; // TODO: maybe more error once we stop swallowing them
 
-        if let chat::ChatOutcome::ModelExcluded = outcome {
-            config::save_model_id_exclusion_list(&exclusion)?;
-            // TODO: Decide what to do on errors
-            // model_cache = None; // Force a fresh listing next iteration.
-        }
+        if let chat::ChatOutcome::ModelForbidden = outcome {}
 
         // Matches Python: exit after the session when --model was the trigger.
         if from_arg {
