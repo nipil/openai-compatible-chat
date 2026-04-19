@@ -132,7 +132,7 @@ async fn cli(
 
     // Fetch models once per run
     // TODO: move to main ?
-    let models = models::filter_and_sort(
+    let enriched_models = models::filter_and_sort(
         models::list_models(&client).await?,
         &mapping,
         &exclusion.excluded_models,
@@ -148,7 +148,7 @@ async fn cli(
                         models::explain_rejection(&id, &mapping, &exclusion, &filters)
                     {
                         display::log_warning(&format!("Model '{id}' is {reason}"));
-                        let m = display::select_model(&models)?;
+                        let m = display::select_model(&enriched_models)?;
                         (m, false)
                     } else {
                         display::log_info(&format!("Using model: {id}"));
@@ -161,18 +161,18 @@ async fn cli(
                         exclusion.excluded_models.push(id);
                         config::save_model_id_exclusion_list(&exclusion)?;
                     }
-                    (display::select_model(&models)?, false)
+                    (display::select_model(&enriched_models)?, false)
                 }
                 Err(_) => {
                     display::log_error(&format!("Model '{id}' is unavailable or does not exist"));
-                    (display::select_model(&models)?, false)
+                    (display::select_model(&enriched_models)?, false)
                 }
             },
-            None => (display::select_model(&models)?, false),
+            None => (display::select_model(&enriched_models)?, false),
         };
 
         // ── Run chat session ────────────────────────────────────────────────
-        let outcome = chat::run(&client, &model, &models, &mut exclusion, &config).await?; // TODO: maybe more error once we stop swallowing them
+        let outcome = chat::run(&client, &model, &enriched_models, &mut exclusion, &config).await?; // TODO: maybe more error once we stop swallowing them
 
         if let chat::ChatOutcome::ModelExcluded = outcome {
             config::save_model_id_exclusion_list(&exclusion)?;
