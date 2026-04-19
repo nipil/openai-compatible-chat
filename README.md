@@ -189,14 +189,14 @@ Commiter en s'assurant de bien **archiver l'explication** de Claude au message d
 Démarre le backend (prendre le port de `wasm/Trunk.toml [[proxy]] backend`)
 
 ```shell
-watchexec --clear --quiet --restart --debounce 1000 --stop-signal SIGTERM --ignore "wasm/**" --exts rs cargo run -p native -- web --port 3000
+watchexec --clear --quiet --restart --debounce 1s --stop-signal SIGTERM --ignore "wasm/**" --exts rs cargo run -p native -- web --port 3000
 ```
 
 Hot-build et reload du code rust/wasm et serveur du static
 
 ```shell
 cd wasm
-watchexec --clear --quiet --restart --debounce 1000 --stop-signal SIGTERM --watch "../portable" --exts rs trunk serve
+watchexec --clear --quiet --restart --debounce 1s --stop-signal SIGTERM --watch "../portable" --exts rs trunk serve
 ```
 
 Visiter `http://localhost:8080` dans le navigateur
