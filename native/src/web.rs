@@ -1,3 +1,5 @@
+use crate::config;
+use crate::models::{self, ModelError};
 use async_openai::{
     Client,
     config::OpenAIConfig,
@@ -14,16 +16,12 @@ use axum::{
     routing::{get, post},
 };
 use futures::{StreamExt, stream::BoxStream};
+use portable::{ConfigDto, Exclusion, Message, MessageRole, ModelDto, ModelInfoMap};
 use regex::Regex;
 use serde::Deserialize;
 use std::{convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
 use tower_http::services::ServeDir;
-
-use crate::config;
-use crate::models::{self, ModelError};
-
-use portable::{ConfigDto, Exclusion, Message, MessageRole, ModelDto, ModelInfoMap};
 
 // TODO: make configurable using Clap
 const DIST_FOLDER: &str = "wasm/dist";

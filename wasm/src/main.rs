@@ -1,12 +1,11 @@
 use gloo_net::http::Request;
 use leptos::{mount::mount_to_body, prelude::*, task::spawn_local};
+use portable::{ConfigDto, Message, MessageRole, ModelDto, Theme, estimate_tokens};
 use send_wrapper::SendWrapper;
 use std::str::FromStr;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefaultReader, window};
-
-use portable::{ConfigDto, Message, MessageRole, ModelDto, Theme, estimate_tokens};
 
 const COOKIE_MODEL: &str = "model";
 const COOKIE_THEME_DEFAULT: Theme = Theme::Dark;
