@@ -3,7 +3,6 @@ use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
 use portable::{Config, EnrichedModel, ModelInfo, ModelInfoMap};
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::RwLock;
 
 #[cfg(all(not(feature = "cli"), not(feature = "web")))]
 compile_error!("At lease one of the main features should be enabled !");
@@ -160,13 +159,27 @@ async fn cli(
         };
 
         // ── Run chat session ────────────────────────────────────────────────
-        let outcome = chat::run(&client, &model, &enriched_models, &config).await?; // TODO: maybe more error once we stop swallowing them
-
-        if let chat::ChatOutcome::ModelForbidden = outcome {}
-
-        // Matches Python: exit after the session when --model was the trigger.
-        if from_arg {
-            return Ok(());
+        match chat::run(&client, &model, &enriched_models, &config).await? {
+            chat::ChatOutcome::ChatEnded => {
+                display::log_info("Chat ended.");
+                continue;
+            }
+            chat::ChatOutcome::ContextLimitReached => {
+                crate::display::log_warning("Context limit reached — starting a new conversation.");
+                continue;
+            }
+            chat::ChatOutcome::ExitRequested => {
+                display::log_info("Requested to quit");
+                return Ok(());
+            }
+            chat::ChatOutcome::ModelForbidden => {
+                display::log_warning("Model is forbidden, choose another one");
+                if from_arg {
+                    display::log_error("Model is forbidden, and was chosen from args, exiting.");
+                    return Ok(());
+                }
+                continue;
+            }
         }
     }
 }

@@ -15,15 +15,43 @@ use futures::StreamExt;
 use owo_colors::OwoColorize;
 use portable::{Config, EnrichedModel, Message, MessageRole, estimate_tokens};
 use std::{
+    fmt,
     io::{Write, stdin, stdout},
     time::Instant,
 };
+use strum::{AsRefStr, EnumIter, EnumString, IntoEnumIterator};
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, PartialEq, Eq, EnumString, EnumIter, AsRefStr)]
+#[strum(serialize_all = "lowercase")]
+pub enum ChatCommand {
+    New,
+    Quit,
+    Help,
+}
+
+impl ChatCommand {
+    fn detect_from(text: &str) -> Option<Self> {
+        let mut text = text.trim_start().strip_prefix("/")?.trim_end();
+        if let Some(space) = text.find(" ") {
+            text = &text[..space];
+        }
+        Self::try_from(text).ok()
+    }
+}
+
+impl fmt::Display for ChatCommand {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "/{}", self.as_ref())
+    }
+}
+
 pub enum ChatOutcome {
-    /// Model was excluded mid-session; caller must persist the exclusion list.
-    ModelExcluded,
+    ChatEnded,
+    ExitRequested,
+    ModelForbidden,
+    ContextLimitReached,
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -47,18 +75,21 @@ pub async fn run(
         .find(|m| m.id == model)
         .and_then(|m| m.info.context_window);
 
-    let mut context_closed = false;
-
     loop {
-        let input = read_user_input(model, &history, max_tokens).await;
-
-        if context_closed {
-            crate::display::log_warning("Context closed — start a new session (Ctrl-C to exit).");
-            // TODO: handle like a command or key to exit back to
-            continue;
-        }
+        let input = read_user_input_trimmed(model, &history, max_tokens).await;
         if input.is_empty() {
             continue;
+        }
+
+        if let Some(cmd) = ChatCommand::detect_from(&input) {
+            match cmd {
+                ChatCommand::New => return Ok(ChatOutcome::ChatEnded),
+                ChatCommand::Quit => return Ok(ChatOutcome::ExitRequested),
+                ChatCommand::Help => {
+                    ChatCommand::iter().for_each(|x| println!("{x}"));
+                    continue;
+                }
+            }
         }
 
         history.push(Message {
@@ -77,13 +108,8 @@ pub async fn run(
                 history.pop(); // drop the unsatisfied user turn
                 let msg = e.to_string().to_lowercase();
                 // TODO: check error by type ?
-
-                if msg.contains("context_length") || msg.contains("context length") {
-                    crate::display::log_warning(
-                        "Context limit reached — start a new conversation.",
-                    );
-                    context_closed = true;
-                    continue;
+                if msg.contains("context_length") {
+                    return Ok(ChatOutcome::ContextLimitReached);
                 }
                 // TODO: deduplicate from main.rs:156
                 if msg.contains("not allowed") || msg.contains("permission") {
@@ -117,7 +143,11 @@ async fn build_system_prompt(config: &Config) -> String {
     }
 }
 
-async fn read_user_input(model: &str, history: &[Message], max_tokens: Option<u32>) -> String {
+async fn read_user_input_trimmed(
+    model: &str,
+    history: &[Message],
+    max_tokens: Option<u32>,
+) -> String {
     let tok = estimate_tokens(history);
     let now = Local::now().format("%H:%M:%S").to_string();
     let model = model.to_string();
