@@ -199,6 +199,12 @@ cd wasm
 watchexec --clear --quiet --restart --debounce 1s --stop-signal SIGTERM --watch "../portable" --exts rs trunk serve
 ```
 
+Hot-build documentation
+
+```shell
+watchexec --clear --quiet --restart --debounce 10s --stop-signal SIGTERM --watch Cargo.lock cargo doc --locked
+```
+
 Visiter `http://localhost:8080` dans le navigateur
 
 ### Release
