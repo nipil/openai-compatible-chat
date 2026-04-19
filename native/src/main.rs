@@ -129,8 +129,15 @@ async fn cli(
     });
 
     let mut forced: Option<String> = locked_model;
-    // TODO: If caching is done once anyway on first pick, why not do at startup ?!
-    let mut model_cache: Option<Vec<EnrichedModel>> = None;
+
+    // Fetch models once per run
+    // TODO: move to main ?
+    let models = models::filter_and_sort(
+        models::list_models(&client).await?,
+        &mapping,
+        &exclusion.excluded_models,
+        &filters,
+    );
 
     loop {
         // ── Resolve which model to use ──────────────────────────────────────
@@ -141,14 +148,7 @@ async fn cli(
                         models::explain_rejection(&id, &mapping, &exclusion, &filters)
                     {
                         display::log_warning(&format!("Model '{id}' is {reason}"));
-                        let m = pick_from_list(
-                            &client,
-                            &mut model_cache,
-                            &mapping,
-                            &exclusion,
-                            &filters,
-                        )
-                        .await?;
+                        let m = pick_from_list(&models).await?;
                         (m, false)
                     } else {
                         display::log_info(&format!("Using model: {id}"));
@@ -161,39 +161,28 @@ async fn cli(
                         exclusion.excluded_models.push(id);
                         config::save_model_id_exclusion_list(&exclusion)?;
                     }
-                    let m =
-                        pick_from_list(&client, &mut model_cache, &mapping, &exclusion, &filters)
-                            .await?;
+                    let m = pick_from_list(&models).await?;
                     (m, false)
                 }
                 Err(_) => {
                     display::log_error(&format!("Model '{id}' is unavailable or does not exist"));
-                    let m =
-                        pick_from_list(&client, &mut model_cache, &mapping, &exclusion, &filters)
-                            .await?;
+                    let m = pick_from_list(&models).await?;
                     (m, false)
                 }
             },
             None => {
-                let m = pick_from_list(&client, &mut model_cache, &mapping, &exclusion, &filters)
-                    .await?;
+                let m = pick_from_list(&models).await?;
                 (m, false)
             }
         };
 
         // ── Run chat session ────────────────────────────────────────────────
-        let outcome = chat::run(
-            &client,
-            &model,
-            model_cache.as_deref(),
-            &mut exclusion,
-            &config,
-        )
-        .await?; // TODO: maybe more error once we stop swallowing them
+        let outcome = chat::run(&client, &model, &models, &mut exclusion, &config).await?; // TODO: maybe more error once we stop swallowing them
 
         if let chat::ChatOutcome::ModelExcluded = outcome {
             config::save_model_id_exclusion_list(&exclusion)?;
-            model_cache = None; // Force a fresh listing next iteration.
+            // TODO: Decide what to do on errors
+            // model_cache = None; // Force a fresh listing next iteration.
         }
 
         // Matches Python: exit after the session when --model was the trigger.
@@ -203,30 +192,12 @@ async fn cli(
     }
 }
 
-/// Lazily populate `cache`, then run the interactive fuzzy model selector.
+/// Run the interactive fuzzy model selector.
 #[cfg(feature = "cli")]
-async fn pick_from_list(
-    client: &Client<OpenAIConfig>,
-    cache: &mut Option<Vec<EnrichedModel>>,
-    infos: &ModelInfoMap,
-    excl: &Exclusion,
-    filters: &[regex::Regex],
-) -> Result<String> {
-    if cache.is_none() {
-        let ids = models::list_models(client).await?; // TODO: move to caller and provide as ref here !!!
-        *cache = Some(models::filter_and_sort(
-            ids,
-            infos,
-            &excl.excluded_models,
-            filters,
-        ));
-    }
-
-    let list = cache.as_ref().unwrap();
-    if list.is_empty() {
+async fn pick_from_list(cache: &Vec<EnrichedModel>) -> Result<String> {
+    if cache.is_empty() {
         display::log_critical("No models available.");
         std::process::exit(1);
     }
-
-    display::select_model(list)
+    display::select_model(cache)
 }

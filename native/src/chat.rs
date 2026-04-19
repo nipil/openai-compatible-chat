@@ -31,7 +31,7 @@ pub enum ChatOutcome {
 pub async fn run(
     client: &Client<OpenAIConfig>,
     model: &str,
-    models_meta: Option<&[EnrichedModel]>,
+    models_meta: &[EnrichedModel],
     exclusion: &mut Exclusion,
     config: &Config,
 ) -> Result<ChatOutcome> {
@@ -44,7 +44,8 @@ pub async fn run(
     }];
 
     let max_tokens = models_meta
-        .and_then(|ms| ms.iter().find(|m| m.id == model))
+        .iter()
+        .find(|m| m.id == model)
         .and_then(|m| m.info.context_window);
 
     let mut context_closed = false;
