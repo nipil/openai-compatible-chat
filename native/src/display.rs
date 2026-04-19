@@ -226,9 +226,6 @@ pub fn select_model(models: &[EnrichedModel]) -> Result<String> {
         return Ok(models[0].id.clone());
     }
 
-    // TODO: why draw model grid if we have a fuzzy select ?
-    print_model_grid(models);
-
     let labels: Vec<String> = models
         .iter()
         // TODO: implementEnrichModel Display (id/model_type) (if whole print_model_grid is not removed / useless)
@@ -245,35 +242,4 @@ pub fn select_model(models: &[EnrichedModel]) -> Result<String> {
         .map_err(|e| anyhow!("Selection failed: {e}"))?;
 
     Ok(models[idx].id.clone())
-}
-
-fn print_model_grid(models: &[EnrichedModel]) {
-    let term_w = crossterm::terminal::size()
-        .map(|(w, _)| w as usize)
-        .unwrap_or(120);
-
-    let labels: Vec<String> = models
-        .iter()
-        .enumerate()
-        // TODO: implementEnrichModel Display (id/model_type) (if whole print_model_grid is not removed / useless)
-        .map(|(i, m)| format!("{}. {} ({})", i + 1, m.id, m.info.model_type))
-        .collect();
-
-    let col_w = labels.iter().map(|l| l.len()).max().unwrap_or(20) + 4;
-    let cols = (term_w / col_w).max(1);
-    let rows = labels.len().div_ceil(cols);
-
-    for row in 0..rows {
-        let mut line = String::new();
-        for col in 0..cols {
-            let idx = col * rows + row;
-            if idx < labels.len() {
-                let lbl = &labels[idx];
-                line.push_str(lbl);
-                (0..col_w.saturating_sub(lbl.len())).for_each(|_| line.push(' '));
-            }
-        }
-        println!("{line}");
-    }
-    println!();
 }
