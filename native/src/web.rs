@@ -36,20 +36,28 @@ pub struct AppState {
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
+trait RouterExt {
+    fn maybe_cors_permissive(self) -> Self;
+}
+
+impl RouterExt for Router {
+    fn maybe_cors_permissive(self) -> Self {
+        #[cfg(feature = "cors-permissive")]
+        {
+            return self.layer(tower_http::cors::CorsLayer::permissive());
+        }
+        self
+    }
+}
+
 pub fn router(state: AppState) -> Router {
-    let router = Router::new()
+    Router::new()
         .route("/api/config", get(handle_config))
         .route("/api/models", get(handle_models))
         .route("/api/chat", post(handle_chat))
         .fallback_service(ServeDir::new(DIST_FOLDER).append_index_html_on_directories(true))
-        .with_state(state);
-    #[cfg(feature = "cors-permissive")]
-    {
-        use tower_http::cors::CorsLayer;
-        router.layer(CorsLayer::permissive())
-    }
-    #[cfg(not(feature = "cors-permissive"))]
-    router
+        .with_state(state)
+        .maybe_cors_permissive()
 }
 
 // ── GET /api/config ───────────────────────────────────────────────────────────
