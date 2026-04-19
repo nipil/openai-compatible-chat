@@ -72,23 +72,16 @@ async fn handle_config(State(s): State<AppState>) -> Json<ConfigDto> {
 
 async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
     let exclusion = s.exclusion.read().await;
+    // TODO: do not fetch every time, reuse from main
     let ids = models::list_models(&s.client).await.unwrap_or_default();
+    // TODO: DRY in regards to main call too ?
     let mut enriched =
         models::filter_and_sort(ids, &s.infos, &exclusion.excluded_models, &s.filters);
     // If a model is locked, expose only that model in the list
     if let Some(lm) = s.locked_model.as_ref() {
         enriched.retain(|m| &m.id == lm);
     }
-    Json(
-        enriched
-            .into_iter()
-            .map(|m| ModelDto {
-                // TODO: implement From<EnrichedModel> to easily convert
-                id: m.id,
-                context_window: m.info.context_window,
-            })
-            .collect(),
-    )
+    Json(enriched.iter().map(|m| m.into()).collect())
 }
 
 // ── POST /api/chat ────────────────────────────────────────────────────────────

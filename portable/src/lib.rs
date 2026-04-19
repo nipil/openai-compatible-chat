@@ -93,6 +93,15 @@ pub struct ModelDto {
     pub context_window: Option<u32>,
 }
 
+impl From<&EnrichedModel> for ModelDto {
+    fn from(other: &EnrichedModel) -> Self {
+        Self {
+            id: other.id.clone(),
+            context_window: other.info.context_window,
+        }
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ConfigDto {
     pub system_prompt: String,
