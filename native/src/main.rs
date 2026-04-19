@@ -1,8 +1,9 @@
+use crate::display::{log_critical, log_warning};
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
-use portable::{Config, EnrichedModel, ModelInfo, ModelInfoMap};
-use std::{collections::HashMap, sync::Arc};
+use portable::EnrichedModel;
+use std::sync::Arc;
 
 #[cfg(all(not(feature = "cli"), not(feature = "web")))]
 compile_error!("At lease one of the main features should be enabled !");
@@ -50,8 +51,6 @@ async fn main() -> Result<()> {
         display::log_error(&e.to_string());
         e
     })?;
-    let mapping = config::load_model_info_map()?;
-    let filters = models::compile_regex(&cfg.exclude_model_name_regex)?;
 
     // Create shared components
     let oa_cfg = OpenAIConfig::new()
@@ -59,43 +58,44 @@ async fn main() -> Result<()> {
         .with_api_base(&cfg.base_url);
     let client = Client::with_config(oa_cfg);
 
-    // check model arg for validity once
-    let locked_model = match args.model {
-        Some(ref m) => match models::test_model(&client, m).await {
-            Ok(()) => args.model.clone(),
-            Err(models::ModelError::Network(e)) => return Err(anyhow!("Network: {e}")),
-            Err(_) => {
-                eprintln!("Warning: model '{m}' unavailable, ignoring lock");
-                None
-            }
-        },
-        None => None,
-    };
+    // Build models database once
+    let allowed_models = models::enriched_models_from_ids(
+        models::list_models(&client)
+            .await?
+            .into_iter()
+            // handle locked model from command-line
+            .filter(|id| args.model.as_ref().map_or(true, |lock_id| lock_id == id))
+            .collect(),
+        // TODO: compile regex using serde
+        models::compile_regex(cfg.exclude_model_name_regex)?,
+    )?;
 
     #[cfg(all(feature = "cli", feature = "web"))]
     match &args.command {
         #[cfg(feature = "cli")]
         Commands::Cli => {
-            cli(locked_model, client, mapping, filters, cfg).await?;
+            cli(client, allowed_models, cfg.prepend_system_prompt).await?;
         }
         #[cfg(feature = "web")]
         Commands::Web { port } => {
-            // wraps because shared between multiple request handlers within the web server
-            let state = web::AppState {
-                client: Arc::new(client),
-                infos: Arc::new(mapping),
-                filters: Arc::new(filters),
-                system_prompt: Arc::new(cfg.prepend_system_prompt),
-                locked_model: Arc::new(locked_model),
-            };
-            web(port, state).await?;
+            web(client, allowed_models, port, cfg.prepend_system_prompt).await?;
         }
     }
     Ok(())
 }
 
 #[cfg(feature = "web")]
-async fn web(port: &u16, state: web::AppState) -> Result<()> {
+async fn web(
+    client: Client<OpenAIConfig>,
+    allowed_models: Vec<EnrichedModel>,
+    port: &u16,
+    prepend_system_prompt: String,
+) -> Result<()> {
+    let state = web::AppState {
+        client: Arc::new(client),
+        prepend_system_prompt: Arc::new(prepend_system_prompt),
+        allowed_models: Arc::new(allowed_models),
+    };
     let app = web::router(state);
     let listen_addr = format!("localhost:{port}");
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
@@ -106,11 +106,9 @@ async fn web(port: &u16, state: web::AppState) -> Result<()> {
 
 #[cfg(feature = "cli")]
 async fn cli(
-    locked_model: Option<String>,
     client: Client<OpenAIConfig>,
-    mapping: HashMap<String, ModelInfo>,
-    filters: Vec<regex::Regex>,
-    config: Config,
+    allowed_models: Vec<EnrichedModel>,
+    prepend_system_prompt: String,
 ) -> Result<()> {
     // Enable ANSI colour codes on legacy Windows consoles (cmd.exe).
     // No-op on Windows 10+ / modern terminals / all Unix systems.
@@ -124,48 +122,22 @@ async fn cli(
         std::process::exit(0);
     });
 
-    let mut forced: Option<String> = locked_model;
-
-    // Fetch models once per run
-    // TODO: move to main ?
-    let enriched_models =
-        models::filter_and_sort(models::list_models(&client).await?, &mapping, &filters);
-
     loop {
-        // ── Resolve which model to use ──────────────────────────────────────
-        let (model, from_arg) = match forced.take() {
-            Some(id) => match models::test_model(&client, &id).await {
-                Ok(()) => {
-                    if let Some(reason) = models::explain_rejection(&id, &mapping, &filters) {
-                        display::log_warning(&format!("Model '{id}' is {reason}"));
-                        let m = display::select_model(&enriched_models)?;
-                        (m, false)
-                    } else {
-                        display::log_info(&format!("Using model: {id}"));
-                        (id, true)
-                    }
-                }
-                Err(models::ModelError::NotAllowed) => {
-                    // TODO: deduplicate from chat.rs:88
-                    display::log_warning(&format!("Model '{id}' not allowed"));
-                    (display::select_model(&enriched_models)?, false)
-                }
-                Err(_) => {
-                    display::log_error(&format!("Model '{id}' is unavailable or does not exist"));
-                    (display::select_model(&enriched_models)?, false)
-                }
-            },
-            None => (display::select_model(&enriched_models)?, false),
-        };
-
         // ── Run chat session ────────────────────────────────────────────────
-        match chat::run(&client, &model, &enriched_models, &config).await? {
+        let selected_index = display::select_model(&allowed_models)?; // TODO: test with an result<option> here
+        match chat::run(
+            &client,
+            &allowed_models[selected_index],
+            &prepend_system_prompt,
+        )
+        .await?
+        {
             chat::ChatOutcome::ChatEnded => {
                 display::log_info("Chat ended.");
                 continue;
             }
             chat::ChatOutcome::ContextLimitReached => {
-                crate::display::log_warning("Context limit reached — starting a new conversation.");
+                log_warning("Context limit reached — starting a new conversation.");
                 continue;
             }
             chat::ChatOutcome::ExitRequested => {
@@ -173,12 +145,13 @@ async fn cli(
                 return Ok(());
             }
             chat::ChatOutcome::ModelForbidden => {
-                display::log_warning("Model is forbidden, choose another one");
-                if from_arg {
-                    display::log_error("Model is forbidden, and was chosen from args, exiting.");
-                    return Ok(());
+                if allowed_models.len() > 1 {
+                    display::log_warning("Model is forbidden, choose another one.");
+                    continue;
+                } else {
+                    log_critical("The only available model is forbidden, exiting.");
+                    return Err(anyhow!("No more model available to use."));
                 }
-                continue;
             }
         }
     }

@@ -1,5 +1,3 @@
-use crate::config;
-use crate::models::{self, ModelError};
 use async_openai::{
     Client,
     config::OpenAIConfig,
@@ -12,12 +10,13 @@ use async_openai::{
 use axum::{
     Json, Router,
     extract::State,
+    http::StatusCode,
+    response::IntoResponse,
     response::sse::{Event, Sse},
     routing::{get, post},
 };
 use futures::{StreamExt, stream::BoxStream};
-use portable::{ConfigDto, Message, MessageRole, ModelDto, ModelInfoMap};
-use regex::Regex;
+use portable::{ConfigDto, EnrichedModel, Message, MessageRole, ModelDto};
 use serde::Deserialize;
 use std::{convert::Infallible, sync::Arc};
 use tower_http::services::ServeDir;
@@ -31,10 +30,8 @@ const SSE_EVENT_ERROR: &str = "error";
 #[derive(Clone)]
 pub struct AppState {
     pub client: Arc<Client<OpenAIConfig>>,
-    pub infos: Arc<ModelInfoMap>,
-    pub filters: Arc<Vec<Regex>>,
-    pub system_prompt: Arc<String>,
-    pub locked_model: Arc<Option<String>>, // set via CLI --model, None means free choice
+    pub prepend_system_prompt: Arc<String>,
+    pub allowed_models: Arc<Vec<EnrichedModel>>,
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -59,23 +56,14 @@ pub fn router(state: AppState) -> Router {
 
 async fn handle_config(State(s): State<AppState>) -> Json<ConfigDto> {
     Json(ConfigDto {
-        system_prompt: s.system_prompt.as_ref().clone(),
-        locked_model: s.locked_model.as_ref().clone(),
+        prepend_system_prompt: s.prepend_system_prompt.as_ref().clone(),
     })
 }
 
 // ── GET /api/models ───────────────────────────────────────────────────────────
 
 async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
-    // TODO: do not fetch every time, reuse from main
-    let ids = models::list_models(&s.client).await.unwrap_or_default();
-    // TODO: DRY in regards to main call too ?
-    let mut enriched = models::filter_and_sort(ids, &s.infos, &s.filters);
-    // If a model is locked, expose only that model in the list
-    if let Some(lm) = s.locked_model.as_ref() {
-        enriched.retain(|m| &m.id == lm);
-    }
-    Json(enriched.iter().map(|m| m.into()).collect())
+    Json(s.allowed_models.iter().map(|m| m.into()).collect())
 }
 
 // ── POST /api/chat ────────────────────────────────────────────────────────────
@@ -89,35 +77,78 @@ pub struct ChatRequest {
 async fn handle_chat(
     State(s): State<AppState>,
     Json(mut req): Json<ChatRequest>,
-) -> Sse<BoxStream<'static, Result<Event, Infallible>>> {
-    // Server-side model lock overrides whatever the client sent
-    if let Some(lm) = s.locked_model.as_ref() {
-        req.model = lm.clone();
+) -> Result<Sse<BoxStream<'static, Result<Event, Infallible>>>, impl IntoResponse> {
+    // CRITICAL: server-side check that the client is not trying to screw us
+    // check that the requested in the allowed model list of the valid types
+    if !s
+        .allowed_models
+        .iter()
+        // TODO: switch Vec<EnrichedModel> to HashMap<String, EnrichedModel>
+        .any(|m| m.id == req.model)
+    {
+        let res = (
+            StatusCode::FORBIDDEN,
+            format!("Configuration does not allow model '{}'", req.model),
+        );
+        return Err(res);
     }
 
-    // Inject system prompt if not already provided by the client
-    if !s.system_prompt.is_empty()
-        && req.messages.first().map(|m| &m.role) != Some(&MessageRole::System)
-    {
-        req.messages.insert(
-            0,
-            Message {
-                role: MessageRole::System,
-                content: s.system_prompt.as_ref().clone(),
-            },
-        );
+    // Prepend the system prompt to the one provided by the client
+    let prepend = s.prepend_system_prompt.trim();
+    if !prepend.is_empty() {
+        match req
+            .messages
+            .iter_mut()
+            .find(|m| m.role == MessageRole::System)
+        {
+            Some(msg) => {
+                // paragraph separation improves intent detection for models
+                msg.content = format!("{}\n\n{}", prepend, msg.content.trim());
+            }
+            None => {
+                let default_sys_msg = Message {
+                    role: MessageRole::System,
+                    content: prepend.to_string(),
+                };
+                req.messages.insert(0, default_sys_msg);
+            }
+        }
     }
 
     let stream: BoxStream<'static, Result<Event, Infallible>> =
         match build_chat_stream(s, req).await {
             Ok(s) => s,
-            // TODO: display error or not ?
-            Err(e) => Box::pin(futures::stream::once(async move {
-                Ok(Event::default().event(SSE_EVENT_ERROR).data(e.to_string()))
-            })),
+            Err(e) => {
+                // INFORMATION
+                // Here we can not get any Error from the chunk
+                // processing future, as it is managed from its
+                // SSE stream then() closure. And the stream
+                // is not even streamed here, as we return it back
+                // to our caller, which is an Axum route handler.
+                // And anyway, that closure is marked as Infallible
+                // anyway, as it only returns Ok and rust knows it !
+
+                // IMPORTANT
+                // During the creation of the SSE stream itself,
+                // we could get errors which we can handle:
+                // - msg_to_api() could fail as these could :
+                //   - ChatCompletionRequestSystemMessageArgs.build()
+                //   - ChatCompletionRequestAssistantMessageArgs.build()
+                //   - ChatCompletionRequestUserMessageArgs.build()
+                // - CreateChatCompletionRequestArgs.build()
+                // But as we build them from default() and only add
+                // valid stuff, it most likely could not anyway. But
+                // there is no reason the async_openai crate could not
+                // fail on its own, so we have to handle this anyway.
+                Box::pin(futures::stream::once(async move {
+                    // On server-side error **DURING SSE CREATION**,
+                    // send an SSE "error event" to notify the client
+                    Ok(Event::default().event(SSE_EVENT_ERROR).data(e.to_string()))
+                }))
+            }
         };
 
-    Sse::new(stream)
+    Ok(Sse::new(stream))
 }
 
 async fn build_chat_stream(
@@ -127,6 +158,7 @@ async fn build_chat_stream(
     let messages = req
         .messages
         .iter()
+        // remove empty system messages to avoid confusing the model with empty instructions
         .filter(|m| !(m.role == MessageRole::System && m.content.trim().is_empty()))
         .map(msg_to_api)
         // There are two possible way to collect "list of results" :
@@ -144,14 +176,8 @@ async fn build_chat_stream(
 
     let openai_stream = s.client.chat().create_stream(request).await?; // TODO: thiserror or openai
 
-    // Capture what we need for the exclusion side-effect inside the stream
-    let model = req.model.clone();
-    let client = Arc::clone(&s.client);
-
     // Use `.then()` (async map) so we can do async writes on unauthorized errors
     let sse = openai_stream.then(move |chunk| {
-        let model = model.clone();
-        let client = Arc::clone(&client);
         async move {
             match chunk {
                 Ok(resp) => {
@@ -162,9 +188,9 @@ async fn build_chat_stream(
                         .unwrap_or_default();
                     #[cfg(feature = "print-tokens")]
                     {
-                        use std::io::{self, Write};
+                        use std::io::{Write, stdout};
                         print!("{token}");
-                        io::stdout().flush().unwrap();
+                        stdout().flush().unwrap();
                     }
                     // encode the token in json so that newlines in the token
                     // does not break the SSE frame, and are preserved to frontend
@@ -174,13 +200,8 @@ async fn build_chat_stream(
                 }
 
                 Err(e) => {
-                    // Reuse test_model's exact detection logic to check if this
-                    // model is unauthorized, rather than re-parsing the error string
-                    if let Err(ModelError::NotAllowed) = models::test_model(&client, &model).await {
-                        return Ok(Event::default()
-                            .event(SSE_EVENT_ERROR)
-                            .data(format!("Model '{model}' is not allowed: {e}")));
-                    }
+                    // On server-side error **DURING CHUNKS PROCESSING**,
+                    // send an SSE "error event" to notify the client
                     Ok(Event::default().event(SSE_EVENT_ERROR).data(e.to_string()))
                 }
             }

@@ -227,7 +227,7 @@ fn App() -> impl IntoView {
     // ── Signals ───────────────────────────────────────────────────────────────
     let models = RwSignal::new(vec![]);
     let sel_model = RwSignal::new(String::new());
-    let locked_mdl = RwSignal::new(None::<String>);
+
     let sys_prompt = RwSignal::new(String::new());
     let messages = RwSignal::new(load_chat()); // load from sessionStorage in case tab reloads
     let input = RwSignal::new(String::new());
@@ -241,23 +241,17 @@ fn App() -> impl IntoView {
     spawn_local(async move {
         if let Ok(r) = Request::get("/api/config").send().await {
             if let Ok(cfg) = r.json::<ConfigDto>().await {
-                sys_prompt.set(cfg.system_prompt);
-                locked_mdl.set(cfg.locked_model);
+                sys_prompt.set(cfg.prepend_system_prompt);
             }
         }
         if let Ok(r) = Request::get("/api/models").send().await {
             if let Ok(list) = r.json::<Vec<ModelDto>>().await {
-                let locked = locked_mdl.get_untracked();
-                let initial = if locked.is_none() {
-                    // Try saved model cookie; fall back to first in list if absent/stale
-                    get_cookie(COOKIE_MODEL)
-                        .and_then(|s| list.iter().find(|m| m.id == s).map(|m| m.id.clone()))
-                        .or_else(|| list.first().map(|m| m.id.clone()))
-                } else {
-                    // Locked model: cookie is irrelevant, take the only option
-                    list.first().map(|m| m.id.clone())
-                };
-                if let Some(id) = initial {
+                // Try saved model cookie
+                if let Some(id) = get_cookie(COOKIE_MODEL)
+                    .and_then(|s| list.iter().find(|m| m.id == s).map(|m| m.id.clone()))
+                    // or fall back to first in list if absent or stale
+                    .or_else(|| list.first().map(|m| m.id.clone()))
+                {
                     sel_model.set(id);
                 }
                 models.set(list);
@@ -271,8 +265,7 @@ fn App() -> impl IntoView {
         models.get().into_iter().find(|m| m.id == id)
     });
     let tok_count = Memo::new(move |_| estimate_tokens(&messages.get()));
-    let mdl_locked =
-        Memo::new(move |_| started.get() || locked_mdl.get().is_some() || models.get().len() <= 1);
+    let mdl_locked = Memo::new(move |_| started.get() || models.get().len() <= 1);
 
     // ── Auto-scroll on every new token ────────────────────────────────────────
     Effect::new(move |_| {
@@ -315,9 +308,7 @@ fn App() -> impl IntoView {
             return;
         }
 
-        let model = locked_mdl
-            .get_untracked()
-            .unwrap_or_else(|| sel_model.get_untracked());
+        let model = sel_model.get_untracked();
 
         let mut hist = messages.get_untracked();
 
@@ -410,10 +401,8 @@ fn App() -> impl IntoView {
                     on:change=move |e| {
                         let val = event_target_value(&e);
                         sel_model.set(val.clone());
-                        // Only persist to cookie when the user freely chose the model
-                        if locked_mdl.get_untracked().is_none() {
-                            set_cookie(COOKIE_MODEL, &val);
-                        }
+                        // persist to cookie
+                        set_cookie(COOKIE_MODEL, &val);
                     }
                 >
                     {move || models.get().into_iter().map(|m| {

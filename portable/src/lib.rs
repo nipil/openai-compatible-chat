@@ -98,8 +98,7 @@ impl From<&EnrichedModel> for ModelDto {
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ConfigDto {
-    pub system_prompt: String,
-    pub locked_model: Option<String>,
+    pub prepend_system_prompt: String,
 }
 
 /// We reuse the same structure for :

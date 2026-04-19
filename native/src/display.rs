@@ -219,14 +219,14 @@ fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
 // ── Display / selection ───────────────────────────────────────────────────────
 
 /// Opens an interactive fuzzy-search and returns the selected model ID.
-pub fn select_model(models: &[EnrichedModel]) -> Result<String> {
+pub fn select_model(models: &[EnrichedModel]) -> Result<usize> {
     if models.is_empty() {
         return Err(anyhow!("No models available."));
     }
 
     if models.len() == 1 {
-        crate::display::log_info(&format!("Auto-selected: {}", models[0].id));
-        return Ok(models[0].id.clone());
+        log_info(&format!("Auto-selected: {}", models[0].id));
+        return Ok(0);
     }
 
     let labels: Vec<String> = models.iter().map(|m| m.to_string()).collect();
@@ -240,5 +240,5 @@ pub fn select_model(models: &[EnrichedModel]) -> Result<String> {
         .interact()
         .map_err(|e| anyhow!("Selection failed: {e}"))?;
 
-    Ok(models[idx].id.clone())
+    Ok(idx)
 }

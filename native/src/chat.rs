@@ -1,4 +1,4 @@
-use crate::display::LiveMarkdown;
+use crate::display::{LiveMarkdown, log_error, log_warning};
 use anyhow::Result;
 use async_openai::{
     Client,
@@ -13,7 +13,7 @@ use async_openai::{
 use chrono::Local;
 use futures::StreamExt;
 use owo_colors::OwoColorize;
-use portable::{Config, EnrichedModel, Message, MessageRole, estimate_tokens};
+use portable::{EnrichedModel, Message, MessageRole, estimate_tokens};
 use std::{
     fmt,
     io::{Write, stdin, stdout},
@@ -58,25 +58,29 @@ pub enum ChatOutcome {
 
 pub async fn run(
     client: &Client<OpenAIConfig>,
-    model: &str,
-    models_meta: &[EnrichedModel],
-    config: &Config,
+    selected_model: &EnrichedModel,
+    prepend_system_prompt: &str,
 ) -> Result<ChatOutcome> {
-    println!("\n{}\n", "─── Conversation ───".white().bold());
-
-    let system = build_system_prompt(config).await;
+    println!(
+        "\n{} {} {}\n",
+        "─── Conversation using".white().bold(),
+        selected_model.id.cyan().bold(),
+        "───".white().bold(),
+    );
+    let system = get_system_prompt_from_user(prepend_system_prompt).await;
     let mut history = vec![Message {
         role: MessageRole::System,
         content: system,
     }];
 
-    let max_tokens = models_meta
-        .iter()
-        .find(|m| m.id == model)
-        .and_then(|m| m.info.context_window);
-
     loop {
-        let input = read_user_input_trimmed(model, &history, max_tokens).await;
+        let input = read_user_input_trimmed(
+            &selected_model.id,
+            &history,
+            selected_model.info.context_window,
+        )
+        .await;
+
         if input.is_empty() {
             continue;
         }
@@ -97,7 +101,7 @@ pub async fn run(
             content: input,
         });
 
-        match send_and_stream(client, model, &history).await {
+        match send_and_stream(client, &selected_model.id, &history).await {
             Ok(reply) => {
                 history.push(Message {
                     role: MessageRole::Assistant,
@@ -113,10 +117,10 @@ pub async fn run(
                 }
                 // TODO: deduplicate from main.rs:156
                 if msg.contains("not allowed") || msg.contains("permission") {
-                    crate::display::log_warning(&format!("Model '{model}' not allowed"));
+                    log_warning(&format!("Model '{selected_model}' not allowed"));
                     return Ok(ChatOutcome::ModelForbidden);
                 }
-                crate::display::log_error(&e.to_string());
+                log_error(&e.to_string());
             }
         }
     }
@@ -124,7 +128,7 @@ pub async fn run(
 
 // ── Prompt / stdin ────────────────────────────────────────────────────────────
 
-async fn build_system_prompt(config: &Config) -> String {
+async fn get_system_prompt_from_user(prepend_system_prompt: &str) -> String {
     let user = tokio::task::spawn_blocking(|| {
         print!("System prompt: ");
         stdout().flush().ok();
@@ -135,10 +139,12 @@ async fn build_system_prompt(config: &Config) -> String {
     .await
     .unwrap_or_default();
 
-    let pre = config.prepend_system_prompt.trim();
+    // TODO: once we use default instead of prepend, fix code below
+    let pre = prepend_system_prompt.trim();
     match (pre.is_empty(), user.is_empty()) {
         (true, _) => user,
         (false, true) => pre.to_string(),
+        // paragraph separation improves intent detection for models
         (false, false) => format!("{pre}\n\n{user}"),
     }
 }
