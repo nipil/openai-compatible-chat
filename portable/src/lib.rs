@@ -25,8 +25,8 @@ pub enum ModelType {
 
 // ── Safer value management ────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-// TODO: add strum?
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Display, EnumString, AsRefStr)]
+#[strum(serialize_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum MessageRole {
     Assistant,

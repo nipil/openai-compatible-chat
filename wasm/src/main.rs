@@ -471,9 +471,8 @@ fn App() -> impl IntoView {
                 {move || messages.get().into_iter()
                     .filter(|m| m.role != MessageRole::System)
                     .map(|msg| {
-                        let is_user    = msg.role == MessageRole::User;
-                        let row_cls    = if is_user { "msg-row user" }      else { "msg-row assistant" };
-                        let bubble_cls = if is_user { "msg-bubble user" }   else { "msg-bubble assistant" };
+                        let row_cls = format!("msg-row {}", msg.role);
+                        let bubble_cls = format!("msg-bubble {}", msg.role);
                         view! {
                             <div class=row_cls>
                                 <div class=bubble_cls inner_html=to_html(&msg.content) />
