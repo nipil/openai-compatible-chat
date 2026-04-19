@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig, error::OpenAIError};
-use portable::{Exclusion, ModelInfo, ModelInfoMap, ModelType};
+use portable::{EnrichedModel, Exclusion, ModelInfoMap, ModelType};
 use regex::Regex;
 
 pub const ALLOWED_TYPES: &[ModelType] = &[
@@ -11,13 +11,6 @@ pub const ALLOWED_TYPES: &[ModelType] = &[
 ];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone)]
-// TODO: move to portable
-pub struct EnrichedModel {
-    pub id: String,
-    pub info: ModelInfo,
-}
 
 #[derive(Debug)]
 pub enum ModelError {

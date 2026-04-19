@@ -1,4 +1,4 @@
-use crate::{display::LiveMarkdown, models::EnrichedModel};
+use crate::display::LiveMarkdown;
 use anyhow::Result;
 use async_openai::{
     Client,
@@ -13,7 +13,7 @@ use async_openai::{
 use chrono::Local;
 use futures::StreamExt;
 use owo_colors::OwoColorize;
-use portable::{Config, Exclusion, Message, MessageRole, estimate_tokens};
+use portable::{Config, EnrichedModel, Exclusion, Message, MessageRole, estimate_tokens};
 use std::{
     io::{Write, stdin, stdout},
     time::Instant,

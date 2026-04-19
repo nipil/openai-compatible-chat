@@ -23,6 +23,12 @@ pub enum ModelType {
     Video,
 }
 
+#[derive(Debug, Clone)]
+pub struct EnrichedModel {
+    pub id: String,
+    pub info: ModelInfo,
+}
+
 // ── Safer value management ────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Display, EnumString, AsRefStr)]

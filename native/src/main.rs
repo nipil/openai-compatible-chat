@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
-use portable::{Config, Exclusion, ModelInfo, ModelInfoMap};
+use portable::{Config, EnrichedModel, Exclusion, ModelInfo, ModelInfoMap};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -130,7 +130,7 @@ async fn cli(
 
     let mut forced: Option<String> = locked_model;
     // TODO: If caching is done once anyway on first pick, why not do at startup ?!
-    let mut model_cache: Option<Vec<models::EnrichedModel>> = None;
+    let mut model_cache: Option<Vec<EnrichedModel>> = None;
 
     loop {
         // ── Resolve which model to use ──────────────────────────────────────
@@ -207,7 +207,7 @@ async fn cli(
 #[cfg(feature = "cli")]
 async fn pick_from_list(
     client: &Client<OpenAIConfig>,
-    cache: &mut Option<Vec<models::EnrichedModel>>,
+    cache: &mut Option<Vec<EnrichedModel>>,
     infos: &ModelInfoMap,
     excl: &Exclusion,
     filters: &[regex::Regex],
