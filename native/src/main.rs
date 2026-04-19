@@ -54,8 +54,8 @@ async fn main() -> Result<()> {
 
     // Create shared components
     let oa_cfg = OpenAIConfig::new()
-        .with_api_key(&cfg.api_key)
-        .with_api_base(&cfg.base_url);
+        .with_api_key(cfg.api_key)
+        .with_api_base(cfg.base_url);
     let client = Client::with_config(oa_cfg);
 
     // Build models database once
