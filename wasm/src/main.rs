@@ -151,12 +151,12 @@ async fn stream_chat(
             // TODO: which errors to handle ?
             .map_err(|e| format!("{e:?}"))?;
 
-        let done = js_sys::Reflect::get(&chunk, &"done".into()) // TODO: to enum https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read#return_value
-            .ok()
-            .and_then(|v| v.as_bool())
-            // TODO: which errors to handle ? (malformed chunk object, ... ?)
-            // TODO: prevent silent truncated reply
-            .unwrap_or(true);
+        // TODO: done string to enum
+        // TODO: report to user?
+        let done = js_sys::Reflect::get(&chunk, &"done".into())
+            .map_err(|e| format!("could not read 'done' from stream chunk : {e:?}"))?
+            .as_bool()
+            .ok_or_else(|| "stream chunk 'done' is not a boolean")?;
 
         if done {
             break;
