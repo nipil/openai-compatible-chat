@@ -156,7 +156,7 @@ async fn stream_chat(
         let done = js_sys::Reflect::get(&chunk, &"done".into())
             .map_err(|e| format!("could not read 'done' from stream chunk : {e:?}"))?
             .as_bool()
-            .ok_or_else(|| "stream chunk 'done' is not a boolean")?;
+            .ok_or("stream chunk 'done' is not a boolean".to_string())?;
 
         if done {
             break;
@@ -177,6 +177,9 @@ async fn stream_chat(
         // since a single network chunk may contain multiple \n-terminated SSE frames
 
         // TODO: does not handle other line endings according to spec (simple \r)
+        // How this does work : does a manual ring-buffer drain because :
+        // - a single TCP chunk can contain multiple SSE frames,
+        // - and frames can also be split across chunks
         while let Some(nl) = buf.find('\n') {
             let line = buf[..nl].trim_end_matches('\r').to_string();
             buf = buf[nl + 1..].to_string();
@@ -190,6 +193,7 @@ async fn stream_chat(
                     // TODO: notify user ?s
                     let token: String = serde_json::from_str(data).unwrap_or_else(|e| {
                         web_sys::console::warn_1(&format!("token parse failed: {e}").into());
+                        // we choose to NOT abort, and juste provide it "as-is"
                         data.to_string()
                     });
                     #[cfg(feature = "print-tokens")]
@@ -225,14 +229,22 @@ fn main() {
 fn save_chat(messages: &[Message]) {
     let Some(win) = window() else {
         // TODO: how to report error to user
-        web_sys::console::warn_1(&"Load chat : no window available".into());
+        web_sys::console::warn_1(&"Save chat : no window available".into());
         return;
     };
-    let Ok(Some(storage)) = win.session_storage() else {
-        // TODO: log errors ?
-        return;
+
+    let storage = match win.session_storage() {
+        Ok(Some(storage)) => storage,
+        Ok(None) => return,
+        Err(e) => {
+            // TODO: how to report error to user
+            web_sys::console::warn_1(&format!("Save chat : no storage available : {e:?}").into());
+            return;
+        }
     };
+
     let Ok(json) = serde_json::to_string(messages) else {
+        // TODO: how to report error to user
         // TODO: log errors ?
         return;
     };
@@ -251,9 +263,14 @@ fn load_chat() -> Vec<Message> {
         web_sys::console::warn_1(&"Load chat : no window available".into());
         return vec![];
     };
-    let Ok(Some(storage)) = win.session_storage() else {
-        // TODO: log errors ? but only if Err? not if Ok(None) !
-        return vec![];
+    let storage = match win.session_storage() {
+        Ok(Some(storage)) => storage,
+        Ok(None) => return vec![],
+        Err(e) => {
+            // TODO: how to report error to user
+            web_sys::console::warn_1(&format!("Load chat : no storage available : {e:?}").into());
+            return vec![];
+        }
     };
     let Ok(Some(json)) = storage.get_item(STORAGE_KEY_OPENAI) else {
         // TODO: log errors ? but only if Err? not if Ok(None) !
@@ -266,6 +283,20 @@ fn load_chat() -> Vec<Message> {
         return vec![];
     };
     chat
+}
+
+fn show_alert(msg: &str) {
+    web_sys::console::error_1(&format!("Alert : {msg}").into());
+    match web_sys::window() {
+        Some(win) => {
+            if let Err(e) = win.alert_with_message(msg) {
+                web_sys::console::error_1(&format!("Show alert : alert failed : {e:?}").into());
+            }
+        }
+        None => {
+            web_sys::console::warn_1(&"Show alert : no window available".into());
+        }
+    }
 }
 
 // ── App component ─────────────────────────────────────────────────────────────
@@ -293,13 +324,16 @@ fn App() -> impl IntoView {
     // used to show/hide send/cancel buttons
     let streaming = RwSignal::new(false);
 
-    // handles transition from new conversation to started conversation
-    // - upon reload, reflects stored message history
-    // - if conversation is started,
+    // Check if we are restoring a saved conversation, which already started
+    // - upon reload
+    //   - if we restored a chat from storage,
+    //     treat it as already started,
+    //     so we don't re-inject the system prompt
+    // - and if conversation is indeed started,
     //   - disables the system prompt
     //   - adds a system message if none were present
     //   - locks the model selection
-    let started = RwSignal::new(!messages.get_untracked().is_empty()); // reflect stored chat state
+    let started = RwSignal::new(!messages.get_untracked().is_empty());
 
     // used to allow anything in the UI to cancel ongoing requests
     // holds an abort controller which we can notify about cancelations
@@ -313,34 +347,43 @@ fn App() -> impl IntoView {
 
     // ── Bootstrap: load config then models ────────────────────────────────────
     spawn_local(async move {
-        if let Ok(r) = Request::get("/api/config").send().await {
-            if let Ok(cfg) = r.json::<ConfigDto>().await {
-                // load the predefined system prompt from config
-                sys_prompt.set(cfg.prepend_system_prompt);
-            } else {
-                // TODO: Handle errors (parsing failed)
-            }
-        } else {
-            // TODO: Handle errors (req failed)
-        }
-        if let Ok(r) = Request::get("/api/models").send().await {
-            if let Ok(list) = r.json::<Vec<ModelDto>>().await {
-                // Try saved model cookie
-                if let Some(id) = get_cookie(COOKIE_MODEL)
-                    .and_then(|s| list.iter().find(|m| m.id == s).map(|m| m.id.clone()))
-                    // or fall back to first in list if absent or stale
-                    .or_else(|| list.first().map(|m| m.id.clone()))
-                {
-                    sel_model.set(id);
+        match Request::get("/api/config").send().await {
+            Ok(r) => match r.json::<ConfigDto>().await {
+                Ok(cfg) => {
+                    // load the predefined system prompt from config
+                    sys_prompt.set(cfg.prepend_system_prompt);
                 }
-                // Sets up selection dropdown
-                models.set(list);
-                // TODO: handle empty list of models ... disable send button ?
-            } else {
-                // TODO: Handle errors (parsing failed)
+                Err(e) => {
+                    show_alert(&format!("config parse failed: {e}"));
+                }
+            },
+            Err(e) => {
+                show_alert(&format!("config request failed: {e}"));
             }
-        } else {
-            // TODO: Handle errors (req failed)
+        }
+        match Request::get("/api/models").send().await {
+            Ok(r) => match r.json::<Vec<ModelDto>>().await {
+                Ok(list) => {
+                    // Try saved model cookie
+                    if let Some(id) = get_cookie(COOKIE_MODEL)
+                        .and_then(|s| list.iter().find(|m| m.id == s).map(|m| m.id.clone()))
+                        // or fall back to first in list if absent or stale
+                        .or_else(|| list.first().map(|m| m.id.clone()))
+                    {
+                        sel_model.set(id);
+                    }
+                    // Sets up selection dropdown
+                    models.set(list);
+                    // FIXME: handle empty list of models ... disable send button ?
+                    // FIXME: started state should maybe have everything locked ?
+                }
+                Err(e) => {
+                    show_alert(&format!("models parse failed: {e}"));
+                }
+            },
+            Err(e) => {
+                show_alert(&format!("models request failed: {e}"));
+            }
         }
     });
 
@@ -363,7 +406,7 @@ fn App() -> impl IntoView {
 
     // ── Auto-scroll on every new token ────────────────────────────────────────
     Effect::new(move |_| {
-        // automatically "watches" what you .get() and looks for any changes
+        // Leptos automatically "watches" what you ".get()" and monitors it for changes
         let _ = messages.get();
         // if we alread have a "conversation reference" (DOM element) to use
         if let Some(el) = conv_ref.get() {
@@ -387,6 +430,9 @@ fn App() -> impl IntoView {
             abort_ctl.set(None);
         }
     });
+
+    // esc is a WindowListenerHandle that removes the event listener when dropped
+    // Without this, the keydown listener would outlive the component
     on_cleanup(move || drop(esc));
 
     // ── Theme toggle ──────────────────────────────────────────────────────────
@@ -408,8 +454,8 @@ fn App() -> impl IntoView {
         }
 
         // IMPORTANT: handle fail path before user
-        // This is the only way to link the browser (req) to the ui :
-        // 'ac' is an abort-controller, linked to a abort-signal 'sig'
+        // This is the only way to link the browser (req) to the ui : 'ac' is
+        // an abort-controller, linked to a abort-signal 'sig' created below
         let ac = match AbortController::new() {
             Ok(ac) => ac,
             Err(e) => {
@@ -452,11 +498,16 @@ fn App() -> impl IntoView {
             content: text,
         });
 
-        // Add an empty message and add it to the list
+        // Add an empty message and add it to the list : this is a reserved slot
+        // to later accumulate incoming token during the streaming reply :
+        // - the streaming closure captures messages
+        // - appends tokens to messages.last_mut()
+        // - the empty slot must exist in the signal before streaming begins
+        //   or the first token has nowhere to land
         hist.push(Message {
             role: MessageRole::Assistant,
             content: String::new(),
-        }); // reserved slot
+        });
 
         // Do not send the last empty assistant slot
         // FIXME: seems suboptimal, play with it !
@@ -471,10 +522,12 @@ fn App() -> impl IntoView {
         // Clear the input so the user can prepare his next message while streaming
         input.set(String::new());
 
+        // IMPORTANT: this should be positionned AFTER all the "pre-request"  fail paths
+        // have been resolved, so that this is not set with no way to recover !
         // Set the UI to streaming state (shows cancel button instead of send button)
         streaming.set(true);
 
-        // Now the non-failing parts of the abort controller
+        // Now the non-failing parts of the abort controller 'ac' duo : this
         // 'sig' will be passed/moved into the promise so it could notify it
         let sig = ac.signal();
         // 'ac' is stored in a rwsignal, so that the UI could abord the req
