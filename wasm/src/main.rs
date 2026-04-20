@@ -154,7 +154,8 @@ async fn stream_chat(
         let done = js_sys::Reflect::get(&chunk, &"done".into()) // TODO: to enum https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read#return_value
             .ok()
             .and_then(|v| v.as_bool())
-            // TODO: which errors to handle ?
+            // TODO: which errors to handle ? (malformed chunk object, ... ?)
+            // TODO: prevent silent truncated reply
             .unwrap_or(true);
 
         if done {
@@ -165,7 +166,12 @@ async fn stream_chat(
             .map_err(|e| format!("{e:?}"))?; // TODO: thiserror
         let arr: js_sys::Uint8Array = value.dyn_into().map_err(|e| format!("{e:?}"))?; // TODO: thiserror
 
-        buf.push_str(&String::from_utf8_lossy(&arr.to_vec())); // TODO: must be valid UTF-8, according to spec, so lossy is not really good
+        // The SSE spec guarantees UTF-8, so lossy is technically wrong here
+        // But a replacement character \u{FFFD} in the stream would corrupt
+        // rendered markdown silently, so this
+        // TODO: try as non-lossless UTF-8, and if it fails, switch to lossy
+        // TODO: then add a display warning marking the message as lossy
+        buf.push_str(&String::from_utf8_lossy(&arr.to_vec()));
 
         // processes all complete lines from the buffer in one chunk,
         // since a single network chunk may contain multiple \n-terminated SSE frames
@@ -181,8 +187,11 @@ async fn stream_chat(
                     // decode the token from json so that newlines in the token
                     // were not lost in the SSE frame, and are preserved for frontend
                     // and if not decodable, use as it
-                    let token: String =
-                        serde_json::from_str(data).unwrap_or_else(|_| data.to_string());
+                    // TODO: notify user ?s
+                    let token: String = serde_json::from_str(data).unwrap_or_else(|e| {
+                        web_sys::console::warn_1(&format!("token parse failed: {e}").into());
+                        data.to_string()
+                    });
                     #[cfg(feature = "print-tokens")]
                     web_sys::console::log_1(&format!("token: {:?}", token).into());
                     // call the callback for each token
@@ -214,7 +223,12 @@ fn main() {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn save_chat(messages: &[Message]) {
-    let Ok(Some(storage)) = window().unwrap().session_storage() else {
+    let Some(win) = window() else {
+        // TODO: how to report error to user
+        web_sys::console::warn_1(&"Load chat : no window available".into());
+        return;
+    };
+    let Ok(Some(storage)) = win.session_storage() else {
         // TODO: log errors ?
         return;
     };
@@ -223,19 +237,35 @@ fn save_chat(messages: &[Message]) {
         return;
     };
     // Ignore errors as browser privacy settings can disable storage
-    let _ = storage.set_item(STORAGE_KEY_OPENAI, &json);
+    if let Err(e) = storage.set_item(STORAGE_KEY_OPENAI, &json) {
+        web_sys::console::warn_1(
+            &format!("Saving chat failed, conversation is not persisted : {e:?}").into(),
+        );
+        // TODO: optionally display something in the UI
+    }
 }
 
 fn load_chat() -> Vec<Message> {
-    let Ok(Some(storage)) = window().unwrap().session_storage() else {
+    let Some(win) = window() else {
+        // TODO: how to report error to user
+        web_sys::console::warn_1(&"Load chat : no window available".into());
+        return vec![];
+    };
+    let Ok(Some(storage)) = win.session_storage() else {
         // TODO: log errors ? but only if Err? not if Ok(None) !
         return vec![];
     };
     let Ok(Some(json)) = storage.get_item(STORAGE_KEY_OPENAI) else {
         // TODO: log errors ? but only if Err? not if Ok(None) !
+        // TODO: Err on key absent or only retrieve error ?
         return vec![];
     };
-    serde_json::from_str(&json).unwrap_or_default()
+    let Ok(chat) = serde_json::from_str(&json) else {
+        web_sys::console::warn_1(&"Load chat : saved conversation is malformed".into());
+        // TODO: notify user that his history has been lost ?
+        return vec![];
+    };
+    chat
 }
 
 // ── App component ─────────────────────────────────────────────────────────────
@@ -377,6 +407,20 @@ fn App() -> impl IntoView {
             return;
         }
 
+        // IMPORTANT: handle fail path before user
+        // This is the only way to link the browser (req) to the ui :
+        // 'ac' is an abort-controller, linked to a abort-signal 'sig'
+        let ac = match AbortController::new() {
+            Ok(ac) => ac,
+            Err(e) => {
+                // surface to user or log; abort-less streaming is still better than nothing
+                web_sys::console::error_1(&e);
+                // TODO: how to report error to user
+                // TODO: optionally: fall back to streaming without abort support ?
+                return;
+            }
+        };
+
         // get user input
         let text = input.get_untracked().trim().to_string();
         if text.is_empty() {
@@ -430,10 +474,7 @@ fn App() -> impl IntoView {
         // Set the UI to streaming state (shows cancel button instead of send button)
         streaming.set(true);
 
-        // This is the only way to link the browser (req) to the ui :
-        // 'ac' is an abort-controller, linked to a abort-signal 'sig'
-        // TODO: which errors to handle ?
-        let ac = AbortController::new().unwrap();
+        // Now the non-failing parts of the abort controller
         // 'sig' will be passed/moved into the promise so it could notify it
         let sig = ac.signal();
         // 'ac' is stored in a rwsignal, so that the UI could abord the req
