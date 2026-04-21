@@ -10,8 +10,7 @@ pub const MAPPING_PATH: &str = "ai_model_info/openai.json";
 pub fn load_config() -> Result<Config> {
     let raw =
         fs::read_to_string(CONFIG_PATH).with_context(|| format!("Cannot read '{CONFIG_PATH}'"))?;
-    // TODO update message once regex compilation is done during deserializing
-    serde_json::from_str(&raw).with_context(|| format!("Invalid JSON in '{CONFIG_PATH}'"))
+    serde_json::from_str(&raw).with_context(|| format!("Invalid JSON or REGEX in '{CONFIG_PATH}'"))
 }
 
 pub fn load_model_info_map() -> Result<ModelInfoMap> {
