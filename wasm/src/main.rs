@@ -298,16 +298,15 @@ fn load_chat() -> Vec<Message> {
 }
 
 fn show_error_alert(msg: &str) {
-    web_sys::console::error_1(&format!("Alert : {msg}").into());
-    match web_sys::window() {
-        Some(win) => {
-            if let Err(e) = win.alert_with_message(msg) {
-                web_sys::console::error_1(&format!("Show alert : alert failed : {e:?}").into());
-            }
-        }
-        None => {
-            web_sys::console::warn_1(&"Show alert : no window available".into());
-        }
+    let full = format!("Alert : {msg}");
+    let Some(win) = web_sys::window() else {
+        web_sys::console::warn_1(&"Show alert : no window available".into());
+        web_sys::console::error_1(&full.into());
+        return;
+    };
+    if let Err(e) = win.alert_with_message(&full) {
+        web_sys::console::error_1(&format!("Show alert : alert failed : {e:?}").into());
+        web_sys::console::error_1(&full.into());
     }
 }
 
