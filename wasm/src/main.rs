@@ -487,6 +487,10 @@ fn App() -> impl IntoView {
 
         // get selected model name
         let model = sel_model.get_untracked();
+        if model.is_empty() {
+            show_error_alert("No model selected — the model list may have failed to load.");
+            return;
+        }
 
         // get whole history (stored across reloads, thrown away on tab discard)
         let mut hist = messages.get_untracked();
@@ -528,7 +532,7 @@ fn App() -> impl IntoView {
         // Persist the history (except last empty) to sessionStorage (in case tab is reloaded)
         save_chat(&send_msgs);
 
-        // Now when the , the display will update
+        // FIXME: Now when the , the display will update
         messages.set(hist);
 
         // Clear the input so the user can prepare his next message while streaming
