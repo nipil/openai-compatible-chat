@@ -156,7 +156,7 @@ async fn stream_chat(
         let done = js_sys::Reflect::get(&chunk, &"done".into())
             .map_err(|e| format!("could not read 'done' from stream chunk : {e:?}"))?
             .as_bool()
-            .ok_or("stream chunk 'done' is not a boolean".to_string())?;
+            .ok_or_else(|| "stream chunk 'done' is not a boolean".to_string())?;
 
         if done {
             break;
