@@ -66,8 +66,7 @@ async fn main() -> Result<()> {
             // handle locked model from command-line
             .filter(|id| args.model.as_ref().map_or(true, |lock_id| lock_id == id))
             .collect(),
-        // TODO: compile regex using serde
-        models::compile_regex(cfg.exclude_model_name_regex)?,
+        cfg.exclude_model_name_regex,
     )?;
 
     #[cfg(all(feature = "cli", feature = "web"))]

@@ -1,3 +1,4 @@
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display};
 use strum::{AsRefStr, Display, EnumString};
@@ -62,8 +63,8 @@ pub type ModelInfoMap = HashMap<String, ModelInfo>;
 pub struct Config {
     pub api_key: String,
     pub base_url: String,
-    #[serde(default)]
-    pub exclude_model_name_regex: Vec<String>, // TODO: make regex ?
+    #[serde(with = "serde_regex")]
+    pub exclude_model_name_regex: Vec<Regex>,
     #[serde(default)]
     pub prepend_system_prompt: String,
 }

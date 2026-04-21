@@ -24,7 +24,7 @@ dialoguer = { version = "0.12", features = [
 futures = "0.3"
 owo-colors = "4"
 portable.workspace = true
-regex = "1" # TODO: add serde feature to allow compilation on deserialization
+regex.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 strum.workspace = true

@@ -26,14 +26,6 @@ pub async fn list_models(client: &Client<OpenAIConfig>) -> Result<Vec<String>> {
 
 // ── Filtering / sorting ───────────────────────────────────────────────────────
 
-pub fn compile_regex(patterns: Vec<String>) -> Result<Vec<Regex>> {
-    // TODO: Can it be done during deserializing ?
-    patterns
-        .iter()
-        .map(|p| Regex::new(p).map_err(|e| anyhow!("Invalid regex '{p}': {e}")))
-        .collect()
-}
-
 pub fn enriched_models_from_ids(
     ids: Vec<String>,
     reject_patterns: Vec<Regex>,
