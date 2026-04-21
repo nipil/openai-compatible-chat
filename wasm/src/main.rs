@@ -532,7 +532,11 @@ fn App() -> impl IntoView {
         // Persist the history (except last empty) to sessionStorage (in case tab is reloaded)
         save_chat(&send_msgs);
 
-        // FIXME: Now when the , the display will update
+        // Moves message list to Leptos, which stores the value in a reference-counted cell
+        // on the reactive heap, kept alive as long as any signal handle or subscriber
+        // references it. On the UI side, this triggers every reactive subscriber that
+        // called .get() on messages — specifically the conversation renderer and tok_count memo.
+        // Leptos diffs the new value and patches the DOM on every value (actual) change
         messages.set(hist);
 
         // Clear the input so the user can prepare his next message while streaming
