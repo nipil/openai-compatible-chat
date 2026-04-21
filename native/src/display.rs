@@ -219,14 +219,14 @@ fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
 // ── Display / selection ───────────────────────────────────────────────────────
 
 /// Opens an interactive fuzzy-search and returns the selected model ID.
-pub fn select_model(models: &[EnrichedModel]) -> Result<usize> {
+pub fn select_model(models: &[EnrichedModel]) -> Result<Option<usize>> {
     if models.is_empty() {
         return Err(anyhow!("No models available."));
     }
 
     if models.len() == 1 {
         log_info(&format!("Auto-selected: {}", models[0].id));
-        return Ok(0);
+        return Ok(Some(0));
     }
 
     let labels: Vec<String> = models.iter().map(|m| m.to_string()).collect();
@@ -237,7 +237,7 @@ pub fn select_model(models: &[EnrichedModel]) -> Result<usize> {
         .default(0)
         // We do not need to handle user cancel as ctrl-c = exit, but otherwise we
         // would need to use interact_opt to get a result<option> handling q or Esc
-        .interact()
+        .interact_opt()
         .map_err(|e| anyhow!("Selection failed: {e}"))?;
 
     Ok(idx)

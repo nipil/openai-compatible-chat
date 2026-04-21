@@ -1,4 +1,4 @@
-use crate::display::{log_critical, log_warning};
+use crate::display::{log_critical, log_error, log_info, log_warning};
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
     // Load configuration once
     let cfg = config::load_config().map_err(|e| {
         #[cfg(feature = "cli")]
-        display::log_error(&e.to_string());
+        log_error(&e.to_string());
         e
     })?;
 
@@ -124,7 +124,10 @@ async fn cli(
 ) -> Result<()> {
     loop {
         // ── Run chat session ────────────────────────────────────────────────
-        let selected_index = display::select_model(&allowed_models)?; // TODO: test with an result<option> here
+        let Some(selected_index) = display::select_model(&allowed_models)? else {
+            log_info("User cancel.");
+            return Ok(());
+        };
         match chat::run(
             &client,
             &allowed_models[selected_index],
@@ -133,7 +136,7 @@ async fn cli(
         .await?
         {
             chat::ChatOutcome::ChatEnded => {
-                display::log_info("Chat ended.");
+                log_info("Chat ended.");
                 continue;
             }
             chat::ChatOutcome::ContextLimitReached => {
@@ -141,12 +144,12 @@ async fn cli(
                 continue;
             }
             chat::ChatOutcome::ExitRequested => {
-                display::log_info("Requested to quit");
+                log_info("Requested to quit");
                 return Ok(());
             }
             chat::ChatOutcome::ModelForbidden => {
                 if allowed_models.len() > 1 {
-                    display::log_warning("Model is forbidden, choose another one.");
+                    log_warning("Model is forbidden, choose another one.");
                     continue;
                 } else {
                     log_critical("The only available model is forbidden, exiting.");
