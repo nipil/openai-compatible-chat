@@ -43,6 +43,19 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Enable ANSI colour codes on legacy Windows consoles (cmd.exe).
+    // No-op on Windows 10+ / modern terminals / all Unix systems.
+    #[cfg(windows)]
+    enable_ansi_support::enable_ansi_support().ok();
+
+    // Clean Ctrl-C exit from anywhere in the program.
+    tokio::spawn(async {
+        tokio::signal::ctrl_c().await.ok();
+        eprintln!("\nExiting.");
+        std::process::exit(0);
+    });
+
+    // Parse arguments
     let args = Args::parse();
 
     // Load configuration once
@@ -109,20 +122,6 @@ async fn cli(
     allowed_models: Vec<EnrichedModel>,
     prepend_system_prompt: String,
 ) -> Result<()> {
-    // Enable ANSI colour codes on legacy Windows consoles (cmd.exe).
-    // No-op on Windows 10+ / modern terminals / all Unix systems.
-    // TODO: move to main
-    #[cfg(windows)]
-    enable_ansi_support::enable_ansi_support().ok();
-
-    // Clean Ctrl-C exit from anywhere in the program.
-    // TODO: move to main
-    tokio::spawn(async {
-        tokio::signal::ctrl_c().await.ok();
-        eprintln!("\nExiting.");
-        std::process::exit(0);
-    });
-
     loop {
         // ── Run chat session ────────────────────────────────────────────────
         let selected_index = display::select_model(&allowed_models)?; // TODO: test with an result<option> here
