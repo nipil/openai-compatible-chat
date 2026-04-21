@@ -232,7 +232,6 @@ fn save_chat(messages: &[Message]) {
         web_sys::console::warn_1(&"Save chat : no window available".into());
         return;
     };
-
     let storage = match win.session_storage() {
         Ok(Some(storage)) => storage,
         Ok(None) => return,
@@ -242,11 +241,14 @@ fn save_chat(messages: &[Message]) {
             return;
         }
     };
-
-    let Ok(json) = serde_json::to_string(messages) else {
-        // TODO: how to report error to user
-        // TODO: log errors ?
-        return;
+    let json = match serde_json::to_string(messages) {
+        Ok(json) => json,
+        Err(e) => {
+            web_sys::console::warn_1(
+                &format!("Save chat : error serializing chat for saving : {e:?}").into(),
+            );
+            return;
+        }
     };
     // Ignore errors as browser privacy settings can disable storage
     if let Err(e) = storage.set_item(STORAGE_KEY_OPENAI, &json) {
@@ -272,17 +274,27 @@ fn load_chat() -> Vec<Message> {
             return vec![];
         }
     };
-    let Ok(Some(json)) = storage.get_item(STORAGE_KEY_OPENAI) else {
-        // TODO: log errors ? but only if Err? not if Ok(None) !
-        // TODO: Err on key absent or only retrieve error ?
-        return vec![];
+    let text = match storage.get_item(STORAGE_KEY_OPENAI) {
+        Ok(Some(text)) => text,
+        Ok(None) => return vec![],
+        Err(e) => {
+            // TODO: how to report error to user
+            web_sys::console::warn_1(
+                &format!("Load chat : error retrieving saved chat : {e:?}").into(),
+            );
+            return vec![];
+        }
     };
-    let Ok(chat) = serde_json::from_str(&json) else {
-        web_sys::console::warn_1(&"Load chat : saved conversation is malformed".into());
-        // TODO: notify user that his history has been lost ?
-        return vec![];
-    };
-    chat
+
+    match serde_json::from_str(&text) {
+        Ok(chat) => chat,
+        Err(e) => {
+            web_sys::console::warn_1(
+                &format!("Load chat : error deserializing saved chat : {e:?}").into(),
+            );
+            vec![]
+        }
+    }
 }
 
 fn show_alert(msg: &str) {
