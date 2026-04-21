@@ -60,7 +60,7 @@ pub fn enriched_models_from_ids(
         })
         .collect();
 
-    // TODO: implement PartialEq on ModelInfo ?
+    // For this simple "one-shot" sort, implementing Ord/PartialEq/Eq is not needed
     models.sort_by(|a, b| a.info.family.cmp(&b.info.family).then(a.id.cmp(&b.id)));
     Ok(models)
 }
