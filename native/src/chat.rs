@@ -1,14 +1,13 @@
-use crate::display::{LiveMarkdown, log_error, log_warning};
+use crate::{
+    display::{LiveMarkdown, log_error, log_warning},
+    web::msg_to_api,
+};
 use anyhow::Result;
 use async_openai::{
     Client,
     config::OpenAIConfig,
     error::OpenAIError,
-    types::chat::{
-        ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
-        ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
-        CreateChatCompletionRequestArgs,
-    },
+    types::chat::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
 };
 use chrono::Local;
 use futures::StreamExt;
@@ -239,26 +238,7 @@ async fn send_and_stream(
     Ok(full)
 }
 
-// TODO: make DRY and deduplicate vs web.rs
 // TODO: thiserror OpenAiError ? or not because of defaults
 fn to_api_messages(history: &[Message]) -> Result<Vec<ChatCompletionRequestMessage>, OpenAIError> {
-    history
-        .iter()
-        .map(|m| {
-            Ok(match m.role {
-                MessageRole::System => ChatCompletionRequestSystemMessageArgs::default()
-                    .content(m.content.as_str())
-                    .build()?
-                    .into(),
-                MessageRole::User => ChatCompletionRequestUserMessageArgs::default()
-                    .content(m.content.as_str())
-                    .build()?
-                    .into(),
-                MessageRole::Assistant => ChatCompletionRequestAssistantMessageArgs::default()
-                    .content(m.content.as_str())
-                    .build()?
-                    .into(),
-            })
-        })
-        .collect()
+    history.iter().map(|m| msg_to_api(m)).collect()
 }

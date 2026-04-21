@@ -1,6 +1,7 @@
 use async_openai::{
     Client,
     config::OpenAIConfig,
+    error::OpenAIError,
     types::chat::{
         ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
         ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
@@ -181,7 +182,7 @@ async fn build_chat_stream(
         // - collect::<Result<Vec<_>>>() → first error wins, rest is ignored
         //   → what we do here, as we do nothing like logging each err
         // TODO: RECHECK once msg_to_api is not anyhow ... or make thiserror or openai or with_context
-        .collect::<anyhow::Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>, OpenAIError>>()?;
 
     let request = CreateChatCompletionRequestArgs::default()
         .model(&req.model)
@@ -229,9 +230,8 @@ async fn build_chat_stream(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// TODO: make DRY and deduplicate vs chat.rs
 // TODO: thiserror OpenAiError ? or not because of defaults ?
-fn msg_to_api(m: &Message) -> anyhow::Result<ChatCompletionRequestMessage> {
+pub fn msg_to_api(m: &Message) -> Result<ChatCompletionRequestMessage, OpenAIError> {
     Ok(match m.role {
         MessageRole::System => ChatCompletionRequestSystemMessageArgs::default()
             .content(m.content.as_str())
