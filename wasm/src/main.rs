@@ -297,7 +297,7 @@ fn load_chat() -> Vec<Message> {
     }
 }
 
-fn show_alert(msg: &str) {
+fn show_error_alert(msg: &str) {
     web_sys::console::error_1(&format!("Alert : {msg}").into());
     match web_sys::window() {
         Some(win) => {
@@ -366,11 +366,11 @@ fn App() -> impl IntoView {
                     sys_prompt.set(cfg.prepend_system_prompt);
                 }
                 Err(e) => {
-                    show_alert(&format!("config parse failed: {e}"));
+                    show_error_alert(&format!("config parse failed: {e}"));
                 }
             },
             Err(e) => {
-                show_alert(&format!("config request failed: {e}"));
+                show_error_alert(&format!("config request failed: {e}"));
             }
         }
         match Request::get("/api/models").send().await {
@@ -390,11 +390,11 @@ fn App() -> impl IntoView {
                     // FIXME: started state should maybe have everything locked ?
                 }
                 Err(e) => {
-                    show_alert(&format!("models parse failed: {e}"));
+                    show_error_alert(&format!("models parse failed: {e}"));
                 }
             },
             Err(e) => {
-                show_alert(&format!("models request failed: {e}"));
+                show_error_alert(&format!("models request failed: {e}"));
             }
         }
     });
