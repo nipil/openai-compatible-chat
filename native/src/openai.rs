@@ -7,11 +7,13 @@ use async_openai::{
     },
 };
 use portable::{ChatRequest, Message, MessageRole};
+use tracing::debug;
 
 // TODO: thiserror OpenAIError ?
 pub fn messages_to_api(
     messages: &[Message],
 ) -> Result<Vec<ChatCompletionRequestMessage>, OpenAIError> {
+    debug!(count = messages.len(), "Building messages for upstream api");
     messages
         .iter()
         // remove empty system messages to avoid confusing the model with empty instructions

@@ -1,9 +1,9 @@
-use crate::cli::display::{log_info, log_warning};
 use crate::config::load_model_info_map;
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig};
 use portable::{EnrichedModel, ModelType};
 use regex::Regex;
+use tracing::{info, warn};
 
 pub const COMPATIBLE_MODEL_TYPES: &[ModelType] = &[
     ModelType::Chat,
@@ -40,17 +40,16 @@ pub fn enriched_models_from_ids(
         .filter_map(|id| {
             // Check that we have metadata for the model, otherwise ignore it
             let Some(model_info) = model_info_map.remove(&id) else {
-                log_warning(&format!(
-                    "No metadata for model {id}, update your metadata file !"
-                ));
+                warn!(model = id, "No metadata available, update required");
                 return None;
             };
             // Drop models whose type is known but not in the compatible set.
             if !COMPATIBLE_MODEL_TYPES.contains(&model_info.model_type) {
-                log_info(&format!(
-                    "Incompatible model '{id}' of type '{}' ignored",
-                    model_info.model_type
-                ));
+                info!(
+                    model = id,
+                    model_type = model_info.model_type.to_string(),
+                    "Incompatible model",
+                );
                 return None;
             }
             Some(EnrichedModel {

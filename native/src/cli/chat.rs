@@ -1,7 +1,4 @@
-use crate::{
-    cli::display::{LiveMarkdown, log_error, log_warning},
-    openai::messages_to_api,
-};
+use crate::{cli::display::LiveMarkdown, openai::messages_to_api};
 use anyhow::Result;
 use async_openai::{
     Client, config::OpenAIConfig, error::OpenAIError, types::chat::CreateChatCompletionRequestArgs,
@@ -16,6 +13,7 @@ use std::{
     time::Instant,
 };
 use strum::{AsRefStr, EnumIter, EnumString, IntoEnumIterator};
+use tracing::{error, warn};
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -113,10 +111,10 @@ pub async fn run_chat(
                 }
                 // TODO: deduplicate from main.rs:156
                 if msg.contains("not allowed") || msg.contains("permission") {
-                    log_warning(&format!("Model '{selected_model}' not allowed"));
+                    warn!(model = selected_model.id, "Model  not allowed");
                     return Ok(ChatOutcome::ModelForbidden);
                 }
-                log_error(&e.to_string());
+                error!(exc = e.to_string(), "Error during streaming");
             }
         }
     }
@@ -200,6 +198,7 @@ async fn send_and_stream(
     model: &str,
     messages: &[Message],
 ) -> Result<String, OpenAIError> {
+    // TODO: refactor same as cli ? into openai
     let messages = messages_to_api(messages)?;
     let req = CreateChatCompletionRequestArgs::default()
         .model(model)

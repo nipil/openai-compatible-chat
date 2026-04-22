@@ -12,6 +12,7 @@ use futures::{StreamExt, stream::BoxStream};
 use portable::{ChatRequest, ConfigDto, EnrichedModel, Message, MessageRole, ModelDto};
 use std::{convert::Infallible, sync::Arc};
 use tower_http::services::ServeDir;
+use tracing::{debug, error, info, trace_span, warn};
 
 use crate::openai::{build_request, messages_to_api};
 
@@ -178,6 +179,8 @@ async fn build_chat_stream(
     s: AppState,
     req: ChatRequest,
 ) -> anyhow::Result<BoxStream<'static, Result<Event, Infallible>>> {
+    // TODO: refactor same as cli ? into openai
+
     let messages = messages_to_api(&req.messages)?;
 
     let request = build_request(req, messages)?;

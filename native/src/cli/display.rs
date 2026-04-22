@@ -1,7 +1,6 @@
 use anyhow::{Result, anyhow};
 use crossterm::{cursor, execute, terminal};
 use dialoguer::FuzzySelect;
-use owo_colors::OwoColorize;
 use portable::EnrichedModel;
 use std::{
     io::{Write, stdout},
@@ -12,29 +11,13 @@ use termimad::{
     crossterm::style::{Attribute::*, Attributes, Color::*},
     gray,
 };
+use tracing::info;
 
 const BULLET_CHAR: char = '●';
 const HRULE_CHAR: char = '─';
 const QUOTE_CHAR: char = '▐';
 const SCROLLBAR_THUMB: char = '▐';
 const SCROLLBAR_TRACK: char = '│';
-
-// ── Structured log lines (mimics rich's RichHandler colour scheme) ────────────
-
-// TODO: move logging outside of display, as it is used in web module too
-// TODO: use standardized logging/tracing crates
-pub fn log_info(msg: &str) {
-    eprintln!("{}", msg.white());
-}
-pub fn log_warning(msg: &str) {
-    eprintln!("{} {}", "warn :".yellow().bold(), msg.yellow());
-}
-pub fn log_error(msg: &str) {
-    eprintln!("{} {}", "error:".red().bold(), msg.red());
-}
-pub fn log_critical(msg: &str) {
-    eprintln!("{} {}", "crit :".magenta().bold(), msg.magenta());
-}
 
 // ── Live markdown display ─────────────────────────────────────────────────────
 
@@ -227,7 +210,7 @@ pub fn select_model(models: &[EnrichedModel]) -> Result<Option<usize>> {
     }
 
     if models.len() == 1 {
-        log_info(&format!("Auto-selected: {}", models[0].id));
+        info!(model = models[0].id, "Auto-selected model");
         return Ok(Some(0));
     }
 

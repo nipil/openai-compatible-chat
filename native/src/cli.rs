@@ -1,8 +1,11 @@
-use crate::cli::chat::{ChatOutcome, run_chat};
-use crate::cli::display::{log_critical, log_info, log_warning, select_model};
+use crate::cli::{
+    chat::{ChatOutcome, run_chat},
+    display::select_model,
+};
 use anyhow::{Result, anyhow}; // TODO: anyhow should not be used in lib crate,only thiserror
 use async_openai::{Client, config::OpenAIConfig};
 use portable::EnrichedModel;
+use tracing::{error, info, warn};
 
 pub mod chat;
 pub mod display;
@@ -14,36 +17,30 @@ pub async fn run_cli(
 ) -> Result<()> {
     loop {
         // ── Run chat session ────────────────────────────────────────────────
-
         let Some(selected_index) = select_model(&allowed_models)? else {
-            log_info("User cancel.");
+            info!("User cancelation, exiting.");
             return Ok(());
         };
-        match run_chat(
-            &client,
-            &allowed_models[selected_index],
-            &prepend_system_prompt,
-        )
-        .await?
-        {
+        let selected_model = &allowed_models[selected_index];
+        match run_chat(&client, selected_model, &prepend_system_prompt).await? {
             ChatOutcome::ChatEnded => {
-                log_info("Chat ended.");
+                info!("Chat ended.");
                 continue;
             }
             ChatOutcome::ContextLimitReached => {
-                log_warning("Context limit reached — starting a new conversation.");
+                warn!("Context limit reached — starting a new conversation.");
                 continue;
             }
             ChatOutcome::ExitRequested => {
-                log_info("Requested to quit");
+                info!("Exit requested.");
                 return Ok(());
             }
             ChatOutcome::ModelForbidden => {
                 if allowed_models.len() > 1 {
-                    log_warning("Model is forbidden, choose another one.");
+                    warn!(model = selected_model.id, "Model is forbidden");
                     continue;
                 } else {
-                    log_critical("The only available model is forbidden, exiting.");
+                    error!("The only available model is forbidden, exiting.");
                     return Err(anyhow!("No more model available to use."));
                 }
             }

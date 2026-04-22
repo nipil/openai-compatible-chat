@@ -1,11 +1,12 @@
 use anyhow::Result;
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
-use native::cli::display::log_error;
 use native::cli::run_cli;
 use native::config::load_config;
 use native::models::{enriched_models_from_ids, list_models};
 use native::web::run_web;
+use tracing::error;
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[cfg(all(not(feature = "cli"), not(feature = "web")))]
 compile_error!("At lease one of the main features should be enabled !");
@@ -25,6 +26,7 @@ enum Commands {
     /// CLI subcommand
     #[cfg(feature = "cli")]
     Cli,
+
     /// Web subcommand
     #[cfg(feature = "web")]
     Web {
@@ -51,10 +53,15 @@ async fn main() -> Result<()> {
     // Parse arguments
     let args = Args::parse();
 
+    // Tracing configuration for logging
+    tracing_subscriber::registry()
+        .with(EnvFilter::from_default_env())
+        .with(fmt::layer().with_span_events(fmt::format::FmtSpan::CLOSE))
+        .init();
+
     // Load configuration once
     let cfg = load_config().map_err(|e| {
-        #[cfg(feature = "cli")]
-        log_error(&e.to_string());
+        error!(exc = e.to_string(), "Error loading configuration");
         e
     })?;
 
