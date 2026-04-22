@@ -21,6 +21,8 @@ const SCROLLBAR_TRACK: char = '│';
 
 // ── Structured log lines (mimics rich's RichHandler colour scheme) ────────────
 
+// TODO: move logging outside of display, as it is used in web module too
+// TODO: use standardized logging/tracing crates
 pub fn log_info(msg: &str) {
     eprintln!("{}", msg.white());
 }

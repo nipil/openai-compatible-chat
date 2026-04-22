@@ -1,20 +1,20 @@
-use crate::display::{log_critical, log_error, log_info, log_warning};
+use crate::cli::display::log_error;
+use crate::cli::run_cli;
 use crate::web::run_web;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
-use portable::EnrichedModel;
 
 #[cfg(all(not(feature = "cli"), not(feature = "web")))]
 compile_error!("At lease one of the main features should be enabled !");
 
-#[cfg(feature = "cli")]
-mod chat;
 mod config;
-#[cfg(feature = "cli")]
-mod display;
 mod models;
 mod openai;
+
+#[cfg(feature = "cli")]
+mod cli;
+
 #[cfg(feature = "web")]
 mod web;
 
@@ -87,7 +87,7 @@ async fn main() -> Result<()> {
     match &args.command {
         #[cfg(feature = "cli")]
         Commands::Cli => {
-            cli(client, allowed_models, cfg.prepend_system_prompt).await?;
+            run_cli(client, allowed_models, cfg.prepend_system_prompt).await?;
         }
         #[cfg(feature = "web")]
         Commands::Web { port } => {
@@ -95,48 +95,4 @@ async fn main() -> Result<()> {
         }
     }
     Ok(())
-}
-
-#[cfg(feature = "cli")]
-async fn cli(
-    client: Client<OpenAIConfig>,
-    allowed_models: Vec<EnrichedModel>,
-    prepend_system_prompt: String,
-) -> Result<()> {
-    loop {
-        // ── Run chat session ────────────────────────────────────────────────
-        let Some(selected_index) = display::select_model(&allowed_models)? else {
-            log_info("User cancel.");
-            return Ok(());
-        };
-        match chat::run(
-            &client,
-            &allowed_models[selected_index],
-            &prepend_system_prompt,
-        )
-        .await?
-        {
-            chat::ChatOutcome::ChatEnded => {
-                log_info("Chat ended.");
-                continue;
-            }
-            chat::ChatOutcome::ContextLimitReached => {
-                log_warning("Context limit reached — starting a new conversation.");
-                continue;
-            }
-            chat::ChatOutcome::ExitRequested => {
-                log_info("Requested to quit");
-                return Ok(());
-            }
-            chat::ChatOutcome::ModelForbidden => {
-                if allowed_models.len() > 1 {
-                    log_warning("Model is forbidden, choose another one.");
-                    continue;
-                } else {
-                    log_critical("The only available model is forbidden, exiting.");
-                    return Err(anyhow!("No more model available to use."));
-                }
-            }
-        }
-    }
 }

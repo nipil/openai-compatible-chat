@@ -1,5 +1,5 @@
+use crate::cli::display::{log_info, log_warning};
 use crate::config::load_model_info_map;
-use crate::display::{log_info, log_warning};
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig};
 use portable::{EnrichedModel, ModelType};

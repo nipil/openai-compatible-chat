@@ -1,5 +1,5 @@
 use crate::{
-    display::{LiveMarkdown, log_error, log_warning},
+    cli::display::{LiveMarkdown, log_error, log_warning},
     openai::messages_to_api,
 };
 use anyhow::Result;
@@ -52,7 +52,7 @@ pub enum ChatOutcome {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
-pub async fn run(
+pub async fn run_chat(
     client: &Client<OpenAIConfig>,
     selected_model: &EnrichedModel,
     prepend_system_prompt: &str,
