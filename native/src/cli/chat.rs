@@ -50,9 +50,9 @@ pub enum ChatOutcome {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
-pub async fn run_chat(
+pub async fn run_chat<'a>(
     client: &Client<OpenAIConfig>,
-    selected_model: &EnrichedModel,
+    selected_model: &EnrichedModel<'a>,
     prepend_system_prompt: &str,
 ) -> Result<ChatOutcome> {
     println!(

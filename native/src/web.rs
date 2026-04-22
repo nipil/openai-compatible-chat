@@ -1,6 +1,5 @@
 use crate::{
     AppState,
-    models::EnrichedModel,
     openai::{build_request, messages_to_api},
 };
 use anyhow::Result; // TODO: anyhow should not be used in lib crate,only thiserror
@@ -17,14 +16,12 @@ use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
 use std::convert::Infallible;
 use tower_http::services::ServeDir;
 
-// TODO: make configurable using Clap
-const DIST_FOLDER: &str = "wasm/dist";
 const SSE_EVENT_ERROR: &str = "error";
 
 // ── Web entrypoint ────────────────────────────────────────────────────────────
 
-pub async fn run_web(state: AppState, port: &u16) -> Result<()> {
-    let app = router(state);
+pub async fn run_web(state: AppState, port: &u16, dist_wasm: &str) -> Result<()> {
+    let app = router(state, dist_wasm);
     let listen_addr = format!("localhost:{port}");
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
     println!("Server listening on {listen_addr}");
@@ -48,12 +45,12 @@ impl RouterExt for Router {
     }
 }
 
-fn router(state: AppState) -> Router {
+fn router(state: AppState, dist_wasm: &str) -> Router {
     Router::new()
         .route("/api/config", get(handle_config))
         .route("/api/models", get(handle_models))
         .route("/api/chat", post(handle_chat))
-        .fallback_service(ServeDir::new(DIST_FOLDER).append_index_html_on_directories(true))
+        .fallback_service(ServeDir::new(dist_wasm).append_index_html_on_directories(true))
         .with_state(state)
         .maybe_cors_permissive()
 }
@@ -68,17 +65,16 @@ async fn handle_config(State(s): State<AppState>) -> Json<ConfigDto> {
 
 // ── GET /api/models ───────────────────────────────────────────────────────────
 
-impl From<&EnrichedModel> for ModelDto {
-    fn from(other: &EnrichedModel) -> Self {
-        Self {
-            id: other.id.clone(),
-            context_window: other.info.context_window,
-        }
-    }
-}
-
 async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
-    Json(s.allowed_models.iter().map(|m| m.into()).collect())
+    Json(
+        s.candidate_models
+            .iter()
+            .map(|(model_id, model_info)| ModelDto {
+                id: model_id.clone(),
+                context_window: model_info.context_window,
+            })
+            .collect(),
+    )
 }
 
 // ── POST /api/chat ────────────────────────────────────────────────────────────
@@ -91,10 +87,10 @@ async fn handle_chat(
     // CRITICAL: server-side check that the client is not trying to screw us
     // check that the requested in the allowed model list of the valid types
     if !s
-        .allowed_models
-        .iter()
+        .candidate_models
+        .keys()
         // TODO: switch Vec<EnrichedModel> to HashMap<String, EnrichedModel>
-        .any(|m| m.id == req.model)
+        .any(|model_id| model_id == &req.model)
     {
         let res = (
             StatusCode::FORBIDDEN,

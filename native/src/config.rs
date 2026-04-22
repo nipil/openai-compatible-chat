@@ -1,5 +1,6 @@
+use crate::models::EnrichedModels;
 use crate::openai::ModelType;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result}; // TODO: get rid of anyhow in lib, do thiserror
 use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -7,12 +8,7 @@ use std::fs;
 use std::path::Path;
 use tracing::info;
 
-pub const CONFIG_PATH: &str = "config.json";
-pub const MAPPING_PATH: &str = "ai_model_info/openai.json";
-
 // ── Configurations ────────────────────────────────────────────────────────────
-
-pub type ModelInfoMap = HashMap<String, ModelInfo>;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -36,19 +32,19 @@ pub struct ModelInfo {
 
 // ── I/O helpers ──────────────────────────────────────────────────────────────
 
-pub fn load_config() -> Result<Config> {
-    info!(file = CONFIG_PATH, "Loading configuration file");
+pub fn load_config(config_file: &str) -> Result<Config> {
+    info!(file = config_file, "Loading configuration file");
     let raw =
-        fs::read_to_string(CONFIG_PATH).with_context(|| format!("Cannot read '{CONFIG_PATH}'"))?;
-    serde_json::from_str(&raw).with_context(|| format!("Invalid JSON or REGEX in '{CONFIG_PATH}'"))
+        fs::read_to_string(config_file).with_context(|| format!("Cannot read '{config_file}'"))?;
+    serde_json::from_str(&raw).with_context(|| format!("Invalid JSON or REGEX in '{config_file}'"))
 }
 
-pub fn load_model_info_map() -> Result<ModelInfoMap> {
-    info!(file = MAPPING_PATH, "Loading mappings file");
-    if !Path::new(MAPPING_PATH).exists() {
+pub fn load_model_info_map(info_file: &str) -> Result<EnrichedModels> {
+    info!(file = info_file, "Loading mappings file");
+    if !Path::new(info_file).exists() {
         return Ok(HashMap::new());
     }
-    let raw = fs::read_to_string(MAPPING_PATH)
-        .with_context(|| format!("Cannot read '{MAPPING_PATH}'"))?;
-    serde_json::from_str(&raw).with_context(|| format!("Invalid JSON in '{MAPPING_PATH}'"))
+    let raw =
+        fs::read_to_string(info_file).with_context(|| format!("Cannot read '{info_file}'"))?;
+    serde_json::from_str(&raw).with_context(|| format!("Invalid JSON in '{info_file}'"))
 }

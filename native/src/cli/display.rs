@@ -1,4 +1,4 @@
-use crate::models::EnrichedModel;
+use crate::models::{EnrichedModel, EnrichedModels};
 use anyhow::{Result, anyhow};
 use crossterm::{cursor, execute, terminal};
 use dialoguer::FuzzySelect;
@@ -204,26 +204,50 @@ fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
 // ── Display / selection ───────────────────────────────────────────────────────
 
 /// Opens an interactive fuzzy-search and returns the selected model ID.
-pub fn select_model(models: &[EnrichedModel]) -> Result<Option<usize>> {
+pub fn select_model(models: &EnrichedModels) -> Result<Option<EnrichedModel<'_>>> {
+    // Cancel immediately if nothing is available
     if models.is_empty() {
-        return Err(anyhow!("No models available."));
+        return Ok(None);
     }
 
+    // Autoselect if there is only one
     if models.len() == 1 {
-        info!(model = models[0].id, "Auto-selected model");
-        return Ok(Some(0));
+        let Some((model_id, model_info)) = models.iter().next() else {
+            return Err(anyhow!("No models available even though we had one."));
+        };
+        info!(model = model_id, "Auto-selected model");
+        return Ok(Some(EnrichedModel::new(model_id, model_info)));
     }
 
-    let labels: Vec<String> = models.iter().map(|m| m.to_string()).collect();
+    // Build sorted list of models
+    let mut choices: Vec<&str> = models.keys().map(|k| k.as_str()).collect();
+    choices.sort();
 
-    let idx = FuzzySelect::new()
+    // Choose (maybe) one of them
+    let Some(index) = FuzzySelect::new()
         .with_prompt("Select model")
-        .items(&labels)
+        .items(&choices)
         .default(0)
-        // We do not need to handle user cancel as ctrl-c = exit, but otherwise we
-        // would need to use interact_opt to get a result<option> handling q or Esc
         .interact_opt()
-        .map_err(|e| anyhow!("Selection failed: {e}"))?;
+        .map_err(|e| anyhow!("Selection failed: {e}"))?
+    else {
+        // no choice was done
+        return Ok(None);
+    };
 
-    Ok(idx)
+    // Look up the key from the index
+    let Some(model_id) = choices.get(index) else {
+        return Err(anyhow!(
+            "No models id for choice number, even though we had one."
+        ));
+    };
+
+    // Look up the info from the id
+    let Some(model_info) = models.get(*model_id) else {
+        return Err(anyhow!(
+            "No models id for choice number, even though we had one."
+        ));
+    };
+
+    return Ok(Some(EnrichedModel::new(model_id, model_info)));
 }

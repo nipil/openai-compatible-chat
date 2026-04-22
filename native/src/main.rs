@@ -2,15 +2,15 @@ use anyhow::Result;
 use async_openai::Client as OpenAiClient;
 use async_openai::config::OpenAIConfig;
 use clap::{Parser, Subcommand};
-use native::AppState;
 use native::cli::run_cli;
 use native::config::load_config;
-use native::models::enriched_models_from_ids;
+use native::models::EnrichedModels;
 use native::openai::list_models;
 use native::web::run_web;
+use native::{AppState, config::load_model_info_map};
 use reqwest::Client as ReqwestClient;
 use std::sync::Arc;
-use tracing::error;
+use tracing::{error, info, warn};
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[cfg(all(not(feature = "cli"), not(feature = "web")))]
@@ -19,8 +19,17 @@ compile_error!("At lease one of the main features should be enabled !");
 #[derive(Parser)]
 #[command(name = "chat", about = "Interactive LLM", version)]
 struct Args {
-    #[arg(long, short = 'm')]
-    model: Option<String>,
+    #[arg(long, short = 't', default_value_t = 3000)]
+    api_timeout_ms: u64,
+
+    #[arg(long, short = 'c', default_value = "config.json")]
+    config_file: String,
+
+    #[arg(long, short = 'i', default_value = "ai_model_info/openai.json")]
+    info_file: String,
+
+    #[arg(long, short = 'l')]
+    lock_model: Option<String>,
 
     #[command(subcommand)]
     command: Commands,
@@ -38,6 +47,10 @@ enum Commands {
         /// Port to listen on
         #[arg(short = 'p', long = "port")]
         port: u16,
+
+        /// Path to
+        #[arg(long, short = 'd', default_value = "wasm/dist")]
+        dist_wasm: String,
     },
 }
 
@@ -65,8 +78,14 @@ async fn main() -> Result<()> {
         .init();
 
     // Load configuration once
-    let cfg = load_config().map_err(|e| {
+    let cfg = load_config(&args.config_file).map_err(|e| {
         error!(exc = e.to_string(), "Error loading configuration");
+        e
+    })?;
+
+    // Load model information
+    let mut info_map = load_model_info_map(&args.info_file).map_err(|e| {
+        error!(exc = e.to_string(), "Error loading model information");
         e
     })?;
 
@@ -77,28 +96,66 @@ async fn main() -> Result<()> {
 
     // Configure a shared http client
     let reqwest_client = ReqwestClient::builder()
-        .timeout(std::time::Duration::from_secs(30))
+        // TODO: configure proxy
+        // TODO: configure ...
+        .timeout(std::time::Duration::from_millis(args.api_timeout_ms))
         .build()?;
 
     // Build the OpenAI client from parts
     let openai_client = OpenAiClient::with_config(oa_cfg).with_http_client(reqwest_client);
 
-    // models database once
-    let allowed_models = enriched_models_from_ids(
-        list_models(&openai_client)
-            .await?
-            .into_iter()
-            // handle locked model from command-line
-            .filter(|id| args.model.as_ref().map_or(true, |lock_id| lock_id == id))
-            .collect(),
-        cfg.exclude_model_name_regex,
-    )?;
+    // Build the list of usable models
+    let candidate_models: EnrichedModels = list_models(&openai_client)
+        .await?
+        .into_iter()
+        // Constrain the model to the one specified, if any
+        .filter(|id| {
+            args.lock_model.as_ref().map_or(true, |lock_id| {
+                let keep = lock_id == id;
+                if !keep {
+                    info!(
+                        model = id,
+                        lock = args.lock_model,
+                        "Ignore model due to lock",
+                    );
+                }
+                keep
+            })
+        })
+        // Do not keep ids that match any of the reject patterns
+        .filter(|id| {
+            !cfg.exclude_model_name_regex.iter().any(|r| {
+                let reject = r.is_match(id);
+                if reject {
+                    info!(
+                        model = id,
+                        pattern = r.to_string(),
+                        "Ignore model matching reject pattern",
+                    );
+                }
+                reject
+            })
+        })
+        // Extract additional information for the ones we know
+        .filter_map(|id| {
+            info_map
+                .remove(&id)
+                .or_else(|| {
+                    warn!(model = id, "No metadata available, update required");
+                    None
+                })
+                .and_then(|info| Some((id, info)))
+        })
+        .collect();
+
+    // Drop unused model information to free up memory before the actual run
+    drop(info_map);
 
     // Finally assemble the state and provide it
     let state = AppState {
         openai_client: Arc::new(openai_client),
         prepend_system_prompt: Arc::new(cfg.prepend_system_prompt),
-        allowed_models: Arc::new(allowed_models),
+        candidate_models: Arc::new(candidate_models),
     };
 
     #[cfg(all(feature = "cli", feature = "web"))]
@@ -108,8 +165,8 @@ async fn main() -> Result<()> {
             run_cli(state).await?;
         }
         #[cfg(feature = "web")]
-        Commands::Web { port } => {
-            run_web(state, port).await?;
+        Commands::Web { port, dist_wasm } => {
+            run_web(state, port, dist_wasm).await?;
         }
     }
     Ok(())
