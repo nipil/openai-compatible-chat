@@ -1,5 +1,6 @@
 use gloo_net::http::Request;
 use leptos::{mount::mount_to_body, prelude::*, task::spawn_local};
+use portable::ChatRequest;
 use portable::{ConfigDto, Message, MessageRole, ModelDto, Theme, estimate_tokens};
 use send_wrapper::SendWrapper;
 use std::str::FromStr;
@@ -529,6 +530,7 @@ fn App() -> impl IntoView {
         let send_msgs = hist[..hist.len() - 1].to_vec();
 
         // Persist the history (except last empty) to sessionStorage (in case tab is reloaded)
+        // FIXME: model is not saved s?!
         save_chat(&send_msgs);
 
         // Moves message list to Leptos, which stores the value in a reference-counted cell
@@ -553,8 +555,11 @@ fn App() -> impl IntoView {
         abort_ctl.set(Some(SendWrapper::new(ac)));
 
         // Builds the actual JSON payload to send to the server
-        // TODO: serde struct, and move it
-        let body = serde_json::json!({ "model": model, "messages": send_msgs }).to_string();
+        let chat_req = ChatRequest {
+            model,
+            messages: send_msgs,
+        };
+        let body = serde_json::json!(chat_req).to_string();
 
         // Launch an additional async task, which will stream and update, and let it run freely
         spawn_local(async move {

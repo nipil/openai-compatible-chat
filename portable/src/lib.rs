@@ -36,7 +36,7 @@ impl Display for EnrichedModel {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct ChatRequest {
     pub model: String,
     pub messages: Vec<Message>,
