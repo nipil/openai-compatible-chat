@@ -1,9 +1,9 @@
 use crate::display::{log_critical, log_error, log_info, log_warning};
+use crate::web::run_web;
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
 use portable::EnrichedModel;
-use std::sync::Arc;
 
 #[cfg(all(not(feature = "cli"), not(feature = "web")))]
 compile_error!("At lease one of the main features should be enabled !");
@@ -91,29 +91,9 @@ async fn main() -> Result<()> {
         }
         #[cfg(feature = "web")]
         Commands::Web { port } => {
-            web(client, allowed_models, port, cfg.prepend_system_prompt).await?;
+            run_web(client, allowed_models, port, cfg.prepend_system_prompt).await?;
         }
     }
-    Ok(())
-}
-
-#[cfg(feature = "web")]
-async fn web(
-    client: Client<OpenAIConfig>,
-    allowed_models: Vec<EnrichedModel>,
-    port: &u16,
-    prepend_system_prompt: String,
-) -> Result<()> {
-    let state = web::AppState {
-        client: Arc::new(client),
-        prepend_system_prompt: Arc::new(prepend_system_prompt),
-        allowed_models: Arc::new(allowed_models),
-    };
-    let app = web::router(state);
-    let listen_addr = format!("localhost:{port}");
-    let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
-    println!("Server listening on {listen_addr}");
-    axum::serve(listener, app).await?;
     Ok(())
 }
 

@@ -1,3 +1,4 @@
+use anyhow::Result;
 use async_openai::{Client, config::OpenAIConfig};
 use axum::{
     Json, Router,
@@ -18,10 +19,31 @@ use crate::openai::{build_request, messages_to_api};
 const DIST_FOLDER: &str = "wasm/dist";
 const SSE_EVENT_ERROR: &str = "error";
 
+// ── Web entrypoint ────────────────────────────────────────────────────────────
+
+pub async fn run_web(
+    client: Client<OpenAIConfig>,
+    allowed_models: Vec<EnrichedModel>,
+    port: &u16,
+    prepend_system_prompt: String,
+) -> Result<()> {
+    let state = AppState {
+        client: Arc::new(client),
+        prepend_system_prompt: Arc::new(prepend_system_prompt),
+        allowed_models: Arc::new(allowed_models),
+    };
+    let app = router(state);
+    let listen_addr = format!("localhost:{port}");
+    let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
+    println!("Server listening on {listen_addr}");
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
 // ── State ─────────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
-pub struct AppState {
+struct AppState {
     pub client: Arc<Client<OpenAIConfig>>,
     pub prepend_system_prompt: Arc<String>,
     pub allowed_models: Arc<Vec<EnrichedModel>>,
@@ -43,7 +65,7 @@ impl RouterExt for Router {
     }
 }
 
-pub fn router(state: AppState) -> Router {
+fn router(state: AppState) -> Router {
     Router::new()
         .route("/api/config", get(handle_config))
         .route("/api/models", get(handle_models))
