@@ -6,15 +6,11 @@ rust-embed for static bundling (use feature flag to disable)
 
 NIX: add a sytemd unit for user so that it auto-starts in web mode
 
-UX: compare raw list of models fetched with known mapping, warn about unknown models, and advice to update mapping file
-
 CLI: pre-fill the system prompt and let the user clear it
 
 CLI: add rustyline instead of simple stdin
 
-UX: add a new conversation button which opens a new tab for the same address ?
-
-UX: add a clear conversation which clears history and reloads tab ?
+UX: add a new/clear conversation button which opens a new tab for the same address ?
 
 move configs to XDG (and have it explain what it is)
 
@@ -31,9 +27,3 @@ use a self-configured reqwest client, as async_openai uses internally, but witho
 make more robust enums vs strings
 
 add context to each anyhow error
-
-## Understand
-
-Abort/stop: AbortController is wrapped in send_wrapper::SendWrapper to satisfy Leptos 0.7's RwSignal<T: Send+Sync> requirement (safe here since WASM is single-threaded)
-
-finalize() guard: both on_done and stop() call the same finalize helper, which guards on streaming to prevent double-execution.
