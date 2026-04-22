@@ -1,4 +1,6 @@
 use async_openai::{
+    Client,
+    config::OpenAIConfig,
     error::OpenAIError,
     types::chat::{
         ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
@@ -76,4 +78,15 @@ pub fn build_request(
         .model(&req.model)
         .messages(messages)
         .build()
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+
+pub async fn list_models(client: &Client<OpenAIConfig>) -> Result<Vec<String>, OpenAIError> {
+    // TODO: deduplicate ? just in case ?
+    client
+        .models()
+        .list()
+        .await
+        .map(|r| r.data.into_iter().map(|m| m.id).collect())
 }

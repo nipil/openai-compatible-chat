@@ -2,8 +2,7 @@ use crate::{
     config::{ModelInfo, load_model_info_map},
     openai::ModelType,
 };
-use anyhow::{Result, anyhow};
-use async_openai::{Client, config::OpenAIConfig};
+use anyhow::Result;
 use regex::Regex;
 use std::fmt::Display;
 use tracing::{info, warn};
@@ -27,20 +26,9 @@ impl Display for EnrichedModel {
     }
 }
 
-// ── API ───────────────────────────────────────────────────────────────────────
-
-pub async fn list_models(client: &Client<OpenAIConfig>) -> Result<Vec<String>> {
-    // TODO: deduplicate ? just in case ?
-    client
-        .models()
-        .list()
-        .await
-        .map(|r| r.data.into_iter().map(|m| m.id).collect())
-        .map_err(|e| anyhow!("Failed to list models: {e}"))
-}
-
 // ── Filtering / sorting ───────────────────────────────────────────────────────
 
+// TODO: split/refactor
 pub fn enriched_models_from_ids(
     ids: Vec<String>,
     reject_patterns: Vec<Regex>,
