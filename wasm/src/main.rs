@@ -8,6 +8,8 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefaultReader, window};
 
+// TODO: add tracing-wasm
+
 const COOKIE_MODEL: &str = "model";
 const COOKIE_THEME_DEFAULT: Theme = Theme::Dark;
 const COOKIE_THEME: &str = "theme";
