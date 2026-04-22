@@ -1,22 +1,14 @@
-use crate::cli::display::log_error;
-use crate::cli::run_cli;
-use crate::web::run_web;
 use anyhow::Result;
 use async_openai::{Client, config::OpenAIConfig};
 use clap::{Parser, Subcommand};
+use native::cli::display::log_error;
+use native::cli::run_cli;
+use native::config::load_config;
+use native::models::{enriched_models_from_ids, list_models};
+use native::web::run_web;
 
 #[cfg(all(not(feature = "cli"), not(feature = "web")))]
 compile_error!("At lease one of the main features should be enabled !");
-
-mod config;
-mod models;
-mod openai;
-
-#[cfg(feature = "cli")]
-mod cli;
-
-#[cfg(feature = "web")]
-mod web;
 
 #[derive(Parser)]
 #[command(name = "chat", about = "Interactive LLM", version)]
@@ -60,7 +52,7 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     // Load configuration once
-    let cfg = config::load_config().map_err(|e| {
+    let cfg = load_config().map_err(|e| {
         #[cfg(feature = "cli")]
         log_error(&e.to_string());
         e
@@ -73,8 +65,8 @@ async fn main() -> Result<()> {
     let client = Client::with_config(oa_cfg);
 
     // Build models database once
-    let allowed_models = models::enriched_models_from_ids(
-        models::list_models(&client)
+    let allowed_models = enriched_models_from_ids(
+        list_models(&client)
             .await?
             .into_iter()
             // handle locked model from command-line
