@@ -1,6 +1,6 @@
 use crate::cli::chat::{ChatOutcome, run_chat};
 use crate::cli::display::{log_critical, log_info, log_warning, select_model};
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow}; // TODO: anyhow should not be used in lib crate,only thiserror
 use async_openai::{Client, config::OpenAIConfig};
 use portable::EnrichedModel;
 

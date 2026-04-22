@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::Result; // TODO: anyhow should not be used in lib crate,only thiserror
 use async_openai::{Client, config::OpenAIConfig};
 use axum::{
     Json, Router,
