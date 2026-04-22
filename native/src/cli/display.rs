@@ -1,7 +1,7 @@
+use crate::models::EnrichedModel;
 use anyhow::{Result, anyhow};
 use crossterm::{cursor, execute, terminal};
 use dialoguer::FuzzySelect;
-use portable::EnrichedModel;
 use std::{
     io::{Write, stdout},
     time::{Duration, Instant},

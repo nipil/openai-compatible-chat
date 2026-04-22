@@ -1,4 +1,4 @@
-use crate::{cli::display::LiveMarkdown, openai::messages_to_api};
+use crate::{cli::display::LiveMarkdown, models::EnrichedModel, openai::messages_to_api};
 use anyhow::Result;
 use async_openai::{
     Client, config::OpenAIConfig, error::OpenAIError, types::chat::CreateChatCompletionRequestArgs,
@@ -6,7 +6,7 @@ use async_openai::{
 use chrono::Local;
 use futures::StreamExt;
 use owo_colors::OwoColorize;
-use portable::{EnrichedModel, Message, MessageRole, estimate_tokens};
+use portable::{Message, MessageRole, estimate_tokens};
 use std::{
     fmt,
     io::{Write, stdin, stdout},

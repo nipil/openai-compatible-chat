@@ -7,7 +7,28 @@ use async_openai::{
     },
 };
 use portable::{ChatRequest, Message, MessageRole};
+use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 use tracing::debug;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumString)]
+#[strum(serialize_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum ModelType {
+    Audio,
+    Chat,
+    Completion,
+    Embedding,
+    Image,
+    Instruct,
+    Moderation,
+    Multimodal,
+    Realtime,
+    Reasoning,
+    Search,
+    Transcription,
+    Video,
+}
 
 // TODO: thiserror OpenAIError ?
 pub fn messages_to_api(

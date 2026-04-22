@@ -1,10 +1,38 @@
+use crate::openai::ModelType;
 use anyhow::{Context, Result};
-use portable::{Config, ModelInfoMap};
-use std::{collections::HashMap, fs, path::Path};
+use regex::Regex;
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 use tracing::info;
 
 pub const CONFIG_PATH: &str = "config.json";
 pub const MAPPING_PATH: &str = "ai_model_info/openai.json";
+
+// ── Configurations ────────────────────────────────────────────────────────────
+
+pub type ModelInfoMap = HashMap<String, ModelInfo>;
+
+#[derive(Debug, Deserialize)]
+pub struct Config {
+    pub api_key: String,
+    pub base_url: String,
+    #[serde(with = "serde_regex")]
+    pub exclude_model_name_regex: Vec<Regex>,
+    #[serde(default)]
+    pub prepend_system_prompt: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ModelInfo {
+    pub description: String,
+    pub family: String,
+    #[serde(rename = "type")]
+    pub model_type: ModelType,
+    pub context_window: Option<u32>,
+    pub release: Option<String>,
+}
 
 // ── I/O helpers ──────────────────────────────────────────────────────────────
 

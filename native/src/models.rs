@@ -1,8 +1,11 @@
-use crate::config::load_model_info_map;
+use crate::{
+    config::{ModelInfo, load_model_info_map},
+    openai::ModelType,
+};
 use anyhow::{Result, anyhow};
 use async_openai::{Client, config::OpenAIConfig};
-use portable::{EnrichedModel, ModelType};
 use regex::Regex;
+use std::fmt::Display;
 use tracing::{info, warn};
 
 pub const COMPATIBLE_MODEL_TYPES: &[ModelType] = &[
@@ -11,6 +14,18 @@ pub const COMPATIBLE_MODEL_TYPES: &[ModelType] = &[
     ModelType::Multimodal,
     ModelType::Reasoning,
 ];
+
+#[derive(Debug, Clone)]
+pub struct EnrichedModel {
+    pub id: String,
+    pub info: ModelInfo,
+}
+
+impl Display for EnrichedModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.id, self.info.model_type)
+    }
+}
 
 // ── API ───────────────────────────────────────────────────────────────────────
 

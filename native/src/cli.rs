@@ -2,9 +2,9 @@ use crate::cli::{
     chat::{ChatOutcome, run_chat},
     display::select_model,
 };
+use crate::models::EnrichedModel;
 use anyhow::{Result, anyhow}; // TODO: anyhow should not be used in lib crate,only thiserror
 use async_openai::{Client, config::OpenAIConfig};
-use portable::EnrichedModel;
 use tracing::{error, info, warn};
 
 pub mod chat;

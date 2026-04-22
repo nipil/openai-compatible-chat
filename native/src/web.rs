@@ -1,3 +1,7 @@
+use crate::{
+    models::EnrichedModel,
+    openai::{build_request, messages_to_api},
+};
 use anyhow::Result; // TODO: anyhow should not be used in lib crate,only thiserror
 use async_openai::{Client, config::OpenAIConfig};
 use axum::{
@@ -9,12 +13,9 @@ use axum::{
     routing::{get, post},
 };
 use futures::{StreamExt, stream::BoxStream};
-use portable::{ChatRequest, ConfigDto, EnrichedModel, Message, MessageRole, ModelDto};
+use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
 use std::{convert::Infallible, sync::Arc};
 use tower_http::services::ServeDir;
-use tracing::{debug, error, info, trace_span, warn};
-
-use crate::openai::{build_request, messages_to_api};
 
 // TODO: make configurable using Clap
 const DIST_FOLDER: &str = "wasm/dist";
@@ -85,6 +86,15 @@ async fn handle_config(State(s): State<AppState>) -> Json<ConfigDto> {
 }
 
 // ── GET /api/models ───────────────────────────────────────────────────────────
+
+impl From<&EnrichedModel> for ModelDto {
+    fn from(other: &EnrichedModel) -> Self {
+        Self {
+            id: other.id.clone(),
+            context_window: other.info.context_window,
+        }
+    }
+}
 
 async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
     Json(s.allowed_models.iter().map(|m| m.into()).collect())
