@@ -1,9 +1,9 @@
 use crate::{
+    AppState,
     models::EnrichedModel,
     openai::{build_request, messages_to_api},
 };
 use anyhow::Result; // TODO: anyhow should not be used in lib crate,only thiserror
-use async_openai::{Client, config::OpenAIConfig};
 use axum::{
     Json, Router,
     extract::State,
@@ -14,7 +14,7 @@ use axum::{
 };
 use futures::{StreamExt, stream::BoxStream};
 use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
-use std::{convert::Infallible, sync::Arc};
+use std::convert::Infallible;
 use tower_http::services::ServeDir;
 
 // TODO: make configurable using Clap
@@ -23,33 +23,13 @@ const SSE_EVENT_ERROR: &str = "error";
 
 // ── Web entrypoint ────────────────────────────────────────────────────────────
 
-pub async fn run_web(
-    client: Client<OpenAIConfig>,
-    allowed_models: Vec<EnrichedModel>,
-    port: &u16,
-    prepend_system_prompt: String,
-) -> Result<()> {
-    let state = AppState {
-        client: Arc::new(client),
-        prepend_system_prompt: Arc::new(prepend_system_prompt),
-        allowed_models: Arc::new(allowed_models),
-    };
+pub async fn run_web(state: AppState, port: &u16) -> Result<()> {
     let app = router(state);
     let listen_addr = format!("localhost:{port}");
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
     println!("Server listening on {listen_addr}");
     axum::serve(listener, app).await?;
     Ok(())
-}
-
-// ── State ─────────────────────────────────────────────────────────────────────
-
-// TODO: reuse the AppState for chat!
-#[derive(Clone)]
-struct AppState {
-    pub client: Arc<Client<OpenAIConfig>>,
-    pub prepend_system_prompt: Arc<String>,
-    pub allowed_models: Arc<Vec<EnrichedModel>>,
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -199,7 +179,7 @@ async fn build_chat_stream(
 
     let request = build_request(req, messages)?;
 
-    let openai_stream = s.client.chat().create_stream(request).await?; // TODO: thiserror or openai
+    let openai_stream = s.openai_client.chat().create_stream(request).await?; // TODO: thiserror or openai
 
     // Use `.then()` (async map) so we can do async writes on unauthorized errors
     let sse = openai_stream.then(move |chunk| {
