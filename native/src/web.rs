@@ -44,6 +44,7 @@ pub async fn run_web(
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
+// TODO: reuse the AppState for chat!
 #[derive(Clone)]
 struct AppState {
     pub client: Arc<Client<OpenAIConfig>>,
@@ -102,6 +103,7 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
 
 // ── POST /api/chat ────────────────────────────────────────────────────────────
 
+// TODO: clarify the base-errors that are used
 async fn handle_chat(
     State(s): State<AppState>,
     Json(mut req): Json<ChatRequest>,
@@ -120,6 +122,8 @@ async fn handle_chat(
         );
         return Err(res);
     }
+
+    // FIXME: reuse this logic for the cli version
 
     // TODO: implement pathological cases here if needed (huge payload)
     // TODO: implement message-based busines logic here (logging)

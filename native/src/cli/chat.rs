@@ -97,6 +97,9 @@ pub async fn run_chat(
 
         match send_and_stream(client, &selected_model.id, &history).await {
             Ok(reply) => {
+                // upon successful completion only,
+                // add the whole reply to the history,
+                // to be sent for later messages
                 history.push(Message {
                     role: MessageRole::Assistant,
                     content: reply,
@@ -193,6 +196,8 @@ fn build_prompt_str(time: &str, model: &str, tokens: usize, max: Option<u32>) ->
 
 // ── Streaming response ────────────────────────────────────────────────────────
 
+// TODO: refactor and provide a closure for the updates ?
+// TODO: move to openai module
 async fn send_and_stream(
     client: &Client<OpenAIConfig>,
     model: &str,
