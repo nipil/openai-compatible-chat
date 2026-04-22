@@ -1,13 +1,4 @@
-use async_openai::{
-    Client,
-    config::OpenAIConfig,
-    error::OpenAIError,
-    types::chat::{
-        ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
-        ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
-        CreateChatCompletionRequestArgs,
-    },
-};
+use async_openai::{Client, config::OpenAIConfig};
 use axum::{
     Json, Router,
     extract::State,
@@ -17,10 +8,11 @@ use axum::{
     routing::{get, post},
 };
 use futures::{StreamExt, stream::BoxStream};
-use portable::{ConfigDto, EnrichedModel, Message, MessageRole, ModelDto};
-use serde::Deserialize;
+use portable::{ChatRequest, ConfigDto, EnrichedModel, Message, MessageRole, ModelDto};
 use std::{convert::Infallible, sync::Arc};
 use tower_http::services::ServeDir;
+
+use crate::openai::{build_request, messages_to_api};
 
 // TODO: make configurable using Clap
 const DIST_FOLDER: &str = "wasm/dist";
@@ -76,12 +68,6 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
 }
 
 // ── POST /api/chat ────────────────────────────────────────────────────────────
-
-#[derive(Deserialize)]
-pub struct ChatRequest {
-    pub model: String,
-    pub messages: Vec<Message>,
-}
 
 async fn handle_chat(
     State(s): State<AppState>,
@@ -170,24 +156,9 @@ async fn build_chat_stream(
     s: AppState,
     req: ChatRequest,
 ) -> anyhow::Result<BoxStream<'static, Result<Event, Infallible>>> {
-    let messages = req
-        .messages
-        .iter()
-        // remove empty system messages to avoid confusing the model with empty instructions
-        .filter(|m| !(m.role == MessageRole::System && m.content.trim().is_empty()))
-        .map(msg_to_api)
-        // There are two possible way to collect "list of results" :
-        // - collect::<Vec<Result<_,_>>>() → keep every result
-        //   → what we would do if we wanted to log each error (for example)
-        // - collect::<Result<Vec<_>>>() → first error wins, rest is ignored
-        //   → what we do here, as we do nothing like logging each err
-        // TODO: RECHECK once msg_to_api is not anyhow ... or make thiserror or openai or with_context
-        .collect::<Result<Vec<_>, OpenAIError>>()?;
+    let messages = messages_to_api(&req.messages)?;
 
-    let request = CreateChatCompletionRequestArgs::default()
-        .model(&req.model)
-        .messages(messages)
-        .build()?; // TODO: thiserror or openai or with_context
+    let request = build_request(req, messages)?;
 
     let openai_stream = s.client.chat().create_stream(request).await?; // TODO: thiserror or openai
 
@@ -226,24 +197,4 @@ async fn build_chat_stream(
     });
 
     Ok(Box::pin(sse))
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-// TODO: thiserror OpenAiError ? or not because of defaults ?
-pub fn msg_to_api(m: &Message) -> Result<ChatCompletionRequestMessage, OpenAIError> {
-    Ok(match m.role {
-        MessageRole::System => ChatCompletionRequestSystemMessageArgs::default()
-            .content(m.content.as_str())
-            .build()?
-            .into(),
-        MessageRole::Assistant => ChatCompletionRequestAssistantMessageArgs::default()
-            .content(m.content.as_str())
-            .build()?
-            .into(),
-        MessageRole::User => ChatCompletionRequestUserMessageArgs::default()
-            .content(m.content.as_str())
-            .build()?
-            .into(),
-    })
 }

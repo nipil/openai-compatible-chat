@@ -14,6 +14,7 @@ mod config;
 #[cfg(feature = "cli")]
 mod display;
 mod models;
+mod openai;
 #[cfg(feature = "web")]
 mod web;
 

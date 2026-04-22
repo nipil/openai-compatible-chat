@@ -1,13 +1,10 @@
 use crate::{
     display::{LiveMarkdown, log_error, log_warning},
-    web::msg_to_api,
+    openai::messages_to_api,
 };
 use anyhow::Result;
 use async_openai::{
-    Client,
-    config::OpenAIConfig,
-    error::OpenAIError,
-    types::chat::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
+    Client, config::OpenAIConfig, error::OpenAIError, types::chat::CreateChatCompletionRequestArgs,
 };
 use chrono::Local;
 use futures::StreamExt;
@@ -201,9 +198,9 @@ fn build_prompt_str(time: &str, model: &str, tokens: usize, max: Option<u32>) ->
 async fn send_and_stream(
     client: &Client<OpenAIConfig>,
     model: &str,
-    history: &[Message],
+    messages: &[Message],
 ) -> Result<String, OpenAIError> {
-    let messages = to_api_messages(history)?;
+    let messages = messages_to_api(messages)?;
     let req = CreateChatCompletionRequestArgs::default()
         .model(model)
         .messages(messages)
@@ -236,9 +233,4 @@ async fn send_and_stream(
     println!();
 
     Ok(full)
-}
-
-// TODO: thiserror OpenAiError ? or not because of defaults
-fn to_api_messages(history: &[Message]) -> Result<Vec<ChatCompletionRequestMessage>, OpenAIError> {
-    history.iter().map(|m| msg_to_api(m)).collect()
 }

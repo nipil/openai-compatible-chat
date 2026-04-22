@@ -36,6 +36,12 @@ impl Display for EnrichedModel {
     }
 }
 
+#[derive(Deserialize)]
+pub struct ChatRequest {
+    pub model: String,
+    pub messages: Vec<Message>,
+}
+
 // ── Safer value management ────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Display, EnumString, AsRefStr)]
