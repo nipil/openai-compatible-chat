@@ -26,16 +26,17 @@ log = "0.4"
 owo-colors = "4"
 portable.workspace = true
 regex.workspace = true
+reqwest = "0.12" # Update carefully to match async_openai dep version
 serde_json.workspace = true
 serde_regex = "1"
 serde.workspace = true
 strum.workspace = true
 termimad = "0.34" # markdown → ANSI terminal rendering
+thiserror.workspace = true
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-reqwest = "0.12" # Update carefully to match async_openai dep version
 
 [target.'cfg(windows)'.dependencies]
 enable-ansi-support = "0.3.1"

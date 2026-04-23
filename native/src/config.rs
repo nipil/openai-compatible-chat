@@ -1,12 +1,43 @@
 use crate::models::EnrichedModels;
 use crate::openai::ModelType;
-use anyhow::{Context, Result}; // TODO: get rid of anyhow in lib, do thiserror
 use regex::Regex;
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
+use std::io;
+use std::path::{Path, PathBuf};
+use thiserror::Error;
 use tracing::info;
+
+#[derive(Debug, Error)]
+pub enum ConfigError {
+    #[error("failed to access `{path}`")]
+    FileError {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    #[error("invalid content in `{path}`")]
+    InvalidContent {
+        path: PathBuf,
+        #[source]
+        source: serde_json::Error,
+    },
+}
+
+impl ConfigError {
+    fn file(path: &Path, source: io::Error) -> Self {
+        Self::FileError {
+            path: path.to_path_buf(),
+            source,
+        }
+    }
+
+    fn invalid(path: &Path, source: serde_json::Error) -> Self {
+        Self::InvalidContent {
+            path: path.to_path_buf(),
+            source,
+        }
+    }
+}
 
 // ── Configurations ────────────────────────────────────────────────────────────
 
@@ -32,19 +63,30 @@ pub struct ModelInfo {
 
 // ── I/O helpers ──────────────────────────────────────────────────────────────
 
-pub fn load_config(config_file: &str) -> Result<Config> {
-    info!(file = config_file, "Loading configuration file");
-    let raw =
-        fs::read_to_string(config_file).with_context(|| format!("Cannot read '{config_file}'"))?;
-    serde_json::from_str(&raw).with_context(|| format!("Invalid JSON or REGEX in '{config_file}'"))
+// tracing macro specific: %=Display and ?=Debug
+// Path does not implement Display
+// There is a std::path::Display which provides .display()
+// And this wrapper provides a thing that impl fmt::Display
+
+pub fn load_config(file: &Path) -> Result<Config, ConfigError> {
+    info!(
+        file = %file.display(),
+        "Loading configuration file"
+    );
+    let raw = std::fs::read_to_string(file).map_err(|e| ConfigError::file(file, e))?;
+    let cfg = serde_json::from_str(&raw).map_err(|e| ConfigError::invalid(file, e))?;
+    Ok(cfg)
 }
 
-pub fn load_model_info_map(info_file: &str) -> Result<EnrichedModels> {
-    info!(file = info_file, "Loading mappings file");
-    if !Path::new(info_file).exists() {
-        return Ok(HashMap::new());
+pub fn load_model_info_map(file: &Path) -> Result<EnrichedModels, ConfigError> {
+    tracing::info!(
+        file = %file.display(),
+        "Loading mappings file"
+    );
+    if !Path::new(file).exists() {
+        return Ok(EnrichedModels::new());
     }
-    let raw =
-        fs::read_to_string(info_file).with_context(|| format!("Cannot read '{info_file}'"))?;
-    serde_json::from_str(&raw).with_context(|| format!("Invalid JSON in '{info_file}'"))
+    let raw = std::fs::read_to_string(file).map_err(|e| ConfigError::file(file, e))?;
+    let models = serde_json::from_str(&raw).map_err(|e| ConfigError::invalid(file, e))?;
+    Ok(models)
 }

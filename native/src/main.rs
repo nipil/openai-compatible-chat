@@ -9,6 +9,7 @@ use native::openai::list_models;
 use native::web::run_web;
 use native::{AppState, config::load_model_info_map};
 use reqwest::Client as ReqwestClient;
+use std::path::Path;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -78,13 +79,13 @@ async fn main() -> Result<()> {
         .init();
 
     // Load configuration once
-    let cfg = load_config(&args.config_file).map_err(|e| {
+    let cfg = load_config(Path::new(&args.config_file)).map_err(|e| {
         error!(exc = e.to_string(), "Error loading configuration");
         e
     })?;
 
     // Load model information
-    let mut info_map = load_model_info_map(&args.info_file).map_err(|e| {
+    let mut info_map = load_model_info_map(Path::new(&args.info_file)).map_err(|e| {
         error!(exc = e.to_string(), "Error loading model information");
         e
     })?;
