@@ -1,12 +1,9 @@
-use crate::{
-    AppState,
-    cli::{
-        chat::{ChatOutcome, run_chat},
-        display::select_model,
-    },
-};
 use anyhow::{Result, anyhow}; // TODO: anyhow should not be used in lib crate,only thiserror
 use tracing::{error, info, warn};
+
+use crate::AppState;
+use crate::cli::chat::{ChatOutcome, run_chat};
+use crate::cli::display::select_model;
 
 pub mod chat;
 pub mod display;

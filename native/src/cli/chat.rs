@@ -1,19 +1,22 @@
-use crate::{cli::display::LiveMarkdown, models::EnrichedModel, openai::messages_to_api};
+use std::fmt;
+use std::io::{Write, stdin, stdout};
+use std::time::Instant;
+
 use anyhow::Result;
-use async_openai::{
-    Client, config::OpenAIConfig, error::OpenAIError, types::chat::CreateChatCompletionRequestArgs,
-};
+use async_openai::Client;
+use async_openai::config::OpenAIConfig;
+use async_openai::error::OpenAIError;
+use async_openai::types::chat::CreateChatCompletionRequestArgs;
 use chrono::Local;
 use futures::StreamExt;
 use owo_colors::OwoColorize;
 use portable::{Message, MessageRole, estimate_tokens};
-use std::{
-    fmt,
-    io::{Write, stdin, stdout},
-    time::Instant,
-};
 use strum::{AsRefStr, EnumIter, EnumString, IntoEnumIterator};
 use tracing::{error, warn};
+
+use crate::cli::display::LiveMarkdown;
+use crate::models::EnrichedModel;
+use crate::openai::messages_to_api;
 
 // ── Public types ──────────────────────────────────────────────────────────────
 

@@ -139,6 +139,10 @@ Installer les prérequis
 # toolchain wasm
 rustup target add wasm32-unknown-unknown
 
+# ajoute l'outil de reformattage de code depuis nightly
+# IMPORTANT: c'est le seul outil utilisé du nightly, on build via stable
+rustup component add rustfmt --toolchain nightly
+
 # outil qui hot-build/reload le wasm et le static
 cargo install trunk
 

@@ -1,18 +1,21 @@
+use std::path::Path;
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_openai::Client as OpenAiClient;
 use async_openai::config::OpenAIConfig;
 use clap::{Parser, Subcommand};
+use native::AppState;
 use native::cli::run_cli;
-use native::config::load_config;
+use native::config::{load_config, load_model_info_map};
 use native::models::EnrichedModels;
 use native::openai::list_models;
 use native::web::run_web;
-use native::{AppState, config::load_model_info_map};
 use reqwest::Client as ReqwestClient;
-use std::path::Path;
-use std::sync::Arc;
 use tracing::{error, info, warn};
-use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{EnvFilter, fmt};
 
 #[cfg(all(not(feature = "cli"), not(feature = "web")))]
 compile_error!("At lease one of the main features should be enabled !");

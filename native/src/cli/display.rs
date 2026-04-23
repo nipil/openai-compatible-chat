@@ -1,17 +1,16 @@
-use crate::models::{EnrichedModel, EnrichedModels};
+use std::io::{Write, stdout};
+use std::time::{Duration, Instant};
+
 use anyhow::{Result, anyhow};
 use crossterm::{cursor, execute, terminal};
 use dialoguer::FuzzySelect;
-use std::{
-    io::{Write, stdout},
-    time::{Duration, Instant},
-};
-use termimad::{
-    CompoundStyle, MadSkin, StyledChar,
-    crossterm::style::{Attribute::*, Attributes, Color::*},
-    gray,
-};
+use termimad::crossterm::style::Attribute::*;
+use termimad::crossterm::style::Attributes;
+use termimad::crossterm::style::Color::*;
+use termimad::{CompoundStyle, MadSkin, StyledChar, gray};
 use tracing::info;
+
+use crate::models::{EnrichedModel, EnrichedModels};
 
 const BULLET_CHAR: char = '●';
 const HRULE_CHAR: char = '─';

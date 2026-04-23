@@ -1,12 +1,10 @@
-use async_openai::{
-    Client,
-    config::OpenAIConfig,
-    error::OpenAIError,
-    types::chat::{
-        ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
-        ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
-        CreateChatCompletionRequest, CreateChatCompletionRequestArgs,
-    },
+use async_openai::Client;
+use async_openai::config::OpenAIConfig;
+use async_openai::error::OpenAIError;
+use async_openai::types::chat::{
+    ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
+    ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
+    CreateChatCompletionRequest, CreateChatCompletionRequestArgs,
 };
 use portable::{ChatRequest, Message, MessageRole};
 use serde::{Deserialize, Serialize};

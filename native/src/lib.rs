@@ -1,6 +1,9 @@
-use crate::models::EnrichedModels;
-use async_openai::{Client, config::OpenAIConfig};
 use std::sync::Arc;
+
+use async_openai::Client;
+use async_openai::config::OpenAIConfig;
+
+use crate::models::EnrichedModels;
 
 pub mod config;
 pub mod models;

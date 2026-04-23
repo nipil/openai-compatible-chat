@@ -1,9 +1,11 @@
-use gloo_net::http::Request;
-use leptos::{mount::mount_to_body, prelude::*, task::spawn_local};
-use portable::ChatRequest;
-use portable::{ConfigDto, Message, MessageRole, ModelDto, Theme, estimate_tokens};
-use send_wrapper::SendWrapper;
 use std::str::FromStr;
+
+use gloo_net::http::Request;
+use leptos::mount::mount_to_body;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto, Theme, estimate_tokens};
+use send_wrapper::SendWrapper;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefaultReader, window};

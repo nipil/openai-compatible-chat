@@ -1,20 +1,19 @@
-use crate::{
-    AppState,
-    openai::{build_request, messages_to_api},
-};
-use anyhow::Result; // TODO: anyhow should not be used in lib crate,only thiserror
-use axum::{
-    Json, Router,
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    response::sse::{Event, Sse},
-    routing::{get, post},
-};
-use futures::{StreamExt, stream::BoxStream};
-use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
 use std::convert::Infallible;
+
+use anyhow::Result; // TODO: anyhow should not be used in lib crate,only thiserror
+use axum::extract::State;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::response::sse::{Event, Sse};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use futures::StreamExt;
+use futures::stream::BoxStream;
+use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
 use tower_http::services::ServeDir;
+
+use crate::AppState;
+use crate::openai::{build_request, messages_to_api};
 
 const SSE_EVENT_ERROR: &str = "error";
 

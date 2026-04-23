@@ -1,0 +1,7 @@
+# sort the import by groups in every header file
+# - std
+# - externals
+# - local
+group_imports = "StdExternalCrate"
+imports_granularity = "Module"
+unstable_features = true

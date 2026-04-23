@@ -1,11 +1,13 @@
-use crate::models::EnrichedModels;
-use crate::openai::ModelType;
-use regex::Regex;
-use serde::Deserialize;
 use std::io;
 use std::path::{Path, PathBuf};
+
+use regex::Regex;
+use serde::Deserialize;
 use thiserror::Error;
 use tracing::info;
+
+use crate::models::EnrichedModels;
+use crate::openai::ModelType;
 
 #[derive(Debug, Error)]
 pub enum ConfigError {

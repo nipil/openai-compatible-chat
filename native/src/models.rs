@@ -1,5 +1,7 @@
-use crate::{config::ModelInfo, openai::ModelType};
 use std::collections::HashMap;
+
+use crate::config::ModelInfo;
+use crate::openai::ModelType;
 
 pub type EnrichedModels = HashMap<String, ModelInfo>;
 
