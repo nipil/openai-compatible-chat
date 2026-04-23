@@ -2,21 +2,18 @@ use std::fmt;
 use std::io::{Write, stdin, stdout};
 use std::time::Instant;
 
-use anyhow::Result;
 use async_openai::Client;
 use async_openai::config::OpenAIConfig;
-use async_openai::error::OpenAIError;
-use async_openai::types::chat::CreateChatCompletionRequestArgs;
 use chrono::Local;
 use futures::StreamExt;
 use owo_colors::OwoColorize;
-use portable::{Message, MessageRole, estimate_tokens};
+use portable::{ChatRequest, Message, MessageRole, estimate_tokens};
 use strum::{AsRefStr, EnumIter, EnumString, IntoEnumIterator};
 use tracing::{error, warn};
 
 use crate::cli::display::LiveMarkdown;
 use crate::models::EnrichedModel;
-use crate::openai::messages_to_api;
+use crate::openai::{ProviderError, send_for_stream};
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -57,7 +54,7 @@ pub async fn run_chat<'a>(
     client: &Client<OpenAIConfig>,
     selected_model: &EnrichedModel<'a>,
     prepend_system_prompt: &str,
-) -> Result<ChatOutcome> {
+) -> Result<ChatOutcome, ProviderError> {
     println!(
         "\n{} {} {}\n",
         "─── Conversation using".white().bold(),
@@ -71,9 +68,11 @@ pub async fn run_chat<'a>(
     }];
 
     loop {
+        // FIXME: use an Arc<RwLock<History>> in callers
+        let tok_history = estimate_tokens(&history);
         let input = read_user_input_trimmed(
             &selected_model.id,
-            &history,
+            tok_history,
             selected_model.info.context_window,
         )
         .await;
@@ -98,7 +97,12 @@ pub async fn run_chat<'a>(
             content: input,
         });
 
-        match send_and_stream(client, &selected_model.id, &history).await {
+        let chat = ChatRequest {
+            model: selected_model.id.to_string(),
+            messages: history.clone(), // FIXME: try to use use arc+rwlock ?
+        };
+
+        match send_and_stream(client, &chat).await {
             Ok(reply) => {
                 // upon successful completion only,
                 // add the whole reply to the history,
@@ -153,15 +157,14 @@ async fn get_system_prompt_from_user(prepend_system_prompt: &str) -> String {
 
 async fn read_user_input_trimmed(
     model: &str,
-    history: &[Message],
+    tok_history: usize,
     max_tokens: Option<u32>,
 ) -> String {
-    let tok = estimate_tokens(history);
     let now = Local::now().format("%H:%M:%S").to_string();
     let model = model.to_string();
 
     tokio::task::spawn_blocking(move || {
-        let prompt = build_prompt_str(&now, &model, tok, max_tokens);
+        let prompt = build_prompt_str(&now, &model, tok_history, max_tokens);
         print!("{prompt}");
         stdout().flush().ok();
         let mut buf = String::new();
@@ -200,21 +203,16 @@ fn build_prompt_str(time: &str, model: &str, tokens: usize, max: Option<u32>) ->
 // ── Streaming response ────────────────────────────────────────────────────────
 
 // TODO: refactor and provide a closure for the updates ?
-// TODO: move to openai module
+// TODO: move to openai once similar to web::build_chat_stream
+
+/// One exchange with the chatbot (from Cli)
 async fn send_and_stream(
     client: &Client<OpenAIConfig>,
-    model: &str,
-    messages: &[Message],
-) -> Result<String, OpenAIError> {
-    // TODO: refactor same as cli ? into openai
-    let messages = messages_to_api(messages)?;
-    let req = CreateChatCompletionRequestArgs::default()
-        .model(model)
-        .messages(messages)
-        .stream(true)
-        .build()?;
-
-    let mut stream = client.chat().create_stream(req).await?;
+    chat: &ChatRequest,
+) -> Result<String, ProviderError> {
+    // FIXME: this one awaits now, instead of a then with a closure as for the web
+    // TODO: why mut here and not in web::build_chat_stream ?!
+    let mut stream = send_for_stream(&client, chat).await?;
 
     let mut full = String::new();
     let mut live = LiveMarkdown::new();
@@ -222,7 +220,7 @@ async fn send_and_stream(
     println!();
 
     while let Some(event) = stream.next().await {
-        let chunk = event?;
+        let chunk = event.map_err(|e| ProviderError::StreamingError { source: e })?;
         for choice in &chunk.choices {
             if let Some(ref delta) = choice.delta.content {
                 full.push_str(delta);

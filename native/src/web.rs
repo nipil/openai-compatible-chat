@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 
-use anyhow::Result; // TODO: anyhow should not be used in lib crate,only thiserror
+use anyhow::Result;
+// TODO: anyhow should not be used in lib crate,only thiserror
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -13,7 +14,7 @@ use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
 use tower_http::services::ServeDir;
 
 use crate::AppState;
-use crate::openai::{build_request, messages_to_api};
+use crate::openai::{ProviderError, send_for_stream};
 
 const SSE_EVENT_ERROR: &str = "error";
 
@@ -79,6 +80,7 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
 // ── POST /api/chat ────────────────────────────────────────────────────────────
 
 // TODO: clarify the base-errors that are used
+
 async fn handle_chat(
     State(s): State<AppState>,
     Json(mut req): Json<ChatRequest>,
@@ -128,7 +130,7 @@ async fn handle_chat(
     }
 
     let stream: BoxStream<'static, Result<Event, Infallible>> =
-        match build_chat_stream(s, req).await {
+        match build_chat_stream(s, &req).await {
             Ok(s) => s,
             Err(e) => {
                 // INFORMATION
@@ -164,20 +166,25 @@ async fn handle_chat(
     Ok(Sse::new(stream))
 }
 
+// #[derive(Debug, Error)]
+// pub enum ChatError {
+//     #[error("provider error: {0}")]
+//     ProviderError(#[from] openai::ProviderError),
+// }
+
+// TODO: move to openai once similar to chat::send_and_stream
+
+/// One exchange with the chatbot (from Web)
 async fn build_chat_stream(
     s: AppState,
-    req: ChatRequest,
-) -> anyhow::Result<BoxStream<'static, Result<Event, Infallible>>> {
+    chat: &ChatRequest,
+) -> Result<BoxStream<'static, Result<Event, Infallible>>, ProviderError> {
     // TODO: refactor same as cli ? into openai
-
-    let messages = messages_to_api(&req.messages)?;
-
-    let request = build_request(req, messages)?;
-
-    let openai_stream = s.openai_client.chat().create_stream(request).await?; // TODO: thiserror or openai
+    // TODO: why NOT mut here and mut in cli::send_and_stream ?!
+    let stream = send_for_stream(s.openai_client.as_ref(), chat).await?;
 
     // Use `.then()` (async map) so we can do async writes on unauthorized errors
-    let sse = openai_stream.then(move |chunk| {
+    let sse = stream.then(move |chunk| {
         async move {
             match chunk {
                 Ok(resp) => {

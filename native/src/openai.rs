@@ -4,12 +4,23 @@ use async_openai::error::OpenAIError;
 use async_openai::types::chat::{
     ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
-    CreateChatCompletionRequest, CreateChatCompletionRequestArgs,
+    ChatCompletionResponseStream, CreateChatCompletionRequestArgs,
 };
 use portable::{ChatRequest, Message, MessageRole};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
+use thiserror::Error;
 use tracing::debug;
+
+#[derive(Debug, Error)]
+pub enum ProviderError {
+    #[error("failed to build conversation")]
+    BuildError { source: OpenAIError },
+    #[error("request failed")]
+    RequestError { source: OpenAIError },
+    #[error("streaming reply failed")]
+    StreamingError { source: OpenAIError },
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumString)]
 #[strum(serialize_all = "lowercase")]
@@ -30,10 +41,11 @@ pub enum ModelType {
     Video,
 }
 
-// TODO: thiserror OpenAIError ?
-pub fn messages_to_api(
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+fn messages_to_api(
     messages: &[Message],
-) -> Result<Vec<ChatCompletionRequestMessage>, OpenAIError> {
+) -> Result<Vec<ChatCompletionRequestMessage>, ProviderError> {
     debug!(count = messages.len(), "Building messages for upstream api");
     messages
         .iter()
@@ -45,46 +57,57 @@ pub fn messages_to_api(
         //   → what we would do if we wanted to log each error (for example)
         // - collect::<Result<Vec<_>>>() → first error wins, rest is ignored
         //   → what we do here, as we do nothing like logging each err
-        // TODO: make thiserror ?
-        .collect::<Result<Vec<_>, OpenAIError>>()
+        .collect::<Result<Vec<_>, ProviderError>>()
 }
 
-// TODO: thiserror OpenAiError ?
-pub fn msg_to_api(m: &Message) -> Result<ChatCompletionRequestMessage, OpenAIError> {
+fn msg_to_api(m: &Message) -> Result<ChatCompletionRequestMessage, ProviderError> {
     Ok(match m.role {
         MessageRole::System => ChatCompletionRequestSystemMessageArgs::default()
             .content(m.content.as_str())
-            .build()?
+            .build()
+            .map_err(|e| ProviderError::BuildError { source: e })?
             .into(),
         MessageRole::Assistant => ChatCompletionRequestAssistantMessageArgs::default()
             .content(m.content.as_str())
-            .build()?
+            .build()
+            .map_err(|e| ProviderError::BuildError { source: e })?
             .into(),
         MessageRole::User => ChatCompletionRequestUserMessageArgs::default()
             .content(m.content.as_str())
-            .build()?
+            .build()
+            .map_err(|e| ProviderError::BuildError { source: e })?
             .into(),
     })
 }
 
-// FIXME: do not mix non-openai objects and openai objects
-pub fn build_request(
-    req: ChatRequest,
-    messages: Vec<ChatCompletionRequestMessage>,
-) -> Result<CreateChatCompletionRequest, OpenAIError> {
-    CreateChatCompletionRequestArgs::default()
-        .model(&req.model)
-        .messages(messages)
-        .build()
-}
-
 // ── API ───────────────────────────────────────────────────────────────────────
 
-pub async fn list_models(client: &Client<OpenAIConfig>) -> Result<Vec<String>, OpenAIError> {
+pub async fn list_models(client: &Client<OpenAIConfig>) -> Result<Vec<String>, ProviderError> {
     // TODO: deduplicate ? just in case ?
     client
         .models()
         .list()
         .await
         .map(|r| r.data.into_iter().map(|m| m.id).collect())
+        .map_err(|e| ProviderError::RequestError { source: e })
+}
+
+pub async fn send_for_stream(
+    client: &Client<OpenAIConfig>,
+    chat: &ChatRequest,
+) -> Result<ChatCompletionResponseStream, ProviderError> {
+    // build each message
+    let messages = messages_to_api(&chat.messages)?;
+    // build complete conversation
+    let request = CreateChatCompletionRequestArgs::default()
+        .model(&chat.model)
+        .messages(messages)
+        .build()
+        .map_err(|e| ProviderError::BuildError { source: e })?;
+    // build and send the request for a streamed answer for this conversation
+    client
+        .chat()
+        .create_stream(request)
+        .await
+        .map_err(|e| ProviderError::RequestError { source: e })
 }
