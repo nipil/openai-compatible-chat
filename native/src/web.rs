@@ -134,6 +134,9 @@ async fn handle_chat(
     }
 
     let stream: stream::BoxStream<'static, Result<sse::Event, Infallible>> =
+        // only awaits the setup (the initial API call to get the stream handle)
+        // no chunk are processed yet and wil be done by the caller
+        // which, as the stream is Send + 'static, can be an async fn (axum)
         match build_chat_stream(s, &req).await {
             Ok(s) => s,
             Err(e) => {
@@ -169,6 +172,8 @@ async fn handle_chat(
             }
         };
 
+    // we return an actual stream, which axum will iterate over, and
+    // each time, will pull one chunk, run the closure asynchronously
     Ok(sse::Sse::new(stream))
 }
 
@@ -195,14 +200,22 @@ async fn build_chat_stream(
 
     // Use `.then()` (async map) so we can do async writes on unauthorized errors
 
+    // to get data out of the future, we can
+    // - get it as a final value once it is resolved, after await
+    // - clone an Arc<Mutex<T>> and move it in the closure
+    // - clone a tokio mpsc channel annd moge it in the closure
+
     let sse: stream::Then<ChatCompletionResponseStream, _, _> = stream.then(
         // Every time an "Item" is ready, the provided FnMut will be called
         // with Item, and return a *Future*, which will then be run to completion
         // to produce the next value on this stream.
 
-        // TODO: move needed or not ? i guess not if we do not use things outside of closure itself
-        /* move */
-        |chunk: Result<CreateChatCompletionStreamResponse, OpenAIError>| {
+        // the returned stream must be 'static because we Box::pin it,
+        // so the closure cannot borrow from the enclosing scope, and
+        // should own everything it references.
+        // Except if it does not reference anything from the enclosing scope
+        move |chunk: Result<CreateChatCompletionStreamResponse, OpenAIError>| {
+            // same reasoning, async should own its reference to be 'static
             async move {
                 match chunk {
                     Ok(resp) => {
@@ -300,3 +313,7 @@ async fn build_chat_stream(
     // it can safely be referenced and polled
     Ok(Box::pin(sse))
 }
+
+// {} block — evaluates immediately, produces the closure as its value
+// move |chunk| — the closure, matches F: FnMut(...) -> Fut
+// async move {} — an async block (not a closure), matches Fut: Future

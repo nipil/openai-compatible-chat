@@ -211,7 +211,7 @@ async fn send_and_stream(
     chat: &ChatRequest,
 ) -> Result<String, ProviderError> {
     // FIXME: this one awaits now, instead of a then with a closure as for the web
-    // TODO: why mut here and not in web::build_chat_stream ?!
+    // mut because in the CLI, we hold the history, not the browser
     let mut stream = send_for_stream(&client, chat).await?;
 
     let mut full = String::new();
