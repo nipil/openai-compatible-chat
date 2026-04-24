@@ -2,7 +2,9 @@ use std::convert::Infallible;
 
 use anyhow::Result;
 use async_openai::error::OpenAIError;
-use async_openai::types::chat::{ChatCompletionResponseStream, CreateChatCompletionStreamResponse};
+use async_openai::types::chat::{
+    ChatCompletionResponseStream, CreateChatCompletionStreamResponse, FinishReason,
+};
 // TODO: anyhow should not be used in lib crate,only thiserror
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -12,7 +14,7 @@ use axum::{Json, Router};
 use futures::{StreamExt, stream};
 use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
 use tower_http::services::ServeDir;
-use tracing::debug;
+use tracing::{debug, error, info, trace, warn};
 
 use crate::AppState;
 use crate::openai::{ProviderError, send_for_stream};
@@ -204,38 +206,68 @@ async fn build_chat_stream(
             async move {
                 match chunk {
                     Ok(resp) => {
-                        // interesting stuff in response :
-                        //
-                        // - resp.choices[]
-                        //
-                        //     .delta.content = Option<String>
-                        //        IMPORTANT: there can be 1 or N or 0 response in choices
-                        //        usually, 0 is for the last, when "include_usage" is true
-                        //        N is alternate possible conversation (user choice or always first)
-                        //
-                        //     .finish_reason = Option<FinishReason>
-                        //        - Stop
-                        //        - Length
-                        //        - ToolCalls
-                        //        - ContentFilter
-                        //        - FunctionCall
-                        //
-                        // - resp.service_tier (default auto)
-                        //   TODO: check if service level is matching configuraiton
-                        //   - auto = project config linked to api key
-                        //   - default = standard pricing
-                        //   - flex (=batch ?) = slower response with caching, 2x cheaper than default
-                        //   - priority = faster, 2x more expensive than default
-                        //
-                        // - resp.usage = Option<CompletionUsage> = .prompt_tokens / completion_tokens
-                        //     only when `stream_options: {"include_usage": true}` in your request
+                        // response can have multiple choice, according to request config
+                        match resp.choices.len() {
+                            0 => {
+                                // when usage was requested in the request,
+                                // there is a chunk with empty choice
+                                if let Some(usage) = resp.usage {
+                                    debug!(
+                                        prompt = usage.prompt_tokens,
+                                        completion = usage.completion_tokens,
+                                        // TODO: use this value to display in message
+                                        // FIXME: find a way to provide it to the caller?
+                                        total = usage.total_tokens,
+                                        "Token usage"
+                                    );
+                                }
+                            }
+                            1 => {
+                                trace!(response = ?resp, "response");
+                            }
+                            _ => {
+                                warn!(id = resp.id,
+                                    count = resp.choices.len(),
+                                    response = ?resp,
+                                    "using first choice of many");
+                            }
+                        };
 
-                        debug!(response = ?resp, "response");
-                        let token = resp
-                            .choices /* Vec<ChatChoiceStream> */
-                            .first()
-                            .and_then(|c| c.delta.content.clone())
+                        // in all cases, only process the first one
+                        let Some(choice) = resp.choices.first() else {
+                            // FIXME: better feedback and check in frontend how it behaves
+                            return Ok(sse::Event::default().data("NO CHOICE"));
+                        };
+
+                        // TODO: auto print from serde_serialize + trim quotes ?
+                        match choice.finish_reason {
+                            None => {}
+                            Some(reason) => match reason {
+                                FinishReason::Stop => {
+                                    debug!(id = resp.id, reason = "stop", "finish")
+                                }
+                                FinishReason::Length => {
+                                    warn!(id = resp.id, reason = "length", "finish")
+                                }
+                                FinishReason::ToolCalls => {
+                                    info!(id = resp.id, reason = "tool_calls", "finish")
+                                }
+                                FinishReason::ContentFilter => {
+                                    error!(id = resp.id, reason = "content_filter", "finish")
+                                }
+                                FinishReason::FunctionCall => {
+                                    info!(id = resp.id, reason = "function_call", "finish")
+                                }
+                            },
+                        }
+
+                        let token = choice
+                            .delta
+                            .content
+                            .as_ref()
+                            .and_then(|c| Some(c.clone()))
                             .unwrap_or_default();
+
                         #[cfg(feature = "print-tokens")]
                         {
                             use std::io::{Write, stdout};
