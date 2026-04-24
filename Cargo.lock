@@ -1928,7 +1928,6 @@ dependencies = [
  "dialoguer",
  "enable-ansi-support",
  "futures",
- "log",
  "owo-colors",
  "portable",
  "regex",

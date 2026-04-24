@@ -22,7 +22,6 @@ dialoguer = { version = "0.12", features = [
     "fuzzy-select",
 ] } # FuzzySelect for model picking
 futures = "0.3"
-log = "0.4"
 owo-colors = "4"
 portable.workspace = true
 regex.workspace = true
