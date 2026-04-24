@@ -4,13 +4,14 @@ use async_openai::error::OpenAIError;
 use async_openai::types::chat::{
     ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
-    ChatCompletionResponseStream, CreateChatCompletionRequestArgs,
+    ChatCompletionResponseStream, ChatCompletionStreamOptions, CreateChatCompletionRequestArgs,
+    ServiceTier,
 };
 use portable::{ChatRequest, Message, MessageRole};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, trace};
 
 #[derive(Debug, Error)]
 pub enum ProviderError {
@@ -46,7 +47,7 @@ pub enum ModelType {
 fn messages_to_api(
     messages: &[Message],
 ) -> Result<Vec<ChatCompletionRequestMessage>, ProviderError> {
-    debug!(count = messages.len(), "Building messages for upstream api");
+    debug!(count = messages.len(), "Building openapi messages");
     messages
         .iter()
         // remove empty system messages to avoid confusing the model with empty instructions
@@ -102,8 +103,24 @@ pub async fn send_for_stream(
     let request = CreateChatCompletionRequestArgs::default()
         .model(&chat.model)
         .messages(messages)
+        // IMPORTANT: untested
+        // FIXME: with Flex ==>  invalid_request_error: Invalid service_tier argument
+        // FIXME: with Priority ==> response service_tier=Some(Default)
+        .service_tier(ServiceTier::Default)
+        // IMPORTANT: there can be 1 or N or 0 response in choices
+        // N is alternate possible conversation (user choice or always first)
+        // N=1 by default in async_openai, but lets make future proof
+        // usually, 0 is for the last, when "include_usage" is true
+        .n(1)
+        // Enable usage info, which will be in the chunk where delta is empty
+        .stream_options(ChatCompletionStreamOptions {
+            include_usage: Some(true),
+            include_obfuscation: Some(true),
+        })
         .build()
         .map_err(|e| ProviderError::BuildError { source: e })?;
+    trace!(request = ?request, "openai request");
+
     // build and send the request for a streamed answer for this conversation
     client
         .chat()
