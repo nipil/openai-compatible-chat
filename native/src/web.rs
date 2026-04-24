@@ -1,17 +1,18 @@
 use std::convert::Infallible;
 
 use anyhow::Result;
+use async_openai::error::OpenAIError;
+use async_openai::types::chat::{ChatCompletionResponseStream, CreateChatCompletionStreamResponse};
 // TODO: anyhow should not be used in lib crate,only thiserror
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
-use axum::response::sse::{Event, Sse};
+use axum::response::{IntoResponse, sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use futures::StreamExt;
-use futures::stream::BoxStream;
+use futures::{StreamExt, stream};
 use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
 use tower_http::services::ServeDir;
+use tracing::debug;
 
 use crate::AppState;
 use crate::openai::{ProviderError, send_for_stream};
@@ -84,7 +85,8 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
 async fn handle_chat(
     State(s): State<AppState>,
     Json(mut req): Json<ChatRequest>,
-) -> Result<Sse<BoxStream<'static, Result<Event, Infallible>>>, impl IntoResponse> {
+) -> Result<sse::Sse<stream::BoxStream<'static, Result<sse::Event, Infallible>>>, impl IntoResponse>
+{
     // CRITICAL: server-side check that the client is not trying to screw us
     // check that the requested in the allowed model list of the valid types
     if !s
@@ -129,7 +131,7 @@ async fn handle_chat(
         }
     }
 
-    let stream: BoxStream<'static, Result<Event, Infallible>> =
+    let stream: stream::BoxStream<'static, Result<sse::Event, Infallible>> =
         match build_chat_stream(s, &req).await {
             Ok(s) => s,
             Err(e) => {
@@ -158,12 +160,14 @@ async fn handle_chat(
                     // TODO: logging ?
                     // On server-side error **DURING SSE CREATION**,
                     // send an SSE "error event" to notify the client
-                    Ok(Event::default().event(SSE_EVENT_ERROR).data(e.to_string()))
+                    Ok(sse::Event::default()
+                        .event(SSE_EVENT_ERROR)
+                        .data(e.to_string()))
                 }))
             }
         };
 
-    Ok(Sse::new(stream))
+    Ok(sse::Sse::new(stream))
 }
 
 // #[derive(Debug, Error)]
@@ -178,44 +182,89 @@ async fn handle_chat(
 async fn build_chat_stream(
     s: AppState,
     chat: &ChatRequest,
-) -> Result<BoxStream<'static, Result<Event, Infallible>>, ProviderError> {
+) -> Result<stream::BoxStream<'static, Result<sse::Event, Infallible>>, ProviderError> {
     // TODO: refactor same as cli ? into openai
-    // TODO: why NOT mut here and mut in cli::send_and_stream ?!
-    let stream = send_for_stream(s.openai_client.as_ref(), chat).await?;
+    // not mut here because the client is holding the history and provides it
+
+    // This response stream will produce "Item" and every item is of type
+    // Result<CreateChatCompletionStreamResponse, _>
+    let stream: ChatCompletionResponseStream =
+        send_for_stream(s.openai_client.as_ref(), chat).await?;
 
     // Use `.then()` (async map) so we can do async writes on unauthorized errors
-    let sse = stream.then(move |chunk| {
-        async move {
-            match chunk {
-                Ok(resp) => {
-                    let token = resp
-                        .choices
-                        .first()
-                        .and_then(|c| c.delta.content.clone())
-                        .unwrap_or_default();
-                    #[cfg(feature = "print-tokens")]
-                    {
-                        use std::io::{Write, stdout};
-                        // TODO: switch to write to handle failures
-                        print!("{token}");
-                        stdout().flush().unwrap();
-                    }
-                    // encode the token in json so that newlines in the token
-                    // does not break the SSE frame, and are preserved to frontend
-                    // but the frontend should now decode the json data
-                    let token = serde_json::to_string(&token).unwrap_or_default();
-                    Ok::<Event, Infallible>(Event::default().data(token))
-                }
 
-                Err(e) => {
-                    // TODO: logging ?
-                    // On server-side error **DURING CHUNKS PROCESSING**,
-                    // send an SSE "error event" to notify the client
-                    Ok(Event::default().event(SSE_EVENT_ERROR).data(e.to_string()))
+    let sse: stream::Then<ChatCompletionResponseStream, _, _> = stream.then(
+        // Every time an "Item" is ready, the provided FnMut will be called
+        // with Item, and return a *Future*, which will then be run to completion
+        // to produce the next value on this stream.
+
+        // TODO: move needed or not ? i guess not if we do not use things outside of closure itself
+        /* move */
+        |chunk: Result<CreateChatCompletionStreamResponse, OpenAIError>| {
+            async move {
+                match chunk {
+                    Ok(resp) => {
+                        // interesting stuff in response :
+                        //
+                        // - resp.choices[]
+                        //
+                        //     .delta.content = Option<String>
+                        //        IMPORTANT: there can be 1 or N or 0 response in choices
+                        //        usually, 0 is for the last, when "include_usage" is true
+                        //        N is alternate possible conversation (user choice or always first)
+                        //
+                        //     .finish_reason = Option<FinishReason>
+                        //        - Stop
+                        //        - Length
+                        //        - ToolCalls
+                        //        - ContentFilter
+                        //        - FunctionCall
+                        //
+                        // - resp.service_tier (default auto)
+                        //   TODO: check if service level is matching configuraiton
+                        //   - auto = project config linked to api key
+                        //   - default = standard pricing
+                        //   - flex (=batch ?) = slower response with caching, 2x cheaper than default
+                        //   - priority = faster, 2x more expensive than default
+                        //
+                        // - resp.usage = Option<CompletionUsage> = .prompt_tokens / completion_tokens
+                        //     only when `stream_options: {"include_usage": true}` in your request
+
+                        debug!(response = ?resp, "response");
+                        let token = resp
+                            .choices /* Vec<ChatChoiceStream> */
+                            .first()
+                            .and_then(|c| c.delta.content.clone())
+                            .unwrap_or_default();
+                        #[cfg(feature = "print-tokens")]
+                        {
+                            use std::io::{Write, stdout};
+                            // TODO: switch to write to handle failures
+                            print!("{token}");
+                            stdout().flush().unwrap();
+                        }
+                        // encode the token in json so that newlines in the token
+                        // does not break the SSE frame, and are preserved to frontend
+                        // but the frontend should now decode the json data
+                        let token = serde_json::to_string(&token).unwrap_or_default();
+                        Ok::<sse::Event, Infallible>(sse::Event::default().data(token))
+                    }
+
+                    Err(e) => {
+                        // TODO: logging ?
+                        // On server-side error **DURING CHUNKS PROCESSING**,
+                        // send an SSE "error event" to notify the client
+                        Ok(sse::Event::default()
+                            .event(SSE_EVENT_ERROR)
+                            .data(e.to_string()))
+                    }
                 }
             }
-        }
-    });
+        },
+    );
 
+    // Moves the Thenable onto the heap (Box) and mark it as fixed in memory
+    // space, so that its memory address cannot change : it is needed so that
+    // it can safely be referenced and polled
     Ok(Box::pin(sse))
 }
