@@ -116,7 +116,7 @@ async fn stream_chat(
 
     let hdrs = web_sys::Headers::new().map_err(|e| format!("{e:?}"))?;
     hdrs.set("Content-Type", "application/json")
-        .map_err(|e| format!("{e:?}"))?; // TODO: thiserror
+        .map_err(|e| format!("could not set content type to json : {e:?}"))?; // TODO: thiserror
 
     let opts = web_sys::RequestInit::new();
     opts.set_method("POST");
@@ -127,15 +127,15 @@ async fn stream_chat(
     opts.set_signal(Some(&signal));
 
     let req = web_sys::Request::new_with_str_and_init("/api/chat", &opts)
-        .map_err(|e| format!("{e:?}"))?; // TODO: thiserror
+        .map_err(|e| format!("could not create a new instance of request : {e:?}"))?; // TODO: thiserror
 
     let resp: web_sys::Response = JsFuture::from(win.fetch_with_request(&req))
         .await
         // TODO: which errors to handle ?
-        .map_err(|e| format!("{e:?}"))?
+        .map_err(|e| format!("could not convert 1 : {e:?}"))?
         .dyn_into()
         // TODO: which errors to handle ?
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(|e| format!("could not convert 2 : {e:?}"))?;
 
     if !resp.ok() {
         return Err(format!("HTTP {}", resp.status())); // TODO: thiserror
@@ -146,15 +146,18 @@ async fn stream_chat(
         .ok_or("no body")? // TODO: thiserror
         .get_reader()
         .dyn_into()
-        .map_err(|e| format!("{e:?}"))?; // TODO: thiserror
+        .map_err(|e| format!("could not get reader from response : {e:?}"))?; // TODO: thiserror
 
     let mut buf = String::new();
 
     loop {
+        // chunk = JsValue {"done": false, "value": {"0": 100, "1": 97, ... }))
         let chunk = JsFuture::from(reader.read())
             .await
             // TODO: which errors to handle ?
-            .map_err(|e| format!("{e:?}"))?;
+            .map_err(|e| format!("could not get chunk from reader : {e:?}"))?;
+
+        web_sys::console::debug_1(&format!("js chunk: {:?}", chunk).into());
 
         // TODO: done string to enum
         // TODO: report to user?
@@ -163,20 +166,35 @@ async fn stream_chat(
             .as_bool()
             .ok_or_else(|| "stream chunk 'done' is not a boolean".to_string())?;
 
+        web_sys::console::log_1(&format!("js done: {:?}", done).into());
+
         if done {
+            web_sys::console::log_1(&format!("done brake").into());
             break;
         }
 
         let value = js_sys::Reflect::get(&chunk, &"value".into()) // TODO: to enum https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read#return_value
-            .map_err(|e| format!("{e:?}"))?; // TODO: thiserror
-        let arr: js_sys::Uint8Array = value.dyn_into().map_err(|e| format!("{e:?}"))?; // TODO: thiserror
+            .map_err(|e| format!("could not read 'value' from stream chunk : {e:?}"))?; // TODO: thiserror
+
+        // web_sys::console::log_1(&format!("js value: {:?}", value).into());
+
+        let arr: js_sys::Uint8Array = value
+            .dyn_into()
+            .map_err(|e| format!("could not convert to an uint8 array : {e:?}"))?; // TODO: thiserror
+
+        // web_sys::console::log_1(&format!("rs arr: {:?}", arr).into());
 
         // The SSE spec guarantees UTF-8, so lossy is technically wrong here
         // But a replacement character \u{FFFD} in the stream would corrupt
         // rendered markdown silently, so this
         // TODO: try as non-lossless UTF-8, and if it fails, switch to lossy
         // TODO: then add a display warning marking the message as lossy
-        buf.push_str(&String::from_utf8_lossy(&arr.to_vec()));
+        let arr_vec = &arr.to_vec();
+        let lossy = String::from_utf8_lossy(arr_vec);
+        // web_sys::console::log_1(&format!("lossy : {:?}", lossy).into());
+
+        buf.push_str(&lossy);
+        // web_sys::console::log_1(&format!("buf : {:?}", buf).into());
 
         // processes all complete lines from the buffer in one chunk,
         // since a single network chunk may contain multiple \n-terminated SSE frames
@@ -188,7 +206,11 @@ async fn stream_chat(
         while let Some(nl) = buf.find('\n') {
             let line = buf[..nl].trim_end_matches('\r').to_string();
             buf = buf[nl + 1..].to_string();
+
+            // web_sys::console::log_1(&format!("line : {:?}", line).into());
+
             // TODO: the space after the colon is not mandatory, but 1 space is stripped if present
+            // TODO: prefix to constant ?
             if let Some(data) = line.strip_prefix("data: ") {
                 // this is openai stuff, not SSE spec
                 if data != "[DONE]" {
@@ -197,7 +219,9 @@ async fn stream_chat(
                     // and if not decodable, use as it
                     // TODO: notify user ?s
                     let token: String = serde_json::from_str(data).unwrap_or_else(|e| {
-                        web_sys::console::warn_1(&format!("token parse failed: {e}").into());
+                        web_sys::console::warn_1(
+                            &format!("json deserializing failed ({e}) : {data}").into(),
+                        );
                         // we choose to NOT abort, and juste provide it "as-is"
                         data.to_string()
                     });
@@ -205,6 +229,8 @@ async fn stream_chat(
                     web_sys::console::log_1(&format!("token: {:?}", token).into());
                     // call the callback for each token
                     on_token(token);
+                } else {
+                    web_sys::console::debug_1(&format!("openai DONE marker found").into());
                 }
             }
         }
