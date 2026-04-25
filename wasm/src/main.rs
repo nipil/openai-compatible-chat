@@ -6,6 +6,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto, Theme, estimate_tokens};
 use send_wrapper::SendWrapper;
+use strum::{AsRefStr, EnumString};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefaultReader, window};
@@ -16,6 +17,15 @@ const COOKIE_MODEL: &str = "model";
 const COOKIE_THEME_DEFAULT: Theme = Theme::Dark;
 const COOKIE_THEME: &str = "theme";
 const STORAGE_KEY_OPENAI: &str = "openai";
+
+// ── Public types ──────────────────────────────────────────────────────────────
+
+#[derive(EnumString, AsRefStr)]
+#[strum(serialize_all = "lowercase")]
+enum ChunkKey {
+    Done,
+    Value,
+}
 
 // Token counter: returns an inline style string for the dynamic gradient only.
 // Static layout/padding lives in .token-counter in style.css.
@@ -162,9 +172,8 @@ async fn stream_chat(
 
         web_sys::console::debug_1(&format!("js chunk: {:?}", chunk).into());
 
-        // TODO: done string to enum
         // TODO: report to user?
-        let done = js_sys::Reflect::get(&chunk, &"done".into())
+        let done = js_sys::Reflect::get(&chunk, &ChunkKey::Done.as_ref().into())
             .map_err(|e| format!("could not read 'done' from stream chunk : {e:?}"))?
             .as_bool()
             .ok_or_else(|| "stream chunk 'done' is not a boolean".to_string())?;
@@ -176,7 +185,7 @@ async fn stream_chat(
             break;
         }
 
-        let value = js_sys::Reflect::get(&chunk, &"value".into()) // TODO: to enum https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read#return_value
+        let value = js_sys::Reflect::get(&chunk, &ChunkKey::Value.as_ref().into())
             .map_err(|e| format!("could not read 'value' from stream chunk : {e:?}"))?; // TODO: thiserror
 
         // web_sys::console::log_1(&format!("js value: {:?}", value).into());

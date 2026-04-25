@@ -16,6 +16,7 @@ pulldown-cmark = { version = "0.13", default-features = false, features = [
 send_wrapper = "0.6"
 serde_json.workspace = true
 serde.workspace = true
+strum.workspace = true
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [
