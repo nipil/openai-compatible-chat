@@ -201,7 +201,18 @@ impl TryFrom<SseEventOut> for sse::Event {
     fn try_from(ev: SseEventOut) -> Result<Self, Self::Error> {
         let ev = ev.into_inner();
         let kind = ev.as_ref();
-        let value = serde_json::to_string(&ev)?;
+        let value = match &ev {
+            SseEvent::MessageToken(token) => serde_json::to_string(&token)?,
+            SseEvent::Error(err_msg) => serde_json::to_string(&err_msg)?,
+            SseEvent::TokenCount { prompt, generated } => {
+                #[derive(serde::Serialize)]
+                struct Tmp<T> {
+                    prompt: T,
+                    generated: T,
+                }
+                serde_json::to_string(&Tmp { prompt, generated })?
+            }
+        };
         Ok(sse::Event::default().event(kind).data(value))
     }
 }

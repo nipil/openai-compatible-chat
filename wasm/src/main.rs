@@ -44,7 +44,12 @@ impl TryFrom<Event> for SseEventIn {
                 SseEvent::MessageToken(serde_json::from_str::<String>(&ev.data)?)
             }
             SseEventKind::TokenCount => {
-                let (prompt, generated) = serde_json::from_str::<(usize, usize)>(&ev.data)?;
+                #[derive(serde::Deserialize)]
+                struct Tmp<T> {
+                    prompt: T,
+                    generated: T,
+                }
+                let Tmp { prompt, generated } = serde_json::from_str(&ev.data)?;
                 SseEvent::TokenCount { prompt, generated }
             }
             SseEventKind::Error => SseEvent::Error(serde_json::from_str::<String>(&ev.data)?),
