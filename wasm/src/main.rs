@@ -108,7 +108,7 @@ fn get_cookie_theme_or_default() -> Theme {
 // ── SSE via fetch (POST + ReadableStream) ─────────────────────────────────────
 
 async fn stream_chat(
-    body: String,
+    chat: ChatRequest,
     signal: AbortSignal,
     on_token: impl Fn(String),
 ) -> Result<(), String> {
@@ -121,6 +121,9 @@ async fn stream_chat(
     let opts = web_sys::RequestInit::new();
     opts.set_method("POST");
     opts.set_headers(hdrs.as_ref());
+    // TODO: use serde-wasm-bindgen = "0.6" ?
+    // let js_val = serde_wasm_bindgen::to_value(&req)?;
+    let body = serde_json::json!(chat).to_string();
     opts.set_body(&wasm_bindgen::JsValue::from_str(&body));
     // pass the abord signal notifying end to the request
     // so that the browser/request can be cancelled from UI
@@ -589,12 +592,11 @@ fn App() -> impl IntoView {
             model,
             messages: send_msgs,
         };
-        let body = serde_json::json!(chat_req).to_string();
 
         // Launch an additional async task, which will stream and update, and let it run freely
         spawn_local(async move {
             // do the work, providing a closure to handle each new token
-            let res = stream_chat(body, sig, move |tok| {
+            let res = stream_chat(chat_req, sig, move |tok| {
                 // update the message list by
                 messages.update(|v| {
                     // looking for the last one (that is why we added an empty one)
