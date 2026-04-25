@@ -68,7 +68,7 @@ impl SseEventIn {
 
 // Token counter: returns an inline style string for the dynamic gradient only.
 // Static layout/padding lives in .token-counter in style.css.
-fn token_color_style(count: usize, max: Option<u32>) -> String {
+fn token_color_style(count: u32, max: Option<u32>) -> String {
     let (bg, color) = match max {
         None => ("rgba(128,128,128,0.4)", "var(--text-banner)"),
         Some(m) => {

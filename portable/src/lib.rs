@@ -51,7 +51,7 @@ pub enum SseEventKind {
 #[serde(rename_all = "snake_case")]
 pub enum SseEvent {
     MessageToken(String),
-    TokenCount { prompt: usize, generated: usize },
+    TokenCount { prompt: u32, generated: u32 },
     Error(String),
 }
 
@@ -84,10 +84,10 @@ pub struct Message {
 
 /// Rough estimate: 1 token ≈ 4 UTF-8 chars, 3 tokens overhead per message,
 /// plus 3 for the reply primer — mirrors the Python fallback heuristic.
-pub fn estimate_tokens(messages: &[Message]) -> usize {
+pub fn estimate_tokens(messages: &[Message]) -> u32 {
     messages
         .iter()
-        .map(|m| 3 + m.content.chars().count() / 4)
-        .sum::<usize>()
+        .map(|m| 3u32 + m.content.chars().count() as u32 / 4u32)
+        .sum::<u32>()
         + 3
 }

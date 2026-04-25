@@ -155,11 +155,7 @@ async fn get_system_prompt_from_user(prepend_system_prompt: &str) -> String {
     }
 }
 
-async fn read_user_input_trimmed(
-    model: &str,
-    tok_history: usize,
-    max_tokens: Option<u32>,
-) -> String {
+async fn read_user_input_trimmed(model: &str, tok_history: u32, max_tokens: Option<u32>) -> String {
     let now = Local::now().format("%H:%M:%S").to_string();
     let model = model.to_string();
 
@@ -175,7 +171,7 @@ async fn read_user_input_trimmed(
     .unwrap_or_default()
 }
 
-fn build_prompt_str(time: &str, model: &str, tokens: usize, max: Option<u32>) -> String {
+fn build_prompt_str(time: &str, model: &str, tokens: u32, max: Option<u32>) -> String {
     let tok_coloured = match max {
         None => tokens.to_string().white().to_string(),
         Some(m) => {
