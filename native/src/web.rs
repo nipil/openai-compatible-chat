@@ -12,7 +12,7 @@ use axum::response::{IntoResponse, sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures::{StreamExt, stream};
-use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto, SseError, SseEvent};
+use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto, SseEvent};
 use tower_http::services::ServeDir;
 use tracing::{debug, error, info, instrument, trace, warn};
 
@@ -195,25 +195,32 @@ impl From<SseEvent> for SseEventOut {
     }
 }
 
-impl TryFrom<SseEventOut> for sse::Event {
-    type Error = SseError;
-
-    fn try_from(ev: SseEventOut) -> Result<Self, Self::Error> {
+impl From<SseEventOut> for sse::Event {
+    fn from(ev: SseEventOut) -> Self {
         let ev = ev.into_inner();
-        let kind = ev.as_ref();
         let value = match &ev {
-            SseEvent::MessageToken(token) => serde_json::to_string(&token)?,
-            SseEvent::Error(err_msg) => serde_json::to_string(&err_msg)?,
+            SseEvent::MessageToken(token) => serde_json::to_string(&token),
+            SseEvent::Error(err_msg) => serde_json::to_string(&err_msg),
             SseEvent::TokenCount { prompt, generated } => {
                 #[derive(serde::Serialize)]
                 struct Tmp<T> {
                     prompt: T,
                     generated: T,
                 }
-                serde_json::to_string(&Tmp { prompt, generated })?
+                serde_json::to_string(&Tmp { prompt, generated })
             }
         };
-        Ok(sse::Event::default().event(kind).data(value))
+        // this serialization should never fail (on our side), but serde might.
+        match value {
+            Ok(value) => sse::Event::default().event(ev.as_ref()).data(value),
+            Err(e) => {
+                error!(event=?ev, error=?e.to_string(), "Unexpected SSE event json serialization error");
+                // build an infallible event, with consistent event name and hardcoded json encoding
+                let msg = String::from(r#""SSE event json serialization error, see server log""#);
+                let event = SseEvent::Error(msg.clone());
+                sse::Event::default().event(event.as_ref()).data(msg)
+            }
+        }
     }
 }
 
@@ -261,17 +268,20 @@ async fn build_chat_stream(
                         // response can have multiple choice, according to request config
                         match resp.choices.len() {
                             0 => {
-                                // when usage was requested in the request,
-                                // there is a chunk with empty choice
-                                if let Some(usage) = resp.usage {
+                                if let Some(ref usage) = resp.usage {
                                     debug!(
                                         prompt = usage.prompt_tokens,
                                         completion = usage.completion_tokens,
-                                        // TODO: use this value to display in message
-                                        // FIXME: find a way to provide it to the caller?
                                         total = usage.total_tokens,
                                         "Token usage"
                                     );
+                                    // Forward usage data to the front-end because
+                                    // usage is the last chunk with no token
+                                    return Ok(SseEventOut::from(SseEvent::TokenCount {
+                                        prompt: usage.prompt_tokens,
+                                        generated: usage.completion_tokens,
+                                    })
+                                    .into());
                                 }
                             }
                             1 => {
@@ -281,17 +291,20 @@ async fn build_chat_stream(
                                 warn!(id = resp.id,
                                     count = resp.choices.len(),
                                     response = ?resp,
-                                    "using first choice of many");
+                                    "Not designed for more than one choice, using first.");
                             }
                         };
 
-                        // in all cases, only process the first one
+                        // In any case, only process the first choice
                         let Some(choice) = resp.choices.first() else {
-                            // FIXME: better feedback and check in frontend how it behaves
-                            return Ok(sse::Event::default().data("NO\nCHOICE\r\nFOR\ryou!\n"));
+                            let msg = "No choice available, unexpected behaviour";
+                            warn!(id = resp.id, msg);
+                            return Ok(SseEventOut::from(SseEvent::Error(msg.into())).into());
                         };
 
-                        // TODO: auto print from serde_serialize + trim quotes ?
+                        // TODO: send to frontend
+                        // Forward end reason to the front-end and
+                        // there is no content so no token to forward
                         match choice.finish_reason {
                             None => {}
                             Some(reason) => match reason {
@@ -313,6 +326,7 @@ async fn build_chat_stream(
                             },
                         }
 
+                        // TODO: check for no content : with previous code, it should not happen
                         let token = choice
                             .delta
                             .content
@@ -320,27 +334,13 @@ async fn build_chat_stream(
                             .and_then(|c| Some(c.clone()))
                             .unwrap_or_default();
 
-                        #[cfg(feature = "print-tokens")]
-                        {
-                            use std::io::{Write, stdout};
-                            // TODO: switch to write to handle failures
-                            print!("{token}");
-                            stdout().flush().unwrap();
-                        }
-                        // encode the token in json so that newlines in the token
-                        // does not break the SSE frame, and are preserved to frontend
-                        // but the frontend should now decode the json data
-                        // let token = serde_json::to_string(&token).unwrap_or_default();
-                        Ok::<sse::Event, Infallible>(sse::Event::default().data(token))
+                        trace!(token = ?token, "token");
+                        Ok(SseEventOut::from(SseEvent::MessageToken(token)).into())
                     }
 
                     Err(e) => {
-                        // TODO: logging ?
-                        // On server-side error **DURING CHUNKS PROCESSING**,
-                        // send an SSE "error event" to notify the client
-                        Ok(sse::Event::default()
-                            .event(SSE_EVENT_ERROR)
-                            .data(e.to_string()))
+                        warn!("Server side error while processing chunk: {:?}", e);
+                        Ok(SseEventOut::from(SseEvent::Error(e.to_string())).into())
                     }
                 }
             }
