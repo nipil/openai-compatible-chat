@@ -1,19 +1,21 @@
 use std::str::FromStr;
 
-use eventsource_stream::Eventsource;
+use eventsource_stream::{Event, Eventsource};
 use futures::StreamExt;
 use gloo_net::http::Request;
 use js_sys::Uint8Array;
 use leptos::mount::mount_to_body;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto, Theme, estimate_tokens};
+use portable::{
+    ChatRequest, ConfigDto, Message, MessageRole, ModelDto, SseError, SseEvent, SseEventKind,
+    Theme, estimate_tokens,
+};
 use send_wrapper::SendWrapper;
-use strum::{AsRefStr, EnumString};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use wasm_streams::ReadableStream;
-use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefaultReader, window};
+use web_sys::{AbortController, AbortSignal, KeyboardEvent, window};
 
 // TODO: add tracing-wasm
 
@@ -22,14 +24,36 @@ const COOKIE_THEME_DEFAULT: Theme = Theme::Dark;
 const COOKIE_THEME: &str = "theme";
 const STORAGE_KEY_OPENAI: &str = "openai";
 
-// ── Public types ──────────────────────────────────────────────────────────────
+// ── SSE Event helper ──────────────────────────────────────────────────────────
 
-#[derive(EnumString, AsRefStr)]
-#[strum(serialize_all = "lowercase")]
-enum ChunkKey {
-    Done,
-    Value,
+pub struct SseEventIn(SseEvent);
+
+impl TryFrom<Event> for SseEventIn {
+    type Error = SseError;
+
+    fn try_from(ev: Event) -> Result<Self, Self::Error> {
+        let kind = SseEventKind::from_str(&ev.event).map_err(|e| SseError::Strum(e))?;
+        let event = match kind {
+            SseEventKind::MessageToken => {
+                SseEvent::MessageToken(serde_json::from_str::<String>(&ev.data)?)
+            }
+            SseEventKind::TokenCount => {
+                let (prompt, generated) = serde_json::from_str::<(usize, usize)>(&ev.data)?;
+                SseEvent::TokenCount { prompt, generated }
+            }
+            SseEventKind::Error => SseEvent::Error(serde_json::from_str::<String>(&ev.data)?),
+        };
+        Ok(Self(event))
+    }
 }
+
+impl SseEventIn {
+    pub fn into_inner(self) -> SseEvent {
+        self.0
+    }
+}
+
+// ── Token counter ─────────────────────────────────────────────────────────────
 
 // Token counter: returns an inline style string for the dynamic gradient only.
 // Static layout/padding lives in .token-counter in style.css.
@@ -124,7 +148,7 @@ fn get_cookie_theme_or_default() -> Theme {
 async fn stream_chat(
     chat: ChatRequest,
     signal: AbortSignal,
-    on_token: impl Fn(String),
+    on_token: impl Fn(&str),
 ) -> Result<(), String> {
     let win = web_sys::window().ok_or("no window")?; // TODO: thiserror
 
@@ -184,34 +208,28 @@ async fn stream_chat(
     // Iterate over the SSE events (easy-mode !)
     while let Some(result) = event_stream.next().await {
         match result {
-            Ok(event) => {
-                web_sys::console::debug_1(&format!("sse event: {:?}", event).into());
-                // event: String, // The event name if given
-                // data: String, // The event data
-                // id: String, // The event id if given
-                // retry: Option<Duration>, // Retry duration if given
-                // match event.event.as_str() {
-                //     "" | "message" => web_sys::console::debug_1(
-                //         &format!("default event : {}", event.event.as_str()).into(),
-                //     ),
-                //     "done" => break,
-                //     "error" => break,
-                //     other => {
-                //         web_sys::console::debug_1(&format!("unknown event type: {other}").into())
-                //     }
-                // }
-
-                // provide the token to the caller
-                // FIXME: provide the whole event ?
-                on_token(event.data);
-                // TODO: rewrite once the backend sends better objects
-                // let token: String = serde_json::from_str(&event.data).unwrap_or_else(|e| {
-                //     web_sys::console::warn_1(
-                //         &format!("json deserializing failed ({e}) : {data}").into(),
-                //     );
-                //     // we choose to NOT abort, and juste provide it "as-is"
-                //     event.data.to_string()
-                // });
+            Ok(es_event) => {
+                let sse_event = SseEventIn::try_from(es_event)
+                    .map_err(|e| e.to_string())?
+                    .into_inner();
+                web_sys::console::debug_1(&format!("sse event: {:?}", sse_event).into());
+                match sse_event {
+                    SseEvent::TokenCount { prompt, generated } => {
+                        web_sys::console::debug_1(
+                            &format!(
+                                "token count : p={prompt} g={generated} t={}",
+                                prompt + generated
+                            )
+                            .into(),
+                        );
+                    }
+                    SseEvent::MessageToken(token) => {
+                        on_token(&token);
+                    }
+                    SseEvent::Error(err_msg) => {
+                        web_sys::console::error_1(&format!("sse event error: {err_msg}").into());
+                    }
+                }
             }
             Err(e) => return Err(format!("SSE error: {e}")),
         }
