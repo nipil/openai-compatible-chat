@@ -12,7 +12,7 @@ use axum::response::{IntoResponse, sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures::{StreamExt, stream};
-use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
+use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto, SseError, SseEvent};
 use tower_http::services::ServeDir;
 use tracing::{debug, error, info, instrument, trace, warn};
 
@@ -184,6 +184,33 @@ async fn handle_chat(
 // }
 
 // TODO: move to openai once similar to chat::send_and_stream
+
+// ── SSE Event helper ──────────────────────────────────────────────────────────
+
+pub struct SseEventOut(SseEvent);
+
+impl From<SseEvent> for SseEventOut {
+    fn from(e: SseEvent) -> Self {
+        SseEventOut(e)
+    }
+}
+
+impl TryFrom<SseEventOut> for sse::Event {
+    type Error = SseError;
+
+    fn try_from(ev: SseEventOut) -> Result<Self, Self::Error> {
+        let ev = ev.into_inner();
+        let kind = ev.as_ref();
+        let value = serde_json::to_string(&ev)?;
+        Ok(sse::Event::default().event(kind).data(value))
+    }
+}
+
+impl SseEventOut {
+    pub fn into_inner(self) -> SseEvent {
+        self.0
+    }
+}
 
 /// One request to the provider (only initial request, not streaming response)
 #[instrument(level = "trace", skip_all)]
