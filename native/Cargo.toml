@@ -13,6 +13,7 @@ async-openai = { version = "0.34", features = [
     "chat-completion",
     "model",
 ] } # pin to a known-good release; bump carefully
+atty = "0.2"
 axum = "0.8"
 chrono = { version = "0.4", features = ["clock"] }
 clap.workspace = true
@@ -35,6 +36,7 @@ thiserror.workspace = true
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
 tracing = "0.1"
+tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [target.'cfg(windows)'.dependencies]

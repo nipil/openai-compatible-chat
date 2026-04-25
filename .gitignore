@@ -6,3 +6,6 @@ exclusion.json
 
 # Added by cargo
 /target
+
+# logs
+trace.log.*

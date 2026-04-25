@@ -1,7 +1,8 @@
+use std::env;
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use async_openai::Client as OpenAiClient;
 use async_openai::config::OpenAIConfig;
 use clap::{Parser, Subcommand};
@@ -13,12 +14,16 @@ use native::openai::list_models;
 use native::web::run_web;
 use reqwest::Client as ReqwestClient;
 use tracing::{error, info, warn};
+use tracing_appender::rolling;
+use tracing_subscriber::filter::{EnvFilter, LevelFilter};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{EnvFilter, fmt};
+use tracing_subscriber::{Layer, fmt};
 
 #[cfg(all(not(feature = "cli"), not(feature = "web")))]
 compile_error!("At lease one of the main features should be enabled !");
+
+const TRACE_LOG: &str = "trace.log";
 
 #[derive(Parser)]
 #[command(name = "chat", about = "Interactive LLM", version)]
@@ -32,8 +37,11 @@ struct Args {
     #[arg(long, short = 'i', default_value = "ai_model_info/openai.json")]
     info_file: String,
 
-    #[arg(long, short = 'l')]
-    lock_model: Option<String>,
+    #[arg(long, short = 'm')]
+    model_lock: Option<String>,
+
+    #[arg(long)]
+    log_file: Option<String>,
 
     #[command(subcommand)]
     command: Commands,
@@ -58,6 +66,31 @@ enum Commands {
     },
 }
 
+fn use_color() -> bool {
+    // hard disable
+    if env::var_os("NO_COLOR").is_some() {
+        return false;
+    }
+    // force enable
+    if env::var("CLICOLOR_FORCE")
+        .ok()
+        .map(|v| v.trim() == "1")
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    // alternate disable
+    if env::var("CLICOLOR")
+        .ok()
+        .map(|v| v.trim() == "0")
+        .unwrap_or(false)
+    {
+        return false;
+    }
+    // default: only if stdout is a terminal
+    atty::is(atty::Stream::Stdout)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Enable ANSI colour codes on legacy Windows consoles (cmd.exe).
@@ -75,10 +108,40 @@ async fn main() -> Result<()> {
     // Parse arguments
     let args = Args::parse();
 
-    // Tracing configuration for logging
+    // Build the optional file layer and keep the guard alive for the duration of main.
+    // The guard must outlive the subscriber, so return it and bind it at the call site.
+    let (_guard_file, file_layer) = match &args.log_file {
+        Some(level_str) => {
+            let file_appender = rolling::daily(".", TRACE_LOG);
+            let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
+            // file level must always explicitely defined
+            let file_level: LevelFilter = level_str
+                .parse()
+                .map_err(|_| anyhow!("Invalid trace_file level '{level_str}'"))?;
+            let layer = fmt::layer()
+                .with_writer(file_writer)
+                .with_ansi(false)
+                .with_target(true)
+                .with_span_events(fmt::format::FmtSpan::CLOSE)
+                .with_filter(file_level);
+
+            (Some(guard), Some(layer))
+        }
+        None => (None, None),
+    };
+
+    // console level via RUST_LOG and defaults to ERROR
+    let console_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stdout)
+        .with_ansi(use_color())
+        .with_span_events(fmt::format::FmtSpan::CLOSE)
+        .with_target(true)
+        .with_filter(EnvFilter::from_default_env());
+
+    // finally setup logging
     tracing_subscriber::registry()
-        .with(EnvFilter::from_default_env())
-        .with(fmt::layer().with_span_events(fmt::format::FmtSpan::CLOSE))
+        .with(console_layer)
+        .with(file_layer)
         .init();
 
     // Load configuration once
@@ -114,12 +177,12 @@ async fn main() -> Result<()> {
         .into_iter()
         // Constrain the model to the one specified, if any
         .filter(|id| {
-            args.lock_model.as_ref().map_or(true, |lock_id| {
+            args.model_lock.as_ref().map_or(true, |lock_id| {
                 let keep = lock_id == id;
                 if !keep {
                     info!(
                         model = id,
-                        lock = args.lock_model,
+                        lock = args.model_lock,
                         "Ignore model due to lock",
                     );
                 }

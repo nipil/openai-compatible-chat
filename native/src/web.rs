@@ -14,7 +14,7 @@ use axum::{Json, Router};
 use futures::{StreamExt, stream};
 use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
 use tower_http::services::ServeDir;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::AppState;
 use crate::openai::{ProviderError, send_for_stream};
@@ -83,7 +83,6 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
 // ── POST /api/chat ────────────────────────────────────────────────────────────
 
 // TODO: clarify the base-errors that are used
-
 async fn handle_chat(
     State(s): State<AppState>,
     Json(mut req): Json<ChatRequest>,
@@ -137,6 +136,7 @@ async fn handle_chat(
         // only awaits the setup (the initial API call to get the stream handle)
         // no chunk are processed yet and wil be done by the caller
         // which, as the stream is Send + 'static, can be an async fn (axum)
+
         match build_chat_stream(s, &req).await {
             Ok(s) => s,
             Err(e) => {
@@ -185,7 +185,8 @@ async fn handle_chat(
 
 // TODO: move to openai once similar to chat::send_and_stream
 
-/// One exchange with the chatbot (from Web)
+/// One request to the provider (only initial request, not streaming response)
+#[instrument(level = "trace", skip_all)]
 async fn build_chat_stream(
     s: AppState,
     chat: &ChatRequest,

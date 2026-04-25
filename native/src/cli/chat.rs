@@ -9,7 +9,7 @@ use futures::StreamExt;
 use owo_colors::OwoColorize;
 use portable::{ChatRequest, Message, MessageRole, estimate_tokens};
 use strum::{AsRefStr, EnumIter, EnumString, IntoEnumIterator};
-use tracing::{error, warn};
+use tracing::{error, instrument, warn};
 
 use crate::cli::display::LiveMarkdown;
 use crate::models::EnrichedModel;
@@ -205,7 +205,8 @@ fn build_prompt_str(time: &str, model: &str, tokens: usize, max: Option<u32>) ->
 // TODO: refactor and provide a closure for the updates ?
 // TODO: move to openai once similar to web::build_chat_stream
 
-/// One exchange with the chatbot (from Cli)
+/// One request to the provider (only initial request, not streaming response)
+#[instrument(level = "trace", skip_all)]
 async fn send_and_stream(
     client: &Client<OpenAIConfig>,
     chat: &ChatRequest,
