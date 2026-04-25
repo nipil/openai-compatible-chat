@@ -629,7 +629,8 @@ fn App() -> impl IntoView {
                     });
                 }
             } else {
-                save_chat(&messages.get()); // only save reply to sessionStorage upon success
+                // only save reply to sessionStorage upon success
+                save_chat(&messages.get_untracked());
             }
         });
     };
