@@ -2200,7 +2200,9 @@ name = "portable"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "strum",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

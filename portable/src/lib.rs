@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, Display, EnumString};
+use thiserror::Error;
 
 #[derive(Deserialize, Serialize)]
 pub struct ChatRequest {
@@ -24,6 +25,34 @@ pub enum MessageRole {
 pub enum Theme {
     Dark,
     Light,
+}
+
+// ── SSE ───────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Error)]
+pub enum SseError {
+    #[error("unknown value: {0}")]
+    Strum(#[from] strum::ParseError),
+    #[error("json error: {0}")]
+    Serde(#[from] serde_json::Error),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Display, EnumString, AsRefStr)]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum SseEventKind {
+    MessageToken,
+    TokenCount,
+    Error,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Display, EnumString, AsRefStr)]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum SseEvent {
+    MessageToken(String),
+    TokenCount { prompt: usize, generated: usize },
+    Error(String),
 }
 
 // ── DTOs ──────────────────────────────────────────────────────────────────────
