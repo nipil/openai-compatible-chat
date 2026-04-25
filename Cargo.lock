@@ -3777,6 +3777,8 @@ name = "wasm"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
+ "eventsource-stream",
+ "futures",
  "gloo-net 0.7.0",
  "js-sys",
  "leptos",
@@ -3788,6 +3790,7 @@ dependencies = [
  "strum",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-streams 0.5.0",
  "web-sys",
 ]
 

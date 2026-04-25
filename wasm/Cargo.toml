@@ -4,14 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-# turns WASM panics into readable browser console messages
 console_error_panic_hook = "0.1"
+eventsource-stream = "0.2"
+futures = "0.3"
 gloo-net = { version = "0.7", features = ["http"] }
 js-sys = "0.3"
 leptos = { version = "0.8", features = ["csr"] }
 portable.workspace = true
 pulldown-cmark = { version = "0.13", default-features = false, features = [
-    "html",
+        "html",
 ] }
 send_wrapper = "0.6"
 serde_json.workspace = true
@@ -19,21 +20,22 @@ serde.workspace = true
 strum.workspace = true
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
+wasm-streams = "0.5"
 web-sys = { version = "0.3", features = [
-    "Window",
-    "Document",
-    "Element",                     # cookie r/w + data-theme attribute + scroll
-    "Request",
-    "RequestInit",
-    "Headers",
-    "Response",
-    "ReadableStream",
-    "ReadableStreamDefaultReader",
-    "Storage",
-    "AbortController",
-    "AbortSignal",
-    "KeyboardEvent",
-    "HtmlDocument",
+        "AbortController",
+        "AbortSignal",
+        "Document",
+        "Element",
+        "Headers",
+        "HtmlDocument",
+        "KeyboardEvent",
+        "ReadableStream",
+        "ReadableStreamDefaultReader",
+        "Request",
+        "RequestInit",
+        "Response",
+        "Storage",
+        "Window",
 ] }
 
 # CLAUDE GUIDELINES TO ERROR HANDLING IN WEB_SYS

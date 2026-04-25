@@ -1,6 +1,9 @@
 use std::str::FromStr;
 
+use eventsource_stream::Eventsource;
+use futures::StreamExt;
 use gloo_net::http::Request;
+use js_sys::Uint8Array;
 use leptos::mount::mount_to_body;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -9,6 +12,7 @@ use send_wrapper::SendWrapper;
 use strum::{AsRefStr, EnumString};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
+use wasm_streams::ReadableStream;
 use web_sys::{AbortController, AbortSignal, KeyboardEvent, ReadableStreamDefaultReader, window};
 
 // TODO: add tracing-wasm
@@ -124,7 +128,7 @@ async fn stream_chat(
 ) -> Result<(), String> {
     let win = web_sys::window().ok_or("no window")?; // TODO: thiserror
 
-    let hdrs = web_sys::Headers::new().map_err(|e| format!("{e:?}"))?;
+    let hdrs = web_sys::Headers::new().map_err(|e| format!("cannot create headers {e:?}"))?;
     hdrs.set("Content-Type", "application/json")
         .map_err(|e| format!("could not set content type to json : {e:?}"))?; // TODO: thiserror
 
@@ -154,97 +158,62 @@ async fn stream_chat(
         return Err(format!("HTTP {}", resp.status())); // TODO: thiserror
     }
 
-    let reader: ReadableStreamDefaultReader = resp
-        .body()
-        .ok_or("no body")? // TODO: thiserror
-        .get_reader()
-        .dyn_into()
-        .map_err(|e| format!("could not get reader from response : {e:?}"))?; // TODO: thiserror
+    // this is a dumb wrapper around the browser JS reader, with no iterate, no await...
+    let websys_reader = resp.body().ok_or("no body")?; // TODO: thiserror
 
-    let mut buf = String::new();
+    // wasm_streams wraps a JS reader into a proper futures::Stream<Item = Result<JsValue, JsValue>>
+    // Internally it does the "JS stuff" : read(), extract "done" field via reflection,
+    // because a JS chunk is JsValue {"done": false, "value": {"0": 100, "1": 97, ... }))
+    // test if done, extract the value and provides it. It is converted from a concrete reader
+    // into a future stream, so we can use iterator functions on it too.
+    let wasm_stream = ReadableStream::from_raw(websys_reader).into_stream();
 
-    loop {
-        // chunk = JsValue {"done": false, "value": {"0": 100, "1": 97, ... }))
-        let chunk = JsFuture::from(reader.read())
-            .await
-            // TODO: which errors to handle ?
-            .map_err(|e| format!("could not get chunk from reader : {e:?}"))?;
+    // Convert each JsValue chunk value (which is a Uint8Array) into Bytes.
+    let chunk_stream = wasm_stream.map(|chunk| {
+        chunk
+            // Network/server failure mid-stream, or AbortSignal fired
+            .map_err(|e| format!("Error while reading chunks {e:?}")) // abort or network/server
+            .map(|v| Uint8Array::new(&v).to_vec())
+    });
 
-        web_sys::console::debug_1(&format!("js chunk: {:?}", chunk).into());
+    // decodes the spec-mandated utf-8, then manages line buffering
+    // and parses SSE framing : make access easy to sse fields
+    // must be mute because iterators are updated during loop
+    let mut event_stream = chunk_stream.eventsource();
 
-        // TODO: report to user?
-        let done = js_sys::Reflect::get(&chunk, &ChunkKey::Done.as_ref().into())
-            .map_err(|e| format!("could not read 'done' from stream chunk : {e:?}"))?
-            .as_bool()
-            .ok_or_else(|| "stream chunk 'done' is not a boolean".to_string())?;
+    // Iterate over the SSE events (easy-mode !)
+    while let Some(result) = event_stream.next().await {
+        match result {
+            Ok(event) => {
+                web_sys::console::debug_1(&format!("sse event: {:?}", event).into());
+                // event: String, // The event name if given
+                // data: String, // The event data
+                // id: String, // The event id if given
+                // retry: Option<Duration>, // Retry duration if given
+                // match event.event.as_str() {
+                //     "" | "message" => web_sys::console::debug_1(
+                //         &format!("default event : {}", event.event.as_str()).into(),
+                //     ),
+                //     "done" => break,
+                //     "error" => break,
+                //     other => {
+                //         web_sys::console::debug_1(&format!("unknown event type: {other}").into())
+                //     }
+                // }
 
-        web_sys::console::log_1(&format!("js done: {:?}", done).into());
-
-        if done {
-            web_sys::console::log_1(&format!("done brake").into());
-            break;
-        }
-
-        let value = js_sys::Reflect::get(&chunk, &ChunkKey::Value.as_ref().into())
-            .map_err(|e| format!("could not read 'value' from stream chunk : {e:?}"))?; // TODO: thiserror
-
-        // web_sys::console::log_1(&format!("js value: {:?}", value).into());
-
-        let arr: js_sys::Uint8Array = value
-            .dyn_into()
-            .map_err(|e| format!("could not convert to an uint8 array : {e:?}"))?; // TODO: thiserror
-
-        // web_sys::console::log_1(&format!("rs arr: {:?}", arr).into());
-
-        // The SSE spec guarantees UTF-8, so lossy is technically wrong here
-        // But a replacement character \u{FFFD} in the stream would corrupt
-        // rendered markdown silently, so this
-        // TODO: try as non-lossless UTF-8, and if it fails, switch to lossy
-        // TODO: then add a display warning marking the message as lossy
-        let arr_vec = &arr.to_vec();
-        let lossy = String::from_utf8_lossy(arr_vec);
-        // web_sys::console::log_1(&format!("lossy : {:?}", lossy).into());
-
-        buf.push_str(&lossy);
-        // web_sys::console::log_1(&format!("buf : {:?}", buf).into());
-
-        // processes all complete lines from the buffer in one chunk,
-        // since a single network chunk may contain multiple \n-terminated SSE frames
-
-        // TODO: does not handle other line endings according to spec (simple \r)
-        // How this does work : does a manual ring-buffer drain because :
-        // - a single TCP chunk can contain multiple SSE frames,
-        // - and frames can also be split across chunks
-        while let Some(nl) = buf.find('\n') {
-            let line = buf[..nl].trim_end_matches('\r').to_string();
-            buf = buf[nl + 1..].to_string();
-
-            // web_sys::console::log_1(&format!("line : {:?}", line).into());
-
-            // TODO: the space after the colon is not mandatory, but 1 space is stripped if present
-            // TODO: prefix to constant ?
-            if let Some(data) = line.strip_prefix("data: ") {
-                // this is openai stuff, not SSE spec
-                if data != "[DONE]" {
-                    // decode the token from json so that newlines in the token
-                    // were not lost in the SSE frame, and are preserved for frontend
-                    // and if not decodable, use as it
-                    // TODO: notify user ?s
-                    let token: String = serde_json::from_str(data).unwrap_or_else(|e| {
-                        web_sys::console::warn_1(
-                            &format!("json deserializing failed ({e}) : {data}").into(),
-                        );
-                        // we choose to NOT abort, and juste provide it "as-is"
-                        data.to_string()
-                    });
-                    #[cfg(feature = "print-tokens")]
-                    web_sys::console::log_1(&format!("token: {:?}", token).into());
-                    // call the callback for each token
-                    on_token(token);
-                } else {
-                    web_sys::console::debug_1(&format!("openai DONE marker found").into());
-                }
+                // provide the token to the caller
+                // FIXME: provide the whole event ?
+                on_token(event.data);
+                // TODO: rewrite once the backend sends better objects
+                // let token: String = serde_json::from_str(&event.data).unwrap_or_else(|e| {
+                //     web_sys::console::warn_1(
+                //         &format!("json deserializing failed ({e}) : {data}").into(),
+                //     );
+                //     // we choose to NOT abort, and juste provide it "as-is"
+                //     event.data.to_string()
+                // });
             }
+            Err(e) => return Err(format!("SSE error: {e}")),
         }
     }
     Ok(())
