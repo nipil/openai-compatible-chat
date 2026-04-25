@@ -250,7 +250,7 @@ async fn build_chat_stream(
                         // in all cases, only process the first one
                         let Some(choice) = resp.choices.first() else {
                             // FIXME: better feedback and check in frontend how it behaves
-                            return Ok(sse::Event::default().data("NO CHOICE"));
+                            return Ok(sse::Event::default().data("NO\nCHOICE\r\nFOR\ryou!\n"));
                         };
 
                         // TODO: auto print from serde_serialize + trim quotes ?
@@ -292,7 +292,7 @@ async fn build_chat_stream(
                         // encode the token in json so that newlines in the token
                         // does not break the SSE frame, and are preserved to frontend
                         // but the frontend should now decode the json data
-                        let token = serde_json::to_string(&token).unwrap_or_default();
+                        // let token = serde_json::to_string(&token).unwrap_or_default();
                         Ok::<sse::Event, Infallible>(sse::Event::default().data(token))
                     }
 
