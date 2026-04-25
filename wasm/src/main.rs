@@ -28,6 +28,12 @@ const STORAGE_KEY_OPENAI: &str = "openai";
 
 pub struct SseEventIn(SseEvent);
 
+impl From<SseEvent> for SseEventIn {
+    fn from(e: SseEvent) -> Self {
+        SseEventIn(e)
+    }
+}
+
 impl TryFrom<Event> for SseEventIn {
     type Error = SseError;
 
@@ -43,7 +49,7 @@ impl TryFrom<Event> for SseEventIn {
             }
             SseEventKind::Error => SseEvent::Error(serde_json::from_str::<String>(&ev.data)?),
         };
-        Ok(Self(event))
+        Ok(event.into())
     }
 }
 
