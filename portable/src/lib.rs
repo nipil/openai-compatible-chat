@@ -120,6 +120,16 @@ pub enum TokenUsage {
     Approximate(u32),
 }
 
+impl PartialEq for TokenUsage {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Exact(a), Self::Exact(b)) => a == b,
+            (Self::Approximate(a), Self::Approximate(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
 impl Display for TokenUsage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

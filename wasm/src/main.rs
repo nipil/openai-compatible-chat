@@ -9,7 +9,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use portable::{
     ChatEvent, ChatEventError, ChatEventKind, ChatRequest, ConfigDto, Message, MessageRole,
-    ModelDto, Theme, estimate_tokens,
+    ModelDto, Theme, TokenUsage, estimate_tokens,
 };
 use send_wrapper::SendWrapper;
 use wasm_bindgen::JsCast;
@@ -77,11 +77,11 @@ impl SseEventIn {
 
 // Token counter: returns an inline style string for the dynamic gradient only.
 // Static layout/padding lives in .token-counter in style.css.
-fn token_color_style(count: u32, max: Option<u32>) -> String {
+fn token_color_style(count: &TokenUsage, max: Option<u32>) -> String {
     let (bg, color) = match max {
         None => ("rgba(128,128,128,0.4)", "var(--text-banner)"),
         Some(m) => {
-            let pct = count as f64 / m as f64;
+            let pct = u32::from(count) as f64 / m as f64;
             if pct < 0.50 {
                 ("transparent", "var(--text-banner)")
             } else if pct < 0.75 {
@@ -169,6 +169,7 @@ async fn stream_chat(
     chat: ChatRequest,
     signal: AbortSignal,
     on_token: impl Fn(&str),
+    on_total: impl Fn(u32),
 ) -> Result<(), String> {
     let win = web_sys::window().ok_or("no window")?; // TODO: thiserror
 
@@ -240,6 +241,8 @@ async fn stream_chat(
                 web_sys::console::debug_1(&format!("SSE event: {:?}", sse_event).into());
                 match sse_event {
                     ChatEvent::TokenCount { prompt, generated } => {
+                        // forward to the caller, who as access to the signals
+                        on_total(prompt + generated);
                         web_sys::console::log_1(
                             &format!("Token count : prompt {prompt} answer={generated}",).into(),
                         );
@@ -482,8 +485,16 @@ fn App() -> impl IntoView {
         models.get().into_iter().find(|m| m.id == id)
     });
 
-    // updates tok_count every time messages change
-    let tok_count = Memo::new(move |_| estimate_tokens(&messages.get()));
+    // Writable signal, initialized to the default approximate(0)
+    let tok_count = RwSignal::new(TokenUsage::default());
+
+    // Effect replaces the Memo: tracks `messages`, so writes approximate
+    // estimates EVERY TIME, but the exact over approx prio is done in
+    // TokenUsage, so that is without consequence here
+    Effect::new(move |_| {
+        let approx = estimate_tokens(&messages.get());
+        tok_count.update(|t| t.set_approximate(approx));
+    });
 
     // allows locking model selection if started or no real "choice"
     // TODO: is it necessary to lock the selection if there is no real choice, i'd say no.
@@ -638,16 +649,27 @@ fn App() -> impl IntoView {
         // Launch an additional async task, which will stream and update, and let it run freely
         spawn_local(async move {
             // do the work, providing a closure to handle each new token
-            let res = stream_chat(chat_req, sig, move |tok| {
-                // update the message list by
-                messages.update(|v| {
-                    // looking for the last one (that is why we added an empty one)
-                    if let Some(last) = v.last_mut() {
-                        // and appending the newest token to its content
-                        last.content.push_str(&tok);
+            let res = stream_chat(
+                chat_req,
+                sig,
+                move |tok| {
+                    // update the message list by
+                    messages.update(|v| {
+                        // looking for the last one (that is why we added an empty one)
+                        if let Some(last) = v.last_mut() {
+                            // and appending the newest token to its content
+                            last.content.push_str(&tok);
+                        }
+                    });
+                },
+                move |new_total| {
+                    // update counter, but only if changed: we have no Memo to
+                    // do the dedup. Not necessary, but it is to practice.
+                    if tok_count.get_untracked() != TokenUsage::Exact(new_total) {
+                        tok_count.update(|t| t.set_exact(new_total));
                     }
-                });
-            })
+                },
+            )
             // run until completion
             .await;
 
@@ -724,16 +746,14 @@ fn App() -> impl IntoView {
                     <span
                         class="token-counter"
                         style=move || token_color_style(
-                            tok_count.get(),
+                            &tok_count.get(),
                             sel_meta.get().and_then(|m| m.context_window),
                         )
                     >
                         {move || match sel_meta.get().and_then(|m| m.context_window) {
-                            // TODO: use the data provided by the Usage event
-                            // TODO: if not available, use the approximation and shod '~'
-                            // TODO: if available, show exact and not use '~'
-                            Some(max) => format!("~{} / {} tok", tok_count.get(), max),
-                            None      => format!("~{} tok", tok_count.get()),
+                            // TokenUsae handles the '~' (or not) for variants
+                            Some(max) => format!("{} / {} tok", tok_count.get(), max),
+                            None      => format!("{} tok", tok_count.get()),
                         }}
                     </span>
                 </div>
