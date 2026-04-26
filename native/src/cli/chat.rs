@@ -97,10 +97,13 @@ pub async fn run_chat<'a>(
             content: input,
         });
 
-        let chat = ChatRequest {
-            model: selected_model.id.to_string(),
-            messages: history.clone(), // FIXME: try to use use arc+rwlock ?
-        };
+        // FIXME: try to use use arc+rwlock  for history instead of clone?
+        let chat = ChatRequest::new(selected_model.id.to_string(), history.clone());
+
+        // if we later need to get data out of the future, we can
+        // - get it as a final value once it is resolved, after await
+        // - clone an Arc<Mutex<T>> and move it in the closure
+        // - clone a tokio mpsc channel annd moge it in the closure
 
         match send_and_stream(client, &chat).await {
             Ok(reply) => {

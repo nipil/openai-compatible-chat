@@ -8,6 +8,12 @@ pub struct ChatRequest {
     pub messages: Vec<Message>,
 }
 
+impl ChatRequest {
+    pub fn new(model: String, messages: Vec<Message>) -> Self {
+        Self { model, messages }
+    }
+}
+
 // ── Safer value management ────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Display, EnumString, AsRefStr)]
