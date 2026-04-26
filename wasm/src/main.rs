@@ -226,25 +226,22 @@ async fn stream_chat(
                 let sse_event = SseEventIn::try_from(es_event)
                     .map_err(|e| e.to_string())?
                     .into_inner();
-                web_sys::console::debug_1(&format!("sse event: {:?}", sse_event).into());
+                web_sys::console::debug_1(&format!("SSE event: {:?}", sse_event).into());
                 match sse_event {
                     SseEvent::TokenCount { prompt, generated } => {
-                        web_sys::console::debug_1(
-                            &format!(
-                                "token count : p={prompt} g={generated} t={}",
-                                prompt + generated
-                            )
-                            .into(),
+                        web_sys::console::log_1(
+                            &format!("Token count : prompt {prompt} answer={generated}",).into(),
                         );
                     }
                     SseEvent::MessageToken(token) => {
                         on_token(&token);
                     }
                     SseEvent::FinishReason(reason) => {
-                        web_sys::console::info_1(&format!("finish reason: {reason}").into());
+                        // TODO: check for refusal instead of concatenating messages
+                        web_sys::console::info_1(&format!("Finish reason: {reason}").into());
                     }
                     SseEvent::Error(err_msg) => {
-                        web_sys::console::error_1(&format!("sse event error: {err_msg}").into());
+                        web_sys::console::error_1(&format!("SSE error: {err_msg}").into());
                     }
                 }
             }
@@ -518,7 +515,9 @@ fn App() -> impl IntoView {
             Ok(ac) => ac,
             Err(e) => {
                 // surface to user or log; abort-less streaming is still better than nothing
-                web_sys::console::error_1(&e);
+                web_sys::console::error_1(
+                    &format!("Failed to create abort-controller: {e:?}").into(),
+                );
                 // TODO: how to report error to user
                 // TODO: optionally: fall back to streaming without abort support ?
                 return;
