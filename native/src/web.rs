@@ -198,7 +198,17 @@ impl From<SseEventOut> for sse::Event {
         let ev = ev.into_inner();
         let value = match &ev {
             SseEvent::MessageToken(token) => serde_json::to_string(&token),
-            SseEvent::FinishReason(reason) => serde_json::to_string(&reason),
+            SseEvent::FinishReason { reason, refusal } => {
+                #[derive(serde::Serialize)]
+                struct Tmp<T> {
+                    reason: T,
+                    refusal: Option<T>,
+                }
+                serde_json::to_string(&Tmp {
+                    reason,
+                    refusal: refusal.as_ref(),
+                })
+            }
             SseEvent::Error(err_msg) => serde_json::to_string(&err_msg),
             SseEvent::TokenCount { prompt, generated } => {
                 #[derive(serde::Serialize)]

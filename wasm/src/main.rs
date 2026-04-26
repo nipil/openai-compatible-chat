@@ -44,7 +44,13 @@ impl TryFrom<Event> for SseEventIn {
                 SseEvent::MessageToken(serde_json::from_str::<String>(&ev.data)?)
             }
             SseEventKind::FinishReason => {
-                SseEvent::FinishReason(serde_json::from_str::<String>(&ev.data)?)
+                #[derive(serde::Deserialize)]
+                struct Tmp<T> {
+                    reason: T,
+                    refusal: Option<T>,
+                }
+                let Tmp { reason, refusal } = serde_json::from_str(&ev.data)?;
+                SseEvent::FinishReason { reason, refusal }
             }
             SseEventKind::TokenCount => {
                 #[derive(serde::Deserialize)]
@@ -236,10 +242,14 @@ async fn stream_chat(
                     SseEvent::MessageToken(token) => {
                         on_token(&token);
                     }
-                    SseEvent::FinishReason(reason) => {
-                        // TODO: check for refusal instead of concatenating messages
-                        web_sys::console::info_1(&format!("Finish reason: {reason}").into());
-                    }
+                    SseEvent::FinishReason { reason, refusal } => match refusal {
+                        None => {
+                            web_sys::console::info_1(&format!("Finish reason: {reason}").into())
+                        }
+                        Some(refusal) => web_sys::console::warn_1(
+                            &format!("Finish reason: {reason} with {refusal}").into(),
+                        ),
+                    },
                     SseEvent::Error(err_msg) => {
                         web_sys::console::error_1(&format!("SSE error: {err_msg}").into());
                     }

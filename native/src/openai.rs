@@ -104,16 +104,16 @@ pub fn get_finish_event(
     let Some(reason) = reason else {
         return None;
     };
-    debug!(reason = ?reason, refusal = ?refusal, "Finish reason");
+    debug!(reason = ?reason, refusal = ?refusal, "Finish");
+    // This does not use strum macros, so we serialize it
     let reason = serde_json::to_string(reason)
         .expect("FinishReason serializing must not fail")
         .trim_matches('"')
         .to_owned();
-    let message = match refusal {
-        None => reason,
-        Some(refusal) => format!("{} ({})", reason, refusal),
-    };
-    return Some(SseEvent::FinishReason(message));
+    return Some(SseEvent::FinishReason {
+        reason,
+        refusal: refusal.clone(),
+    });
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
