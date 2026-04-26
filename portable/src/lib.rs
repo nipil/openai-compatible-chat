@@ -94,6 +94,12 @@ pub struct Message {
     pub content: String,
 }
 
+impl Message {
+    pub fn new(role: MessageRole, content: String) -> Self {
+        Self { role, content }
+    }
+}
+
 // ── Token estimate ────────────────────────────────────────────────────────────
 
 /// Rough estimate: 1 token ≈ 4 UTF-8 chars, 3 tokens overhead per message,
