@@ -27,10 +27,10 @@ pub enum Theme {
     Light,
 }
 
-// ── SSE ───────────────────────────────────────────────────────────────────────
+// ── Chat ──────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Error)]
-pub enum SseError {
+pub enum ChatError {
     #[error("unknown value: {0}")]
     Strum(#[from] strum::ParseError),
     #[error("json error: {0}")]
@@ -40,7 +40,7 @@ pub enum SseError {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Display, EnumString, AsRefStr)]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
-pub enum SseEventKind {
+pub enum ChatEventKind {
     MessageToken,
     FinishReason,
     TokenCount,
@@ -50,7 +50,7 @@ pub enum SseEventKind {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Display, EnumString, AsRefStr)]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
-pub enum SseEvent {
+pub enum ChatEvent {
     MessageToken(String),
     FinishReason {
         reason: String,

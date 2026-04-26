@@ -7,7 +7,7 @@ use async_openai::types::chat::{
     ChatCompletionResponseStream, ChatCompletionStreamOptions, CompletionUsage,
     CreateChatCompletionRequestArgs, FinishReason, ServiceTier,
 };
-use portable::{ChatRequest, Message, MessageRole, SseEvent};
+use portable::{ChatEvent, ChatRequest, Message, MessageRole};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use thiserror::Error;
@@ -81,7 +81,7 @@ fn msg_to_api(m: &Message) -> Result<ChatCompletionRequestMessage, ProviderError
     })
 }
 
-pub fn get_usage_event(usage: &Option<CompletionUsage>) -> Option<SseEvent> {
+pub fn get_usage_event(usage: &Option<CompletionUsage>) -> Option<ChatEvent> {
     let Some(usage) = usage else {
         return None;
     };
@@ -91,7 +91,7 @@ pub fn get_usage_event(usage: &Option<CompletionUsage>) -> Option<SseEvent> {
         total = usage.total_tokens,
         "Token usage"
     );
-    return Some(SseEvent::TokenCount {
+    return Some(ChatEvent::TokenCount {
         prompt: usage.prompt_tokens,
         generated: usage.completion_tokens,
     });
@@ -100,7 +100,7 @@ pub fn get_usage_event(usage: &Option<CompletionUsage>) -> Option<SseEvent> {
 pub fn get_finish_event(
     reason: &Option<FinishReason>,
     refusal: &Option<String>,
-) -> Option<SseEvent> {
+) -> Option<ChatEvent> {
     let Some(reason) = reason else {
         return None;
     };
@@ -110,7 +110,7 @@ pub fn get_finish_event(
         .expect("FinishReason serializing must not fail")
         .trim_matches('"')
         .to_owned();
-    return Some(SseEvent::FinishReason {
+    return Some(ChatEvent::FinishReason {
         reason,
         refusal: refusal.clone(),
     });
@@ -128,7 +128,7 @@ pub async fn list_models(client: &Client<OpenAIConfig>) -> Result<Vec<String>, P
         .map_err(|e| ProviderError::RequestError { source: e })
 }
 
-pub async fn send_for_stream(
+pub async fn send_chat_request(
     client: &Client<OpenAIConfig>,
     chat: &ChatRequest,
 ) -> Result<ChatCompletionResponseStream, ProviderError> {

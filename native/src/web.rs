@@ -1,6 +1,8 @@
 use std::convert::Infallible;
 
 use anyhow::Result;
+use async_openai::Client;
+use async_openai::config::OpenAIConfig;
 use async_openai::error::OpenAIError;
 use async_openai::types::chat::{ChatCompletionResponseStream, CreateChatCompletionStreamResponse};
 // TODO: anyhow should not be used in lib crate,only thiserror
@@ -10,12 +12,12 @@ use axum::response::{IntoResponse, sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures::{StreamExt, stream};
-use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto, SseEvent};
+use portable::{ChatEvent, ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
 use tower_http::services::ServeDir;
 use tracing::{error, instrument, trace, warn};
 
 use crate::AppState;
-use crate::openai::{ProviderError, get_finish_event, get_usage_event, send_for_stream};
+use crate::openai::{ProviderError, get_finish_event, get_usage_event, send_chat_request};
 
 const SSE_EVENT_ERROR: &str = "error";
 
@@ -83,7 +85,7 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
 // TODO: clarify the base-errors that are used
 async fn handle_chat(
     State(s): State<AppState>,
-    Json(mut req): Json<ChatRequest>,
+    Json(mut chat): Json<ChatRequest>,
 ) -> Result<sse::Sse<stream::BoxStream<'static, Result<sse::Event, Infallible>>>, impl IntoResponse>
 {
     // CRITICAL: server-side check that the client is not trying to screw us
@@ -92,11 +94,11 @@ async fn handle_chat(
         .candidate_models
         .keys()
         // TODO: switch Vec<EnrichedModel> to HashMap<String, EnrichedModel>
-        .any(|model_id| model_id == &req.model)
+        .any(|model_id| model_id == &chat.model)
     {
         let res = (
             StatusCode::FORBIDDEN,
-            format!("Configuration does not allow model '{}'", req.model),
+            format!("Configuration does not allow model '{}'", chat.model),
         );
         return Err(res);
     }
@@ -111,7 +113,7 @@ async fn handle_chat(
     // TODO: remove this part once we change the input crate and actually
     //       give power to the user to not be limited BY HIS OWN config !
     if !prepend.is_empty() {
-        match req
+        match chat
             .messages
             .iter_mut()
             .find(|m| m.role == MessageRole::System)
@@ -125,7 +127,7 @@ async fn handle_chat(
                     role: MessageRole::System,
                     content: prepend.to_string(),
                 };
-                req.messages.insert(0, default_sys_msg);
+                chat.messages.insert(0, default_sys_msg);
             }
         }
     }
@@ -135,7 +137,7 @@ async fn handle_chat(
         // no chunk are processed yet and wil be done by the caller
         // which, as the stream is Send + 'static, can be an async fn (axum)
 
-        match build_chat_stream(s, &req).await {
+        match process_chat_stream(s.openai_client.as_ref(), &chat).await {
             Ok(s) => s,
             Err(e) => {
                 // INFORMATION
@@ -185,10 +187,10 @@ async fn handle_chat(
 
 // ── SSE Event helper ──────────────────────────────────────────────────────────
 
-pub struct SseEventOut(SseEvent);
+pub struct SseEventOut(ChatEvent);
 
-impl From<SseEvent> for SseEventOut {
-    fn from(e: SseEvent) -> Self {
+impl From<ChatEvent> for SseEventOut {
+    fn from(e: ChatEvent) -> Self {
         SseEventOut(e)
     }
 }
@@ -197,8 +199,8 @@ impl From<SseEventOut> for sse::Event {
     fn from(ev: SseEventOut) -> Self {
         let ev = ev.into_inner();
         let value = match &ev {
-            SseEvent::MessageToken(token) => serde_json::to_string(&token),
-            SseEvent::FinishReason { reason, refusal } => {
+            ChatEvent::MessageToken(token) => serde_json::to_string(&token),
+            ChatEvent::FinishReason { reason, refusal } => {
                 #[derive(serde::Serialize)]
                 struct Tmp<T> {
                     reason: T,
@@ -209,8 +211,8 @@ impl From<SseEventOut> for sse::Event {
                     refusal: refusal.as_ref(),
                 })
             }
-            SseEvent::Error(err_msg) => serde_json::to_string(&err_msg),
-            SseEvent::TokenCount { prompt, generated } => {
+            ChatEvent::Error(err_msg) => serde_json::to_string(&err_msg),
+            ChatEvent::TokenCount { prompt, generated } => {
                 #[derive(serde::Serialize)]
                 struct Tmp<T> {
                     prompt: T,
@@ -225,8 +227,8 @@ impl From<SseEventOut> for sse::Event {
             Err(e) => {
                 error!(event=?ev, error=?e.to_string(), "Unexpected SSE event json serialization error");
                 // build an infallible event, with consistent event name and hardcoded json encoding
-                let msg = String::from(r#""SSE event json serialization error, see server log""#);
-                let event = SseEvent::Error(msg.clone());
+                let msg = String::from(r#""ChatEvent serialization SSE error, see server log""#);
+                let event = ChatEvent::Error(msg.clone());
                 sse::Event::default().event(event.as_ref()).data(msg)
             }
         }
@@ -234,15 +236,15 @@ impl From<SseEventOut> for sse::Event {
 }
 
 impl SseEventOut {
-    pub fn into_inner(self) -> SseEvent {
+    pub fn into_inner(self) -> ChatEvent {
         self.0
     }
 }
 
 /// One request to the provider (only initial request, not streaming response)
 #[instrument(level = "trace", skip_all)]
-async fn build_chat_stream(
-    s: AppState,
+async fn process_chat_stream(
+    client: &Client<OpenAIConfig>,
     chat: &ChatRequest,
 ) -> Result<stream::BoxStream<'static, Result<sse::Event, Infallible>>, ProviderError> {
     // TODO: refactor same as cli ? into openai
@@ -250,8 +252,7 @@ async fn build_chat_stream(
 
     // This response stream will produce "Item" and every item is of type
     // Result<CreateChatCompletionStreamResponse, _>
-    let stream: ChatCompletionResponseStream =
-        send_for_stream(s.openai_client.as_ref(), chat).await?;
+    let stream: ChatCompletionResponseStream = send_chat_request(client, chat).await?;
 
     // Use `.then()` (async map) so we can do async writes on unauthorized errors
 
@@ -269,9 +270,9 @@ async fn build_chat_stream(
         // so the closure cannot borrow from the enclosing scope, and
         // should own everything it references.
         // Except if it does not reference anything from the enclosing scope
-        move |chunk: Result<CreateChatCompletionStreamResponse, OpenAIError>| {
+        |chunk: Result<CreateChatCompletionStreamResponse, OpenAIError>| {
             // same reasoning, async should own its reference to be 'static
-            async move {
+            async {
                 match chunk {
                     Ok(resp) => {
                         // log request misconfiguration
@@ -288,7 +289,7 @@ async fn build_chat_stream(
 
                         // only go on if we have a single choice
                         let Some(choice) = resp.choices.get(0) else {
-                            let event = SseEvent::Error("No choice available".into());
+                            let event = ChatEvent::Error("No choice available".into());
                             return Ok(SseEventOut::from(event).into());
                         };
 
@@ -301,18 +302,18 @@ async fn build_chat_stream(
 
                         // only go on if we have a content
                         let Some(ref content) = choice.delta.content else {
-                            let event = SseEvent::Error("No content".into());
+                            let event = ChatEvent::Error("No content".into());
                             return Ok(SseEventOut::from(event).into());
                         };
 
                         // send the actual content of the chunk
                         trace!(content = content, "content sent to front-end");
-                        Ok(SseEventOut::from(SseEvent::MessageToken(content.clone())).into())
+                        Ok(SseEventOut::from(ChatEvent::MessageToken(content.clone())).into())
                     }
 
                     Err(e) => {
                         warn!("Server side error while processing chunk: {:?}", e);
-                        Ok(SseEventOut::from(SseEvent::Error(e.to_string())).into())
+                        Ok(SseEventOut::from(ChatEvent::Error(e.to_string())).into())
                     }
                 }
             }

@@ -36,7 +36,7 @@ pub async fn run_cli(state: AppState) -> Result<()> {
             }
             ChatOutcome::ModelForbidden => {
                 if state.candidate_models.len() > 1 {
-                    warn!(model = selected_model.id, "Model is forbidden");
+                    warn!(model = selected_model.id, "Model not allowed");
                     continue;
                 } else {
                     error!("The only available model is forbidden, exiting.");

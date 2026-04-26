@@ -9,11 +9,11 @@ use futures::StreamExt;
 use owo_colors::OwoColorize;
 use portable::{ChatRequest, Message, MessageRole, estimate_tokens};
 use strum::{AsRefStr, EnumIter, EnumString, IntoEnumIterator};
-use tracing::{error, instrument, warn};
+use tracing::{error, instrument};
 
 use crate::cli::display::LiveMarkdown;
 use crate::models::EnrichedModel;
-use crate::openai::{ProviderError, send_for_stream};
+use crate::openai::{ProviderError, send_chat_request};
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -121,7 +121,6 @@ pub async fn run_chat<'a>(
                 }
                 // TODO: deduplicate from main.rs:156
                 if msg.contains("not allowed") || msg.contains("permission") {
-                    warn!(model = selected_model.id, "Model  not allowed");
                     return Ok(ChatOutcome::ModelForbidden);
                 }
                 error!(exc = e.to_string(), "Error during streaming");
@@ -209,7 +208,7 @@ async fn send_and_stream(
 ) -> Result<String, ProviderError> {
     // FIXME: this one awaits now, instead of a then with a closure as for the web
     // mut because in the CLI, we hold the history, not the browser
-    let mut stream = send_for_stream(&client, chat).await?;
+    let mut stream = send_chat_request(&client, chat).await?;
 
     let mut full = String::new();
     let mut live = LiveMarkdown::new();

@@ -8,7 +8,7 @@ use leptos::mount::mount_to_body;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use portable::{
-    ChatRequest, ConfigDto, Message, MessageRole, ModelDto, SseError, SseEvent, SseEventKind,
+    ChatError, ChatEventKind, ChatRequest, ConfigDto, Message, MessageRole, ModelDto, ChatEvent,
     Theme, estimate_tokens,
 };
 use send_wrapper::SendWrapper;
@@ -26,49 +26,49 @@ const STORAGE_KEY_OPENAI: &str = "openai";
 
 // ── SSE Event helper ──────────────────────────────────────────────────────────
 
-pub struct SseEventIn(SseEvent);
+pub struct SseEventIn(ChatEvent);
 
-impl From<SseEvent> for SseEventIn {
-    fn from(e: SseEvent) -> Self {
+impl From<ChatEvent> for SseEventIn {
+    fn from(e: ChatEvent) -> Self {
         SseEventIn(e)
     }
 }
 
 impl TryFrom<Event> for SseEventIn {
-    type Error = SseError;
+    type Error = ChatError;
 
     fn try_from(ev: Event) -> Result<Self, Self::Error> {
-        let kind = SseEventKind::from_str(&ev.event).map_err(|e| SseError::Strum(e))?;
+        let kind = ChatEventKind::from_str(&ev.event).map_err(|e| ChatError::Strum(e))?;
         let event = match kind {
-            SseEventKind::MessageToken => {
-                SseEvent::MessageToken(serde_json::from_str::<String>(&ev.data)?)
+            ChatEventKind::MessageToken => {
+                ChatEvent::MessageToken(serde_json::from_str::<String>(&ev.data)?)
             }
-            SseEventKind::FinishReason => {
+            ChatEventKind::FinishReason => {
                 #[derive(serde::Deserialize)]
                 struct Tmp<T> {
                     reason: T,
                     refusal: Option<T>,
                 }
                 let Tmp { reason, refusal } = serde_json::from_str(&ev.data)?;
-                SseEvent::FinishReason { reason, refusal }
+                ChatEvent::FinishReason { reason, refusal }
             }
-            SseEventKind::TokenCount => {
+            ChatEventKind::TokenCount => {
                 #[derive(serde::Deserialize)]
                 struct Tmp<T> {
                     prompt: T,
                     generated: T,
                 }
                 let Tmp { prompt, generated } = serde_json::from_str(&ev.data)?;
-                SseEvent::TokenCount { prompt, generated }
+                ChatEvent::TokenCount { prompt, generated }
             }
-            SseEventKind::Error => SseEvent::Error(serde_json::from_str::<String>(&ev.data)?),
+            ChatEventKind::Error => ChatEvent::Error(serde_json::from_str::<String>(&ev.data)?),
         };
         Ok(event.into())
     }
 }
 
 impl SseEventIn {
-    pub fn into_inner(self) -> SseEvent {
+    pub fn into_inner(self) -> ChatEvent {
         self.0
     }
 }
@@ -239,15 +239,15 @@ async fn stream_chat(
                     .into_inner();
                 web_sys::console::debug_1(&format!("SSE event: {:?}", sse_event).into());
                 match sse_event {
-                    SseEvent::TokenCount { prompt, generated } => {
+                    ChatEvent::TokenCount { prompt, generated } => {
                         web_sys::console::log_1(
                             &format!("Token count : prompt {prompt} answer={generated}",).into(),
                         );
                     }
-                    SseEvent::MessageToken(token) => {
+                    ChatEvent::MessageToken(token) => {
                         on_token(&token);
                     }
-                    SseEvent::FinishReason { reason, refusal } => match refusal {
+                    ChatEvent::FinishReason { reason, refusal } => match refusal {
                         None => {
                             web_sys::console::info_1(&format!("Finish reason: {reason}").into())
                         }
@@ -255,7 +255,7 @@ async fn stream_chat(
                             &format!("Finish reason: {reason} with {refusal}").into(),
                         ),
                     },
-                    SseEvent::Error(err_msg) => {
+                    ChatEvent::Error(err_msg) => {
                         web_sys::console::error_1(&format!("SSE error: {err_msg}").into());
                     }
                 }
