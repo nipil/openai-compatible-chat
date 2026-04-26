@@ -1,15 +1,15 @@
 use std::convert::Infallible;
 
-use anyhow::Result; // TODO: anyhow should not be used in lib crate,only thiserror
 use async_openai::Client;
 use async_openai::config::OpenAIConfig;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, sse};
+use axum::response::{IntoResponse, Response, sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures::{StreamExt, stream};
 use portable::{ChatEvent, ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
+use thiserror::Error;
 use tower_http::services::ServeDir;
 use tracing::{error, instrument};
 
@@ -18,9 +18,29 @@ use crate::openai::{ProviderError, get_chat_event, send_chat_request};
 
 const SSE_EVENT_ERROR: &str = "error";
 
+#[derive(Error, Debug)]
+enum WebError {
+    #[error("API error {0}")]
+    Api(#[from] ProviderError),
+    #[error("Forbidden {0}")]
+    Forbidden(String),
+}
+
+/// Allows for Axum to use our error type as responses
+impl IntoResponse for WebError {
+    fn into_response(self) -> Response {
+        let status = match self {
+            Self::Api(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Forbidden(_) => StatusCode::FORBIDDEN,
+            // Self::Io(_) =>
+        };
+        (status, self.to_string()).into_response()
+    }
+}
+
 // ── Web entrypoint ────────────────────────────────────────────────────────────
 
-pub async fn run_web(state: AppState, port: &u16, dist_wasm: &str) -> Result<()> {
+pub async fn run_web(state: AppState, port: &u16, dist_wasm: &str) -> Result<(), std::io::Error> {
     let app = router(state, dist_wasm);
     let listen_addr = format!("localhost:{port}");
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
@@ -83,27 +103,20 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
 async fn handle_chat(
     State(s): State<AppState>,
     Json(mut chat): Json<ChatRequest>,
-) -> Result<sse::Sse<stream::BoxStream<'static, Result<sse::Event, Infallible>>>, impl IntoResponse>
-{
-    // CRITICAL: server-side check that the client is not trying to screw us
-    // check that the requested in the allowed model list of the valid types
-    if !s
-        .candidate_models
-        .keys()
-        // TODO: switch Vec<EnrichedModel> to HashMap<String, EnrichedModel>
-        .any(|model_id| model_id == &chat.model)
-    {
-        let res = (
-            StatusCode::FORBIDDEN,
-            format!("Configuration does not allow model '{}'", chat.model),
-        );
-        return Err(res);
+) -> Result<sse::Sse<stream::BoxStream<'static, Result<sse::Event, Infallible>>>, WebError> {
+    // CRITICAL: server-side check that the client is not trying to jail out
+    if s.candidate_models.get(&chat.model).is_none() {
+        Err(WebError::Forbidden(format!(
+            "Configuration does not allow model '{}'",
+            chat.model
+        )))?
     }
 
     // FIXME: reuse this logic for the cli version
 
     // Prepend the system prompt to the one provided by the client
     let prepend = s.prepend_system_prompt.trim();
+
     // TODO: remove this part once we change the input crate and actually
     //       give power to the user to not be limited BY HIS OWN config !
     if !prepend.is_empty() {
@@ -232,7 +245,7 @@ impl SseEventOut {
 async fn process_chat_stream(
     client: &Client<OpenAIConfig>,
     chat: &ChatRequest,
-) -> Result<stream::BoxStream<'static, Result<sse::Event, Infallible>>, ProviderError> {
+) -> Result<stream::BoxStream<'static, Result<sse::Event, Infallible>>, WebError> {
     // TODO: refactor same as cli ? into openai
 
     // This can fail during the setup time (ProviderError)
