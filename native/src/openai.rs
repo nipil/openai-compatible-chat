@@ -5,13 +5,13 @@ use async_openai::types::chat::{
     ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
     ChatCompletionResponseStream, ChatCompletionStreamOptions, CompletionUsage,
-    CreateChatCompletionRequestArgs, FinishReason, ServiceTier,
+    CreateChatCompletionRequestArgs, CreateChatCompletionStreamResponse, FinishReason, ServiceTier,
 };
 use portable::{ChatEvent, ChatRequest, Message, MessageRole};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use thiserror::Error;
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 #[derive(Debug, Error)]
 pub enum ProviderError {
@@ -81,7 +81,7 @@ fn msg_to_api(m: &Message) -> Result<ChatCompletionRequestMessage, ProviderError
     })
 }
 
-pub fn get_usage_event(usage: &Option<CompletionUsage>) -> Option<ChatEvent> {
+fn get_usage_event(usage: &Option<CompletionUsage>) -> Option<ChatEvent> {
     let Some(usage) = usage else {
         return None;
     };
@@ -97,10 +97,7 @@ pub fn get_usage_event(usage: &Option<CompletionUsage>) -> Option<ChatEvent> {
     });
 }
 
-pub fn get_finish_event(
-    reason: &Option<FinishReason>,
-    refusal: &Option<String>,
-) -> Option<ChatEvent> {
+fn get_finish_event(reason: &Option<FinishReason>, refusal: &Option<String>) -> Option<ChatEvent> {
     let Some(reason) = reason else {
         return None;
     };
@@ -114,6 +111,47 @@ pub fn get_finish_event(
         reason,
         refusal: refusal.clone(),
     });
+}
+
+pub fn get_chat_event(chunk: Result<CreateChatCompletionStreamResponse, OpenAIError>) -> ChatEvent {
+    let chunk = match chunk {
+        Ok(chunk) => chunk,
+        Err(e) => {
+            warn!("Server side error while processing chunk: {:?}", e);
+            return ChatEvent::Error(e.to_string());
+        }
+    };
+
+    // log request misconfiguration
+    if chunk.choices.len() > 1 {
+        warn!(chunk = ?chunk, "choice not unique");
+    } else {
+        trace!(chunk = ?chunk, "response");
+    }
+
+    // usage is the last chunk, with zero choice
+    if let Some(event) = get_usage_event(&chunk.usage) {
+        return event;
+    }
+
+    // only go on if we have a single choice
+    let Some(choice) = chunk.choices.get(0) else {
+        return ChatEvent::Error("No choice available".into());
+    };
+
+    // when there is a finish reason, there is no content
+    if let Some(event) = get_finish_event(&choice.finish_reason, &choice.delta.refusal) {
+        return event;
+    }
+
+    // only go on if we have a content
+    let Some(ref content) = choice.delta.content else {
+        return ChatEvent::Error("No content".into());
+    };
+
+    // send the actual content of the chunk
+    trace!(content = content, "content sent to front-end");
+    ChatEvent::MessageToken(content.clone())
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -132,9 +170,11 @@ pub async fn send_chat_request(
     client: &Client<OpenAIConfig>,
     chat: &ChatRequest,
 ) -> Result<ChatCompletionResponseStream, ProviderError> {
-    // build each message
+    // TODO: implement pathological cases here if needed (huge payload)
+    // TODO: implement message-based busines logic here (logging)
+
+    // build each message then complete conversation
     let messages = messages_to_api(&chat.messages)?;
-    // build complete conversation
     let request = CreateChatCompletionRequestArgs::default()
         .model(&chat.model)
         .messages(messages)
@@ -154,9 +194,9 @@ pub async fn send_chat_request(
         })
         .build()
         .map_err(|e| ProviderError::BuildError { source: e })?;
-    trace!(request = ?request, "openai request");
 
     // build and send the request for a streamed answer for this conversation
+    trace!(request = ?request, "openai request");
     client
         .chat()
         .create_stream(request)

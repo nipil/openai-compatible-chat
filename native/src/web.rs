@@ -14,10 +14,10 @@ use axum::{Json, Router};
 use futures::{StreamExt, stream};
 use portable::{ChatEvent, ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
 use tower_http::services::ServeDir;
-use tracing::{error, instrument, trace, warn};
+use tracing::{error, instrument};
 
 use crate::AppState;
-use crate::openai::{ProviderError, get_finish_event, get_usage_event, send_chat_request};
+use crate::openai::{ProviderError, get_chat_event, send_chat_request};
 
 const SSE_EVENT_ERROR: &str = "error";
 
@@ -104,9 +104,6 @@ async fn handle_chat(
     }
 
     // FIXME: reuse this logic for the cli version
-
-    // TODO: implement pathological cases here if needed (huge payload)
-    // TODO: implement message-based busines logic here (logging)
 
     // Prepend the system prompt to the one provided by the client
     let prepend = s.prepend_system_prompt.trim();
@@ -273,49 +270,8 @@ async fn process_chat_stream(
         |chunk: Result<CreateChatCompletionStreamResponse, OpenAIError>| {
             // same reasoning, async should own its reference to be 'static
             async {
-                match chunk {
-                    Ok(resp) => {
-                        // log request misconfiguration
-                        if resp.choices.len() > 1 {
-                            warn!(response = ?resp, "choice not unique");
-                        } else {
-                            trace!(response = ?resp, "response");
-                        }
-
-                        // usage is the last chunk, with zero choice
-                        if let Some(event) = get_usage_event(&resp.usage) {
-                            return Ok(SseEventOut::from(event).into());
-                        }
-
-                        // only go on if we have a single choice
-                        let Some(choice) = resp.choices.get(0) else {
-                            let event = ChatEvent::Error("No choice available".into());
-                            return Ok(SseEventOut::from(event).into());
-                        };
-
-                        // when there is a finish reason, there is no content
-                        if let Some(event) =
-                            get_finish_event(&choice.finish_reason, &choice.delta.refusal)
-                        {
-                            return Ok(SseEventOut::from(event).into());
-                        }
-
-                        // only go on if we have a content
-                        let Some(ref content) = choice.delta.content else {
-                            let event = ChatEvent::Error("No content".into());
-                            return Ok(SseEventOut::from(event).into());
-                        };
-
-                        // send the actual content of the chunk
-                        trace!(content = content, "content sent to front-end");
-                        Ok(SseEventOut::from(ChatEvent::MessageToken(content.clone())).into())
-                    }
-
-                    Err(e) => {
-                        warn!("Server side error while processing chunk: {:?}", e);
-                        Ok(SseEventOut::from(ChatEvent::Error(e.to_string())).into())
-                    }
-                }
+                let event = get_chat_event(chunk);
+                Ok(SseEventOut::from(event).into())
             }
         },
     );
