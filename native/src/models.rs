@@ -5,13 +5,13 @@ use crate::openai::ModelType;
 
 pub type EnrichedModels = HashMap<String, ModelInfo>;
 
-pub struct EnrichedModel<'a> {
-    pub id: &'a str,
-    pub info: &'a ModelInfo,
+pub(crate) struct EnrichedModel<'a> {
+    pub(crate) id: &'a str,
+    pub(crate) info: &'a ModelInfo,
 }
 
 impl<'a> EnrichedModel<'a> {
-    pub fn new(id: &'a str, info: &'a ModelInfo) -> Self {
+    pub(crate) fn new(id: &'a str, info: &'a ModelInfo) -> Self {
         EnrichedModel { id, info }
     }
 }

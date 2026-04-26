@@ -113,7 +113,9 @@ fn get_finish_event(reason: &Option<FinishReason>, refusal: &Option<String>) -> 
     });
 }
 
-pub fn get_chat_event(chunk: Result<CreateChatCompletionStreamResponse, OpenAIError>) -> ChatEvent {
+pub(crate) fn get_chat_event(
+    chunk: Result<CreateChatCompletionStreamResponse, OpenAIError>,
+) -> ChatEvent {
     let chunk = match chunk {
         Ok(chunk) => chunk,
         Err(e) => {
@@ -166,7 +168,7 @@ pub async fn list_models(client: &Client<OpenAIConfig>) -> Result<Vec<String>, P
         .map_err(|e| ProviderError::RequestError { source: e })
 }
 
-pub async fn send_chat_request(
+pub(crate) async fn send_chat_request(
     client: &Client<OpenAIConfig>,
     chat: &ChatRequest,
 ) -> Result<ChatCompletionResponseStream, ProviderError> {

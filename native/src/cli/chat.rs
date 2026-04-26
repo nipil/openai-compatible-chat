@@ -41,7 +41,7 @@ impl fmt::Display for ChatCommand {
     }
 }
 
-pub enum ChatOutcome {
+pub(crate) enum ChatOutcome {
     ChatEnded,
     ExitRequested,
     ModelForbidden,
@@ -50,7 +50,7 @@ pub enum ChatOutcome {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
-pub async fn run_chat<'a>(
+pub(crate) async fn run_chat<'a>(
     client: &Client<OpenAIConfig>,
     selected_model: &EnrichedModel<'a>,
     prepend_system_prompt: &str,
@@ -61,6 +61,23 @@ pub async fn run_chat<'a>(
         selected_model.id.cyan().bold(),
         "───".white().bold(),
     );
+    {
+        let desc = selected_model.info.description.trim();
+        if desc.len() > 0 {
+            println!("description: {}", desc.white().italic());
+        }
+        let family = selected_model.info.family.trim();
+        if desc.len() > 0 {
+            println!("family: {}", family.white().italic());
+        }
+        if let Some(ref release) = selected_model.info.release {
+            let release = release.trim();
+            if release.len() > 0 {
+                println!("release: {}", release.cyan().bold());
+            }
+        }
+        println!();
+    }
     let system = get_system_prompt_from_user(prepend_system_prompt).await;
     let mut history = vec![Message {
         role: MessageRole::System,

@@ -23,7 +23,7 @@ const SCROLLBAR_TRACK: char = '│';
 /// Streams partial markdown to the terminal with in-place re-rendering,
 /// throttled to ≤10 fps. Falls back to plain passthrough when the
 /// content exceeds 60 % of terminal height (same policy as the Python original).
-pub struct LiveMarkdown {
+pub(crate) struct LiveMarkdown {
     skin: MadSkin,
     lines_on_screen: u16,
     term_width: u16,
@@ -33,7 +33,7 @@ pub struct LiveMarkdown {
 }
 
 impl LiveMarkdown {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let (w, h) = terminal::size().unwrap_or((120, 40));
         Self {
             skin: make_skin(),
@@ -46,7 +46,7 @@ impl LiveMarkdown {
     }
 
     /// Call after every streamed chunk — internally throttled.
-    pub fn update(&mut self, text: &str) {
+    pub(crate) fn update(&mut self, text: &str) {
         if self.disabled {
             return;
         }
@@ -58,7 +58,7 @@ impl LiveMarkdown {
     }
 
     /// Force a final, unthrottled render and move the cursor past it.
-    pub fn finish(&mut self, text: &str) {
+    pub(crate) fn finish(&mut self, text: &str) {
         if !text.is_empty() {
             let _ = self.paint(text);
         }
@@ -203,7 +203,7 @@ fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
 // ── Display / selection ───────────────────────────────────────────────────────
 
 /// Opens an interactive fuzzy-search and returns the selected model ID.
-pub fn select_model(models: &EnrichedModels) -> Result<Option<EnrichedModel<'_>>> {
+pub(crate) fn select_model(models: &EnrichedModels) -> Result<Option<EnrichedModel<'_>>> {
     // Cancel immediately if nothing is available
     if models.is_empty() {
         return Ok(None);
