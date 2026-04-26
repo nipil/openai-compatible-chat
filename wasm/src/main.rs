@@ -199,7 +199,11 @@ async fn stream_chat(
         .map_err(|e| format!("could not convert 2 : {e:?}"))?;
 
     if !resp.ok() {
-        return Err(format!("HTTP {}", resp.status())); // TODO: thiserror
+        // FIXME: this triggers when posting the chat fails
+        // TODO: enhance and display for user
+        let msg = format!("HTTP error: {} {}", resp.status(), resp.status_text(),);
+        web_sys::console::error_1(&msg.clone().into());
+        return Err(format!("HTTP {}", msg)); // TODO: thiserror
     }
 
     // this is a dumb wrapper around the browser JS reader, with no iterate, no await...
@@ -230,6 +234,7 @@ async fn stream_chat(
         match result {
             Ok(es_event) => {
                 let sse_event = SseEventIn::try_from(es_event)
+                    // FIXME: exiting the function, is it really the right choice ?
                     .map_err(|e| e.to_string())?
                     .into_inner();
                 web_sys::console::debug_1(&format!("SSE event: {:?}", sse_event).into());
@@ -413,39 +418,54 @@ fn App() -> impl IntoView {
     // ── Bootstrap: load config then models ────────────────────────────────────
     spawn_local(async move {
         match Request::get("/api/config").send().await {
-            Ok(r) => match r.json::<ConfigDto>().await {
-                Ok(cfg) => {
-                    // load the predefined system prompt from config
-                    sys_prompt.set(cfg.prepend_system_prompt);
+            Ok(r) => {
+                if !r.ok() {
+                    web_sys::console::error_1(&format!("HTTP error: {r:?}").into());
+                    // TODO: handle HTTP errors better (display error, disable ui, etc)
+                    return;
                 }
-                Err(e) => {
-                    show_error_alert(&format!("config parse failed: {e}"));
+                match r.json::<ConfigDto>().await {
+                    Ok(cfg) => {
+                        // load the predefined system prompt from config
+                        sys_prompt.set(cfg.prepend_system_prompt);
+                    }
+                    Err(e) => {
+                        show_error_alert(&format!("config parse failed: {e}"));
+                    }
                 }
-            },
+            }
             Err(e) => {
                 show_error_alert(&format!("config request failed: {e}"));
             }
         }
         match Request::get("/api/models").send().await {
-            Ok(r) => match r.json::<Vec<ModelDto>>().await {
-                Ok(list) => {
-                    // Try saved model cookie
-                    if let Some(id) = get_cookie(COOKIE_MODEL)
-                        .and_then(|s| list.iter().find(|m| m.id == s).map(|m| m.id.clone()))
-                        // or fall back to first in list if absent or stale
-                        .or_else(|| list.first().map(|m| m.id.clone()))
-                    {
-                        sel_model.set(id);
+            Ok(r) => {
+                if !r.ok() {
+                    web_sys::console::error_1(&format!("HTTP error: {r:?}").into());
+                    // TODO: handle HTTP errors better (display error, disable ui, etc)
+                    return;
+                }
+                match r.json::<Vec<ModelDto>>().await {
+                    Ok(list) => {
+                        // Try saved model cookie
+                        if let Some(id) = get_cookie(COOKIE_MODEL)
+                            .and_then(|s| list.iter().find(|m| m.id == s).map(|m| m.id.clone()))
+                            // or fall back to first in list if absent or stale
+                            .or_else(|| list.first().map(|m| m.id.clone()))
+                        {
+                            sel_model.set(id);
+                        }
+                        // Sets up selection dropdown
+                        models.set(list);
+                        // FIXME: handle empty list of models ... disable send button ?
+                        // FIXME: started state should maybe have everything locked ?
                     }
-                    // Sets up selection dropdown
-                    models.set(list);
-                    // FIXME: handle empty list of models ... disable send button ?
-                    // FIXME: started state should maybe have everything locked ?
+
+                    Err(e) => {
+                        show_error_alert(&format!("models parse failed: {e}"));
+                    }
                 }
-                Err(e) => {
-                    show_error_alert(&format!("models parse failed: {e}"));
-                }
-            },
+            }
             Err(e) => {
                 show_error_alert(&format!("models request failed: {e}"));
             }
@@ -639,6 +659,8 @@ fn App() -> impl IntoView {
 
             // If we had any error while sending the chat
             if let Err(e) = res {
+                web_sys::console::error_1(&format!("Chat error: {e}").into());
+                // TODO: show error in the UI, but not in the specific bubble ?
                 // TODO: thiserror instead of string handling ?
                 let e_low = e.to_lowercase();
                 if !e_low.contains("abort") && !e_low.contains("cancel") {
@@ -707,6 +729,9 @@ fn App() -> impl IntoView {
                         )
                     >
                         {move || match sel_meta.get().and_then(|m| m.context_window) {
+                            // TODO: use the data provided by the Usage event
+                            // TODO: if not available, use the approximation and shod '~'
+                            // TODO: if available, show exact and not use '~'
                             Some(max) => format!("~{} / {} tok", tok_count.get(), max),
                             None      => format!("~{} tok", tok_count.get()),
                         }}
