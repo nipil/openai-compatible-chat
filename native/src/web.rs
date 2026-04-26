@@ -1,11 +1,8 @@
 use std::convert::Infallible;
 
-use anyhow::Result;
+use anyhow::Result; // TODO: anyhow should not be used in lib crate,only thiserror
 use async_openai::Client;
 use async_openai::config::OpenAIConfig;
-use async_openai::error::OpenAIError;
-use async_openai::types::chat::{ChatCompletionResponseStream, CreateChatCompletionStreamResponse};
-// TODO: anyhow should not be used in lib crate,only thiserror
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, sse};
@@ -245,43 +242,34 @@ async fn process_chat_stream(
     chat: &ChatRequest,
 ) -> Result<stream::BoxStream<'static, Result<sse::Event, Infallible>>, ProviderError> {
     // TODO: refactor same as cli ? into openai
-    // not mut here because the client is holding the history and provides it
 
-    // This response stream will produce "Item" and every item is of type
-    // Result<CreateChatCompletionStreamResponse, _>
-    let stream: ChatCompletionResponseStream = send_chat_request(client, chat).await?;
+    // This can fail during the setup time (ProviderError)
+    let openai_stream = send_chat_request(client, chat).await?;
 
-    // Use `.then()` (async map) so we can do async writes on unauthorized errors
-
-    // to get data out of the future, we can
-    // - get it as a final value once it is resolved, after await
-    // - clone an Arc<Mutex<T>> and move it in the closure
-    // - clone a tokio mpsc channel annd moge it in the closure
-
-    let sse: stream::Then<ChatCompletionResponseStream, _, _> = stream.then(
-        // Every time an "Item" is ready, the provided FnMut will be called
-        // with Item, and return a *Future*, which will then be run to completion
-        // to produce the next value on this stream.
-
+    // Every time a chunk is ready, the provided FnMut will be called
+    // on it and and return a *Future* (axum needs a future) to poll,
+    // which will then be run to completion to produce sse::Event
+    let sse_event_stream = openai_stream.then(
         // the returned stream must be 'static because we Box::pin it,
         // so the closure cannot borrow from the enclosing scope, and
         // should own everything it references.
-        // Except if it does not reference anything from the enclosing scope
-        |chunk: Result<CreateChatCompletionStreamResponse, OpenAIError>| {
-            // same reasoning, async should own its reference to be 'static
-            async {
+        move |chunk| {
+            // returns an async block the caller will need to await, and
+            // async must be 'static to be polled, so own its references
+            async move {
+                // as seen in function signature, this returns a
+                // Result<sse::Event, Infallible> so no Err? bubbling.
+                // To report error during chat processing
+                // - server-side : use logging
+                // - client-side : use ChatEvent::Error
                 let event = get_chat_event(chunk);
                 Ok(SseEventOut::from(event).into())
             }
         },
     );
 
-    // Moves the Thenable onto the heap (Box) and mark it as fixed in memory
-    // space, so that its memory address cannot change : it is needed so that
-    // it can safely be referenced and polled
-    Ok(Box::pin(sse))
+    // Fixed memory is needed so that it can safely be referenced and polled.
+    // So move the stream onto the heap (Box) and mark it as fixed in memory
+    // space, which requires it to be 'static too (afaik, see above ?)
+    Ok(Box::pin(sse_event_stream))
 }
-
-// {} block — evaluates immediately, produces the closure as its value
-// move |chunk| — the closure, matches F: FnMut(...) -> Fut
-// async move {} — an async block (not a closure), matches Fut: Future
