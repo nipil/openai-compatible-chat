@@ -8,12 +8,19 @@ use chrono::Local;
 use futures::StreamExt;
 use owo_colors::OwoColorize;
 use portable::{ChatRequest, Message, MessageRole, estimate_tokens};
-use strum::{AsRefStr, EnumIter, EnumString, IntoEnumIterator};
-use tracing::{error, instrument};
+use strum::{AsRefStr, EnumIter, EnumString};
+use thiserror::Error;
+use tracing::instrument;
 
 use crate::cli::display::LiveMarkdown;
 use crate::models::EnrichedModel;
 use crate::openai::{ProviderError, send_chat_request};
+
+#[derive(Error, Debug)]
+enum ChatError {
+    #[error("API error {0}")]
+    Api(#[from] ProviderError),
+}
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -41,7 +48,7 @@ impl fmt::Display for ChatCommand {
     }
 }
 
-pub(crate) enum ChatOutcome {
+pub enum ChatOutcome {
     ChatEnded,
     ExitRequested,
     ModelForbidden,
@@ -50,34 +57,12 @@ pub(crate) enum ChatOutcome {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
-pub(crate) async fn run_chat<'a>(
+pub async fn run_chat<'a>(
     client: &Client<OpenAIConfig>,
     selected_model: &EnrichedModel<'a>,
     prepend_system_prompt: &str,
 ) -> Result<ChatOutcome, ProviderError> {
-    println!(
-        "\n{} {} {}\n",
-        "─── Conversation using".white().bold(),
-        selected_model.id.cyan().bold(),
-        "───".white().bold(),
-    );
-    {
-        let desc = selected_model.info.description.trim();
-        if desc.len() > 0 {
-            println!("description: {}", desc.white().italic());
-        }
-        let family = selected_model.info.family.trim();
-        if desc.len() > 0 {
-            println!("family: {}", family.white().italic());
-        }
-        if let Some(ref release) = selected_model.info.release {
-            let release = release.trim();
-            if release.len() > 0 {
-                println!("release: {}", release.cyan().bold());
-            }
-        }
-        println!();
-    }
+    // use system prompt to initialize history
     let system = get_system_prompt_from_user(prepend_system_prompt).await;
     let mut history = vec![Message {
         role: MessageRole::System,
@@ -85,71 +70,53 @@ pub(crate) async fn run_chat<'a>(
     }];
 
     loop {
-        // FIXME: use an Arc<RwLock<History>> in callers
-        let tok_history = estimate_tokens(&history);
-        let input = read_user_input_trimmed(
-            &selected_model.id,
-            tok_history,
-            selected_model.info.context_window,
-        )
-        .await;
-
-        if input.is_empty() {
-            continue;
-        }
-
-        if let Some(cmd) = ChatCommand::detect_from(&input) {
-            match cmd {
-                ChatCommand::New => return Ok(ChatOutcome::ChatEnded),
-                ChatCommand::Quit => return Ok(ChatOutcome::ExitRequested),
-                ChatCommand::Help => {
-                    ChatCommand::iter().for_each(|x| println!("{x}"));
-                    continue;
-                }
-            }
-        }
-
-        history.push(Message {
-            role: MessageRole::User,
-            content: input,
-        });
-
-        // FIXME: try to use use arc+rwlock  for history instead of clone?
+        // TODO: use the token from the usage event if available
+        let token_count = estimate_tokens(&history);
+        let input = get_user_input(selected_model, token_count).await;
+        history.push(Message::new(MessageRole::User, input));
         let chat = ChatRequest::new(selected_model.id.to_string(), history.clone());
-
-        // if we later need to get data out of the future, we can
-        // - get it as a final value once it is resolved, after await
-        // - clone an Arc<Mutex<T>> and move it in the closure
-        // - clone a tokio mpsc channel annd moge it in the closure
-
-        match send_and_stream(client, &chat).await {
-            Ok(reply) => {
-                // upon successful completion only,
-                // add the whole reply to the history,
-                // to be sent for later messages
-                history.push(Message {
-                    role: MessageRole::Assistant,
-                    content: reply,
-                });
-            }
-            Err(e) => {
-                history.pop(); // drop the unsatisfied user turn
-                let msg = e.to_string().to_lowercase();
-                // TODO: check error by type ?
-                if msg.contains("context_length") {
-                    return Ok(ChatOutcome::ContextLimitReached);
-                }
-                // TODO: deduplicate from main.rs:156
-                if msg.contains("not allowed") || msg.contains("permission") {
-                    return Ok(ChatOutcome::ModelForbidden);
-                }
-                error!(exc = e.to_string(), "Error during streaming");
-            }
-        }
+        let reply = interact_once(client, &chat, |tok| {
+            print!("received token: {tok}");
+            println!(" hist len {}", history.len());
+        });
     }
 }
 
+async fn interact_once<'a>(
+    client: &Client<OpenAIConfig>,
+    chat: &ChatRequest,
+    on_token: impl FnMut(&str),
+) -> Result<String, ChatError> {
+    // Can only fail here during initial request (setup)
+    let openai_stream = send_chat_request(client, &chat).await?;
+    send_and_stream(client, &chat).await
+}
+
 // ── Prompt / stdin ────────────────────────────────────────────────────────────
+
+pub(crate) fn print_banner(selected_model: &EnrichedModel) {
+    println!(
+        "\n{} {} {}\n",
+        "─── Conversation using".white().bold(),
+        selected_model.id.cyan().bold(),
+        "───".white().bold(),
+    );
+    let desc = selected_model.info.description.trim();
+    if desc.len() > 0 {
+        println!("description: {}", desc.white().italic());
+    }
+    let family = selected_model.info.family.trim();
+    if desc.len() > 0 {
+        println!("family: {}", family.white().italic());
+    }
+    if let Some(ref release) = selected_model.info.release {
+        let release = release.trim();
+        if release.len() > 0 {
+            println!("release: {}", release.cyan().bold());
+        }
+    }
+    println!();
+}
 
 async fn get_system_prompt_from_user(prepend_system_prompt: &str) -> String {
     // TODO: switch to a readline crate whch will allow editing the default prompt before submitting
@@ -174,7 +141,23 @@ async fn get_system_prompt_from_user(prepend_system_prompt: &str) -> String {
     }
 }
 
-async fn read_user_input_trimmed(model: &str, tok_history: u32, max_tokens: Option<u32>) -> String {
+async fn get_user_input<'a>(selected_model: &EnrichedModel<'a>, token_count: u32) -> String {
+    loop {
+        let input = prompt_user_for_input(
+            &selected_model.id,
+            token_count,
+            selected_model.info.context_window,
+        )
+        .await;
+        let input = input.trim();
+        if input.is_empty() {
+            continue;
+        }
+        return input.into();
+    }
+}
+
+async fn prompt_user_for_input(model: &str, tok_history: u32, max_tokens: Option<u32>) -> String {
     let now = Local::now().format("%H:%M:%S").to_string();
     let model = model.to_string();
 
@@ -187,6 +170,7 @@ async fn read_user_input_trimmed(model: &str, tok_history: u32, max_tokens: Opti
         buf.trim().to_string()
     })
     .await
+    // TODO: thiserror / JoinError
     .unwrap_or_default()
 }
 
