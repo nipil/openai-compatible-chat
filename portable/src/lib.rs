@@ -1,18 +1,8 @@
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, Display, EnumString};
 use thiserror::Error;
-
-#[derive(Deserialize, Serialize)]
-pub struct ChatRequest {
-    pub model: String,
-    pub messages: Vec<Message>,
-}
-
-impl ChatRequest {
-    pub fn new(model: String, messages: Vec<Message>) -> Self {
-        Self { model, messages }
-    }
-}
 
 // ── Safer value management ────────────────────────────────────────────────────
 
@@ -34,6 +24,18 @@ pub enum Theme {
 }
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize, Serialize)]
+pub struct ChatRequest {
+    pub model: String,
+    pub messages: Vec<Message>,
+}
+
+impl ChatRequest {
+    pub fn new(model: String, messages: Vec<Message>) -> Self {
+        Self { model, messages }
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum ChatEventError {
@@ -110,4 +112,48 @@ pub fn estimate_tokens(messages: &[Message]) -> u32 {
         .map(|m| 3u32 + m.content.chars().count() as u32 / 4u32)
         .sum::<u32>()
         + 3
+}
+
+#[derive(Debug, Clone)]
+pub enum TokenUsage {
+    Exact(u32),
+    Approximate(u32),
+}
+
+impl Display for TokenUsage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Approximate(value) => write!(f, "~{}", value),
+            Self::Exact(value) => write!(f, "{}", value),
+        }
+    }
+}
+
+impl Default for TokenUsage {
+    fn default() -> Self {
+        Self::Approximate(0)
+    }
+}
+
+impl From<&TokenUsage> for u32 {
+    fn from(usage: &TokenUsage) -> u32 {
+        match usage {
+            TokenUsage::Exact(v) => *v,
+            TokenUsage::Approximate(v) => *v,
+        }
+    }
+}
+
+impl TokenUsage {
+    pub fn set_exact(&mut self, total: u32) {
+        // always override with API provided value
+        *self = TokenUsage::Exact(total);
+    }
+
+    pub fn set_approximate(&mut self, total: u32) {
+        // update only if we are already approximate
+        if let TokenUsage::Approximate(_) = self {
+            *self = TokenUsage::Approximate(total);
+        }
+    }
 }

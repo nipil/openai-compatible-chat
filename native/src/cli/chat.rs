@@ -6,9 +6,9 @@ use async_openai::config::OpenAIConfig;
 use chrono::Local;
 use futures::StreamExt;
 use owo_colors::OwoColorize;
-use portable::{ChatEvent, ChatRequest, Message, MessageRole, estimate_tokens};
+use portable::{ChatEvent, ChatRequest, Message, MessageRole, TokenUsage, estimate_tokens};
 use thiserror::Error;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{error, instrument, trace, warn};
 
 use crate::cli::display::LiveMarkdown;
 use crate::models::EnrichedModel;
@@ -34,11 +34,11 @@ pub async fn run_chat<'a>(
         content: system,
     }];
 
+    let mut token_count = TokenUsage::default();
     loop {
-        // TODO: use the token from the usage event if available
-        let token_count = estimate_tokens(&history);
+        token_count.set_approximate(estimate_tokens(&history));
         // get user input and prepare the request
-        let input = get_user_input(selected_model, token_count).await;
+        let input = get_user_input(selected_model, &token_count).await;
         println!();
         history.push(Message::new(MessageRole::User, input));
         let chat = ChatRequest::new(selected_model.id.to_string(), history.clone());
@@ -46,15 +46,8 @@ pub async fn run_chat<'a>(
         let reply = handle_chat(client, &chat, |event| {
             warn!(event = ?event, "chat event");
             match event {
-                ChatEvent::FinishReason { reason, refusal } => {
-                    info!(reason = reason, refusal = ?refusal, "run_chat Finish reason");
-                }
                 ChatEvent::TokenCount { prompt, generated } => {
-                    debug!(
-                        prompt = prompt,
-                        generated = generated,
-                        "run_chat Token usage"
-                    );
+                    token_count.set_exact(prompt + generated);
                 }
                 ChatEvent::Error(msg) => {
                     error!(error = msg, "run_chat Streaming error");
@@ -116,7 +109,10 @@ async fn get_system_prompt_from_user(prepend_system_prompt: &str) -> String {
     }
 }
 
-async fn get_user_input<'a>(selected_model: &EnrichedModel<'a>, token_count: u32) -> String {
+async fn get_user_input<'a>(
+    selected_model: &EnrichedModel<'a>,
+    token_count: &TokenUsage,
+) -> String {
     loop {
         let input = prompt_user_for_input(
             &selected_model.id,
@@ -132,12 +128,17 @@ async fn get_user_input<'a>(selected_model: &EnrichedModel<'a>, token_count: u32
     }
 }
 
-async fn prompt_user_for_input(model: &str, tok_history: u32, max_tokens: Option<u32>) -> String {
+async fn prompt_user_for_input(
+    model: &str,
+    tok_history: &TokenUsage,
+    max_tokens: Option<u32>,
+) -> String {
     let now = Local::now().format("%H:%M:%S").to_string();
     let model = model.to_string();
 
+    let tok = tok_history.clone();
     tokio::task::spawn_blocking(move || {
-        let prompt = build_prompt_str(&now, &model, tok_history, max_tokens);
+        let prompt = build_prompt_str(&now, &model, &tok, max_tokens);
         print!("{prompt}");
         stdout().flush().ok();
         let mut buf = String::new();
@@ -145,15 +146,14 @@ async fn prompt_user_for_input(model: &str, tok_history: u32, max_tokens: Option
         buf.trim().to_string()
     })
     .await
-    // TODO: thiserror / JoinError
     .unwrap_or_default()
 }
 
-fn build_prompt_str(time: &str, model: &str, tokens: u32, max: Option<u32>) -> String {
+fn build_prompt_str(time: &str, model: &str, tokens: &TokenUsage, max: Option<u32>) -> String {
     let tok_coloured = match max {
         None => tokens.to_string().white().to_string(),
         Some(m) => {
-            let r = tokens as f64 / m as f64;
+            let r = u32::from(tokens) as f64 / m as f64;
             if r < 0.50 {
                 tokens.to_string().bright_black().to_string()
             } else if r < 0.75 {
@@ -170,7 +170,7 @@ fn build_prompt_str(time: &str, model: &str, tokens: u32, max: Option<u32>) -> S
         "{}{}{}> ",
         format!("[{time}]").white(),
         format!("[{model}]").bright_black(),
-        format!("[~{tok_coloured}]"),
+        format!("[{tok_coloured}]"),
     )
 }
 
