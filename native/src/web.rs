@@ -2,9 +2,7 @@ use std::convert::Infallible;
 
 use anyhow::Result;
 use async_openai::error::OpenAIError;
-use async_openai::types::chat::{
-    ChatCompletionResponseStream, CreateChatCompletionStreamResponse, FinishReason,
-};
+use async_openai::types::chat::{ChatCompletionResponseStream, CreateChatCompletionStreamResponse};
 // TODO: anyhow should not be used in lib crate,only thiserror
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -14,10 +12,10 @@ use axum::{Json, Router};
 use futures::{StreamExt, stream};
 use portable::{ChatRequest, ConfigDto, Message, MessageRole, ModelDto, SseEvent};
 use tower_http::services::ServeDir;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{error, instrument, trace, warn};
 
 use crate::AppState;
-use crate::openai::{ProviderError, send_for_stream};
+use crate::openai::{ProviderError, get_finish_event, get_usage_event, send_for_stream};
 
 const SSE_EVENT_ERROR: &str = "error";
 
@@ -266,77 +264,40 @@ async fn build_chat_stream(
             async move {
                 match chunk {
                     Ok(resp) => {
-                        // response can have multiple choice, according to request config
-                        match resp.choices.len() {
-                            0 => {
-                                if let Some(ref usage) = resp.usage {
-                                    debug!(
-                                        prompt = usage.prompt_tokens,
-                                        completion = usage.completion_tokens,
-                                        total = usage.total_tokens,
-                                        "Token usage"
-                                    );
-                                    // Forward usage data to the front-end because
-                                    // usage is the last chunk with no token
-                                    return Ok(SseEventOut::from(SseEvent::TokenCount {
-                                        prompt: usage.prompt_tokens,
-                                        generated: usage.completion_tokens,
-                                    })
-                                    .into());
-                                }
-                            }
-                            1 => {
-                                trace!(response = ?resp, "response");
-                            }
-                            _ => {
-                                warn!(id = resp.id,
-                                    count = resp.choices.len(),
-                                    response = ?resp,
-                                    "Not designed for more than one choice, using first.");
-                            }
-                        };
-
-                        // In any case, only process the first choice
-                        let Some(choice) = resp.choices.first() else {
-                            let msg = "No choice available, unexpected behaviour";
-                            warn!(id = resp.id, msg);
-                            return Ok(SseEventOut::from(SseEvent::Error(msg.into())).into());
-                        };
-
-                        // TODO: send to frontend
-                        // Forward end reason to the front-end and
-                        // there is no content so no token to forward
-                        match choice.finish_reason {
-                            None => {}
-                            Some(reason) => match reason {
-                                FinishReason::Stop => {
-                                    debug!(id = resp.id, reason = "stop", "finish")
-                                }
-                                FinishReason::Length => {
-                                    warn!(id = resp.id, reason = "length", "finish")
-                                }
-                                FinishReason::ToolCalls => {
-                                    info!(id = resp.id, reason = "tool_calls", "finish")
-                                }
-                                FinishReason::ContentFilter => {
-                                    error!(id = resp.id, reason = "content_filter", "finish")
-                                }
-                                FinishReason::FunctionCall => {
-                                    info!(id = resp.id, reason = "function_call", "finish")
-                                }
-                            },
+                        // log request misconfiguration
+                        if resp.choices.len() > 1 {
+                            warn!(response = ?resp, "choice not unique");
+                        } else {
+                            trace!(response = ?resp, "response");
                         }
 
-                        // TODO: check for no content : with previous code, it should not happen
-                        let token = choice
-                            .delta
-                            .content
-                            .as_ref()
-                            .and_then(|c| Some(c.clone()))
-                            .unwrap_or_default();
+                        // usage is the last chunk, with zero choice
+                        if let Some(event) = get_usage_event(&resp.usage) {
+                            return Ok(SseEventOut::from(event).into());
+                        }
 
-                        trace!(token = ?token, "token");
-                        Ok(SseEventOut::from(SseEvent::MessageToken(token)).into())
+                        // only go on if we have a single choice
+                        let Some(choice) = resp.choices.get(0) else {
+                            let event = SseEvent::Error("No choice available".into());
+                            return Ok(SseEventOut::from(event).into());
+                        };
+
+                        // when there is a finish reason, there is no content
+                        if let Some(event) =
+                            get_finish_event(&choice.finish_reason, &choice.delta.refusal)
+                        {
+                            return Ok(SseEventOut::from(event).into());
+                        }
+
+                        // only go on if we have a content
+                        let Some(ref content) = choice.delta.content else {
+                            let event = SseEvent::Error("No content".into());
+                            return Ok(SseEventOut::from(event).into());
+                        };
+
+                        // send the actual content of the chunk
+                        trace!(content = content, "content sent to front-end");
+                        Ok(SseEventOut::from(SseEvent::MessageToken(content.clone())).into())
                     }
 
                     Err(e) => {

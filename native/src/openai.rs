@@ -4,10 +4,10 @@ use async_openai::error::OpenAIError;
 use async_openai::types::chat::{
     ChatCompletionRequestAssistantMessageArgs, ChatCompletionRequestMessage,
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
-    ChatCompletionResponseStream, ChatCompletionStreamOptions, CreateChatCompletionRequestArgs,
-    ServiceTier,
+    ChatCompletionResponseStream, ChatCompletionStreamOptions, CompletionUsage,
+    CreateChatCompletionRequestArgs, FinishReason, ServiceTier,
 };
-use portable::{ChatRequest, Message, MessageRole};
+use portable::{ChatRequest, Message, MessageRole, SseEvent};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use thiserror::Error;
@@ -79,6 +79,41 @@ fn msg_to_api(m: &Message) -> Result<ChatCompletionRequestMessage, ProviderError
             .map_err(|e| ProviderError::BuildError { source: e })?
             .into(),
     })
+}
+
+pub fn get_usage_event(usage: &Option<CompletionUsage>) -> Option<SseEvent> {
+    let Some(usage) = usage else {
+        return None;
+    };
+    debug!(
+        prompt = usage.prompt_tokens,
+        completion = usage.completion_tokens,
+        total = usage.total_tokens,
+        "Token usage"
+    );
+    return Some(SseEvent::TokenCount {
+        prompt: usage.prompt_tokens,
+        generated: usage.completion_tokens,
+    });
+}
+
+pub fn get_finish_event(
+    reason: &Option<FinishReason>,
+    refusal: &Option<String>,
+) -> Option<SseEvent> {
+    let Some(reason) = reason else {
+        return None;
+    };
+    debug!(reason = ?reason, refusal = ?refusal, "Finish reason");
+    let reason = serde_json::to_string(reason)
+        .expect("FinishReason serializing must not fail")
+        .trim_matches('"')
+        .to_owned();
+    let message = match refusal {
+        None => reason,
+        Some(refusal) => format!("{} ({})", reason, refusal),
+    };
+    return Some(SseEvent::FinishReason(message));
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
