@@ -36,7 +36,7 @@ pub enum Theme {
 // ── Chat ──────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Error)]
-pub enum ChatError {
+pub enum ChatEventError {
     #[error("unknown value: {0}")]
     Strum(#[from] strum::ParseError),
     #[error("json error: {0}")]

@@ -8,8 +8,8 @@ use leptos::mount::mount_to_body;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use portable::{
-    ChatError, ChatEvent, ChatEventKind, ChatRequest, ConfigDto, Message, MessageRole, ModelDto,
-    Theme, estimate_tokens,
+    ChatEvent, ChatEventError, ChatEventKind, ChatRequest, ConfigDto, Message, MessageRole,
+    ModelDto, Theme, estimate_tokens,
 };
 use send_wrapper::SendWrapper;
 use wasm_bindgen::JsCast;
@@ -35,10 +35,10 @@ impl From<ChatEvent> for SseEventIn {
 }
 
 impl TryFrom<Event> for SseEventIn {
-    type Error = ChatError;
+    type Error = ChatEventError;
 
     fn try_from(ev: Event) -> Result<Self, Self::Error> {
-        let kind = ChatEventKind::from_str(&ev.event).map_err(|e| ChatError::Strum(e))?;
+        let kind = ChatEventKind::from_str(&ev.event).map_err(|e| ChatEventError::Strum(e))?;
         let event = match kind {
             ChatEventKind::MessageToken => {
                 ChatEvent::MessageToken(serde_json::from_str::<String>(&ev.data)?)
