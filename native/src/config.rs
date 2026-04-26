@@ -58,7 +58,7 @@ pub struct ModelInfo {
     description: String,
     family: String,
     #[serde(rename = "type")]
-    model_type: ModelType,
+    pub model_type: ModelType,
     pub context_window: Option<u32>,
     release: Option<String>,
 }

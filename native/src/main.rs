@@ -9,7 +9,7 @@ use clap::{Parser, Subcommand};
 use native::AppState;
 use native::cli::run_cli;
 use native::config::{load_config, load_model_info_map};
-use native::models::EnrichedModels;
+use native::models::{COMPATIBLE_MODEL_TYPES, EnrichedModels};
 use native::openai::list_models;
 use native::web::run_web;
 use reqwest::Client as ReqwestClient;
@@ -212,6 +212,14 @@ async fn main() -> Result<()> {
                     None
                 })
                 .and_then(|info| Some((id, info)))
+        })
+        // Only keep the ones with a compatible chat-like type
+        .filter(|(id, info)| {
+            let keep = COMPATIBLE_MODEL_TYPES.contains(&info.model_type);
+            if !keep {
+                info!(model = id, "Ignoring model with known incompatible type");
+            }
+            keep
         })
         .collect();
 
