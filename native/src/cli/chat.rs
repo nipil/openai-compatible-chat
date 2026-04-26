@@ -1,4 +1,3 @@
-use std::fmt;
 use std::io::{Write, stdin, stdout};
 use std::time::Instant;
 
@@ -7,52 +6,18 @@ use async_openai::config::OpenAIConfig;
 use chrono::Local;
 use futures::StreamExt;
 use owo_colors::OwoColorize;
-use portable::{ChatRequest, Message, MessageRole, estimate_tokens};
-use strum::{AsRefStr, EnumIter, EnumString};
+use portable::{ChatEvent, ChatRequest, Message, MessageRole, estimate_tokens};
 use thiserror::Error;
-use tracing::instrument;
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::cli::display::LiveMarkdown;
 use crate::models::EnrichedModel;
-use crate::openai::{ProviderError, send_chat_request};
+use crate::openai::{ProviderError, get_chat_event, send_chat_request};
 
 #[derive(Error, Debug)]
-enum ChatError {
+pub enum ChatError {
     #[error("API error {0}")]
     Api(#[from] ProviderError),
-}
-
-// ── Public types ──────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, PartialEq, Eq, EnumString, EnumIter, AsRefStr)]
-#[strum(serialize_all = "lowercase")]
-enum ChatCommand {
-    New,
-    Quit,
-    Help,
-}
-
-impl ChatCommand {
-    fn detect_from(text: &str) -> Option<Self> {
-        let mut text = text.trim_start().strip_prefix("/")?.trim_end();
-        if let Some(space) = text.find(" ") {
-            text = &text[..space];
-        }
-        Self::try_from(text).ok()
-    }
-}
-
-impl fmt::Display for ChatCommand {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "/{}", self.as_ref())
-    }
-}
-
-pub enum ChatOutcome {
-    ChatEnded,
-    ExitRequested,
-    ModelForbidden,
-    ContextLimitReached,
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -61,7 +26,7 @@ pub async fn run_chat<'a>(
     client: &Client<OpenAIConfig>,
     selected_model: &EnrichedModel<'a>,
     prepend_system_prompt: &str,
-) -> Result<ChatOutcome, ProviderError> {
+) -> Result<(), ChatError> {
     // use system prompt to initialize history
     let system = get_system_prompt_from_user(prepend_system_prompt).await;
     let mut history = vec![Message {
@@ -72,24 +37,34 @@ pub async fn run_chat<'a>(
     loop {
         // TODO: use the token from the usage event if available
         let token_count = estimate_tokens(&history);
+        // get user input and prepare the request
         let input = get_user_input(selected_model, token_count).await;
+        println!();
         history.push(Message::new(MessageRole::User, input));
         let chat = ChatRequest::new(selected_model.id.to_string(), history.clone());
-        let reply = interact_once(client, &chat, |tok| {
-            print!("received token: {tok}");
-            println!(" hist len {}", history.len());
-        });
-    }
-}
 
-async fn interact_once<'a>(
-    client: &Client<OpenAIConfig>,
-    chat: &ChatRequest,
-    on_token: impl FnMut(&str),
-) -> Result<String, ChatError> {
-    // Can only fail here during initial request (setup)
-    let openai_stream = send_chat_request(client, &chat).await?;
-    send_and_stream(client, &chat).await
+        let reply = handle_chat(client, &chat, |event| {
+            warn!(event = ?event, "chat event");
+            match event {
+                ChatEvent::FinishReason { reason, refusal } => {
+                    info!(reason = reason, refusal = ?refusal, "run_chat Finish reason");
+                }
+                ChatEvent::TokenCount { prompt, generated } => {
+                    debug!(
+                        prompt = prompt,
+                        generated = generated,
+                        "run_chat Token usage"
+                    );
+                }
+                ChatEvent::Error(msg) => {
+                    error!(error = msg, "run_chat Streaming error");
+                }
+                _ => {}
+            }
+        })
+        .await?;
+        history.push(Message::new(MessageRole::Assistant, reply));
+    }
 }
 
 // ── Prompt / stdin ────────────────────────────────────────────────────────────
@@ -202,29 +177,27 @@ fn build_prompt_str(time: &str, model: &str, tokens: u32, max: Option<u32>) -> S
 // ── Streaming response ────────────────────────────────────────────────────────
 
 // TODO: refactor and provide a closure for the updates ?
-// TODO: move to openai once similar to web::build_chat_stream
 
 /// One request to the provider (only initial request, not streaming response)
-#[instrument(level = "trace", skip_all)]
-async fn send_and_stream(
+#[instrument(level = "debug", skip_all)]
+async fn handle_chat(
     client: &Client<OpenAIConfig>,
     chat: &ChatRequest,
-) -> Result<String, ProviderError> {
-    // FIXME: this one awaits now, instead of a then with a closure as for the web
-    // mut because in the CLI, we hold the history, not the browser
+    mut on_event: impl FnMut(&ChatEvent),
+) -> Result<String, ChatError> {
+    // Can only fail here during initial request (setup)
     let mut stream = send_chat_request(&client, chat).await?;
 
     let mut full = String::new();
     let mut live = LiveMarkdown::new();
     let start = Instant::now();
-    println!();
 
-    while let Some(event) = stream.next().await {
-        let chunk = event.map_err(|e| ProviderError::StreamingError { source: e })?;
-        for choice in &chunk.choices {
-            if let Some(ref delta) = choice.delta.content {
-                full.push_str(delta);
-            }
+    while let Some(chunk) = stream.next().await {
+        let event = get_chat_event(chunk);
+        on_event(&event);
+        if let ChatEvent::MessageToken(ref delta) = event {
+            trace!(delta = delta, "delta");
+            full.push_str(delta);
         }
         live.update(&full);
     }

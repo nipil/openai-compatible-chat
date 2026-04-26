@@ -1,14 +1,14 @@
 use std::io::{Write, stdout};
 use std::time::{Duration, Instant};
 
-use anyhow::{Result, anyhow};
 use crossterm::{cursor, execute, terminal};
 use dialoguer::FuzzySelect;
 use termimad::crossterm::style::Attribute::*;
 use termimad::crossterm::style::Attributes;
 use termimad::crossterm::style::Color::*;
 use termimad::{CompoundStyle, MadSkin, StyledChar, gray};
-use tracing::info;
+use thiserror::Error;
+use tracing::{info, warn};
 
 use crate::models::{EnrichedModel, EnrichedModels};
 
@@ -18,11 +18,20 @@ const QUOTE_CHAR: char = '▐';
 const SCROLLBAR_THUMB: char = '▐';
 const SCROLLBAR_TRACK: char = '│';
 
+#[derive(Error, Debug)]
+pub enum DisplayError {
+    #[error("SelectionFailed : {0}")]
+    SelectionFailed(String),
+    #[error("Model not found : {0}")]
+    ModelNotFound(String),
+}
+
+const REFRESH_INTERVAL: Duration = Duration::from_millis(100);
+const LIVE_UPDATE_HEIGHT_PERCENT: f32 = 0.6;
+
 // ── Live markdown display ─────────────────────────────────────────────────────
 
 /// Streams partial markdown to the terminal with in-place re-rendering,
-/// throttled to ≤10 fps. Falls back to plain passthrough when the
-/// content exceeds 60 % of terminal height (same policy as the Python original).
 pub(crate) struct LiveMarkdown {
     skin: MadSkin,
     lines_on_screen: u16,
@@ -45,12 +54,12 @@ impl LiveMarkdown {
         }
     }
 
-    /// Call after every streamed chunk — internally throttled.
+    /// Call after every streamed chunk — throttled
     pub(crate) fn update(&mut self, text: &str) {
         if self.disabled {
             return;
         }
-        if self.last_render.elapsed() < Duration::from_millis(100) {
+        if self.last_render.elapsed() < REFRESH_INTERVAL {
             return;
         }
         let _ = self.paint(text);
@@ -65,12 +74,14 @@ impl LiveMarkdown {
         println!();
     }
 
+    /// No live update once content exceeds 60 % of terminal height
     fn paint(&mut self, text: &str) -> std::io::Result<()> {
         let rendered = format!("{}", self.skin.term_text(text));
         let lines = count_visual_lines(&rendered, self.term_width);
 
         // Disable live updates once the block becomes tall.
-        if !self.disabled && lines > (self.term_height as f32 * 0.6) as u16 {
+        let threshold = (self.term_height as f32 * LIVE_UPDATE_HEIGHT_PERCENT) as u16;
+        if !self.disabled && lines > threshold {
             self.disabled = true;
             // Flush whatever we have left as plain text so nothing is lost.
             if self.lines_on_screen == 0 {
@@ -203,50 +214,50 @@ fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
 // ── Display / selection ───────────────────────────────────────────────────────
 
 /// Opens an interactive fuzzy-search and returns the selected model ID.
-pub(crate) fn select_model(models: &EnrichedModels) -> Result<Option<EnrichedModel<'_>>> {
-    // Cancel immediately if nothing is available
-    if models.is_empty() {
-        return Ok(None);
+pub(crate) fn select_model(
+    models: &EnrichedModels,
+) -> Result<Option<EnrichedModel<'_>>, DisplayError> {
+    // Handle the simple cases
+    match models.iter().next() {
+        None => {
+            warn!("No model available for selection");
+            return Ok(None);
+        }
+        Some((model_id, model_info)) => {
+            if models.len() == 1 {
+                info!(model = model_id, "Auto-selected model");
+                return Ok(Some(EnrichedModel::new(model_id, model_info)));
+            }
+        }
     }
 
-    // Autoselect if there is only one
-    if models.len() == 1 {
-        let Some((model_id, model_info)) = models.iter().next() else {
-            return Err(anyhow!("No models available even though we had one."));
-        };
-        info!(model = model_id, "Auto-selected model");
-        return Ok(Some(EnrichedModel::new(model_id, model_info)));
-    }
-
-    // Build sorted list of models
+    // Build sorted list of models and let user choose
     let mut choices: Vec<&str> = models.keys().map(|k| k.as_str()).collect();
     choices.sort();
-
-    // Choose (maybe) one of them
-    let Some(index) = FuzzySelect::new()
+    let index = match FuzzySelect::new()
         .with_prompt("Select model")
         .items(&choices)
         .default(0)
         .interact_opt()
-        .map_err(|e| anyhow!("Selection failed: {e}"))?
-    else {
-        // no choice was done
-        return Ok(None);
+        .map_err(|e| DisplayError::SelectionFailed(format!("Selection failed: {e}")))?
+    {
+        Some(index) => index,
+        None => return Ok(None), // no choice was made
     };
 
     // Look up the key from the index
     let Some(model_id) = choices.get(index) else {
-        return Err(anyhow!(
-            "No models id for choice number, even though we had one."
-        ));
+        Err(DisplayError::SelectionFailed(format!(
+            "Selection failed: {index}"
+        )))?
     };
 
     // Look up the info from the id
     let Some(model_info) = models.get(*model_id) else {
-        return Err(anyhow!(
-            "No models id for choice number, even though we had one."
-        ));
+        Err(DisplayError::SelectionFailed(format!(
+            "Selection failed: {model_id}"
+        )))?
     };
 
-    return Ok(Some(EnrichedModel::new(model_id, model_info)));
+    Ok(Some(EnrichedModel::new(model_id, model_info)))
 }
