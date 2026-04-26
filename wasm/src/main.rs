@@ -43,6 +43,9 @@ impl TryFrom<Event> for SseEventIn {
             SseEventKind::MessageToken => {
                 SseEvent::MessageToken(serde_json::from_str::<String>(&ev.data)?)
             }
+            SseEventKind::FinishReason => {
+                SseEvent::FinishReason(serde_json::from_str::<String>(&ev.data)?)
+            }
             SseEventKind::TokenCount => {
                 #[derive(serde::Deserialize)]
                 struct Tmp<T> {
@@ -236,6 +239,9 @@ async fn stream_chat(
                     }
                     SseEvent::MessageToken(token) => {
                         on_token(&token);
+                    }
+                    SseEvent::FinishReason(reason) => {
+                        web_sys::console::info_1(&format!("finish reason: {reason}").into());
                     }
                     SseEvent::Error(err_msg) => {
                         web_sys::console::error_1(&format!("sse event error: {err_msg}").into());

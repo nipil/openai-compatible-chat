@@ -42,6 +42,7 @@ pub enum SseError {
 #[serde(rename_all = "snake_case")]
 pub enum SseEventKind {
     MessageToken,
+    FinishReason,
     TokenCount,
     Error,
 }
@@ -51,6 +52,7 @@ pub enum SseEventKind {
 #[serde(rename_all = "snake_case")]
 pub enum SseEvent {
     MessageToken(String),
+    FinishReason(String),
     TokenCount { prompt: u32, generated: u32 },
     Error(String),
 }
