@@ -16,7 +16,7 @@ impl<'a> EnrichedModel<'a> {
     }
 }
 
-pub const COMPATIBLE_MODEL_TYPES: &[ModelType] = &[
+const COMPATIBLE_MODEL_TYPES: &[ModelType] = &[
     ModelType::Chat,
     ModelType::Instruct,
     ModelType::Multimodal,

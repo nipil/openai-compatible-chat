@@ -117,7 +117,7 @@ impl LiveMarkdown {
 ///   horiz rule → cyan  HRULE_CHAR
 ///   table      → blue borders
 ///   scrollbar  → cyan / dark
-pub fn make_skin() -> MadSkin {
+fn make_skin() -> MadSkin {
     // imports are at the top of display.rs — nothing needed here
 
     let mut skin = MadSkin::default_dark();

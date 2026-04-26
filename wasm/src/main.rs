@@ -8,7 +8,7 @@ use leptos::mount::mount_to_body;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use portable::{
-    ChatError, ChatEventKind, ChatRequest, ConfigDto, Message, MessageRole, ModelDto, ChatEvent,
+    ChatError, ChatEvent, ChatEventKind, ChatRequest, ConfigDto, Message, MessageRole, ModelDto,
     Theme, estimate_tokens,
 };
 use send_wrapper::SendWrapper;
@@ -26,7 +26,7 @@ const STORAGE_KEY_OPENAI: &str = "openai";
 
 // ── SSE Event helper ──────────────────────────────────────────────────────────
 
-pub struct SseEventIn(ChatEvent);
+struct SseEventIn(ChatEvent);
 
 impl From<ChatEvent> for SseEventIn {
     fn from(e: ChatEvent) -> Self {
@@ -68,7 +68,7 @@ impl TryFrom<Event> for SseEventIn {
 }
 
 impl SseEventIn {
-    pub fn into_inner(self) -> ChatEvent {
+    fn into_inner(self) -> ChatEvent {
         self.0
     }
 }

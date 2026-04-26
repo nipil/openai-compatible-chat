@@ -171,17 +171,9 @@ async fn handle_chat(
     Ok(sse::Sse::new(stream))
 }
 
-// #[derive(Debug, Error)]
-// pub enum ChatError {
-//     #[error("provider error: {0}")]
-//     ProviderError(#[from] openai::ProviderError),
-// }
-
-// TODO: move to openai once similar to chat::send_and_stream
-
 // ── SSE Event helper ──────────────────────────────────────────────────────────
 
-pub struct SseEventOut(ChatEvent);
+struct SseEventOut(ChatEvent);
 
 impl From<ChatEvent> for SseEventOut {
     fn from(e: ChatEvent) -> Self {
@@ -230,7 +222,7 @@ impl From<SseEventOut> for sse::Event {
 }
 
 impl SseEventOut {
-    pub fn into_inner(self) -> ChatEvent {
+    fn into_inner(self) -> ChatEvent {
         self.0
     }
 }

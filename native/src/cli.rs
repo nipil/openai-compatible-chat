@@ -5,8 +5,8 @@ use crate::AppState;
 use crate::cli::chat::{ChatOutcome, run_chat};
 use crate::cli::display::select_model;
 
-pub mod chat;
-pub mod display;
+mod chat;
+mod display;
 
 /// Run chat session until user quits or error
 pub async fn run_cli(state: AppState) -> Result<()> {

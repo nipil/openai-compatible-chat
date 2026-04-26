@@ -55,12 +55,12 @@ pub struct Config {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ModelInfo {
-    pub description: String,
-    pub family: String,
+    description: String,
+    family: String,
     #[serde(rename = "type")]
-    pub model_type: ModelType,
+    model_type: ModelType,
     pub context_window: Option<u32>,
-    pub release: Option<String>,
+    release: Option<String>,
 }
 
 // ── I/O helpers ──────────────────────────────────────────────────────────────

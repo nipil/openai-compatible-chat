@@ -19,7 +19,7 @@ use crate::openai::{ProviderError, send_chat_request};
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumString, EnumIter, AsRefStr)]
 #[strum(serialize_all = "lowercase")]
-pub enum ChatCommand {
+enum ChatCommand {
     New,
     Quit,
     Help,
