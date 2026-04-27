@@ -19,7 +19,7 @@ pub enum CliError {
 /// Run chat session until user quits or error
 pub async fn run_cli(state: AppState) -> Result<(), CliError> {
     loop {
-        let Some(selected_model) = select_model(state.candidate_models.as_ref())? else {
+        let Some(selected_model) = select_model(state.available_models.as_ref())? else {
             info!("User cancelation, exiting.");
             return Ok(());
         };

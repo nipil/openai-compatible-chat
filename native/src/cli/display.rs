@@ -8,7 +8,7 @@ use termimad::crossterm::style::Attributes;
 use termimad::crossterm::style::Color::*;
 use termimad::{CompoundStyle, MadSkin, StyledChar, gray};
 use thiserror::Error;
-use tracing::{info, warn};
+use tracing::{error, info};
 
 use crate::models::{EnrichedModel, EnrichedModels};
 
@@ -220,7 +220,7 @@ pub(crate) fn select_model(
     // Handle the simple cases
     match models.iter().next() {
         None => {
-            warn!("No model available for selection");
+            error!("No model available for selection");
             return Ok(None);
         }
         Some((model_id, model_info)) => {

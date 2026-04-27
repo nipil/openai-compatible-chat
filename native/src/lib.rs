@@ -20,5 +20,5 @@ pub mod web;
 pub struct AppState {
     pub openai_client: Arc<Client<OpenAIConfig>>,
     pub prepend_system_prompt: Arc<String>,
-    pub candidate_models: Arc<EnrichedModels>,
+    pub available_models: Arc<EnrichedModels>,
 }

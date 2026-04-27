@@ -8,7 +8,7 @@ use futures::StreamExt;
 use owo_colors::OwoColorize;
 use portable::{ChatEvent, ChatRequest, Message, MessageRole, TokenUsage, estimate_tokens};
 use thiserror::Error;
-use tracing::{error, instrument, trace, warn};
+use tracing::{debug, error, instrument, trace};
 
 use crate::cli::display::LiveMarkdown;
 use crate::models::EnrichedModel;
@@ -28,23 +28,25 @@ pub async fn run_chat<'a>(
     prepend_system_prompt: &str,
 ) -> Result<(), ChatError> {
     // use system prompt to initialize history
-    let system = get_system_prompt_from_user(prepend_system_prompt).await;
+    let system = get_system_prompt(prepend_system_prompt).await;
     let mut history = vec![Message {
         role: MessageRole::System,
         content: system,
     }];
+    debug!(message=?history[0], "system prompt");
 
     let mut token_count = TokenUsage::default();
     loop {
         token_count.set_approximate(estimate_tokens(&history));
         // get user input and prepare the request
-        let input = get_user_input(selected_model, &token_count).await;
-        println!();
+        let input = get_user_prompt(selected_model, &token_count).await;
+        debug!(input = input, "system prompt");
+        println!("\n");
         history.push(Message::new(MessageRole::User, input));
         let chat = ChatRequest::new(selected_model.id.to_string(), history.clone());
 
         let reply = handle_chat(client, &chat, |event| {
-            warn!(event = ?event, "chat event");
+            debug!(event = ?event, "chat event");
             match event {
                 ChatEvent::TokenCount { prompt, generated } => {
                     token_count.set_exact(prompt + generated);
@@ -56,6 +58,7 @@ pub async fn run_chat<'a>(
             }
         })
         .await?;
+        debug!(reply = reply, "reply");
         history.push(Message::new(MessageRole::Assistant, reply));
     }
 }
@@ -86,18 +89,9 @@ pub(crate) fn print_banner(selected_model: &EnrichedModel) {
     println!();
 }
 
-async fn get_system_prompt_from_user(prepend_system_prompt: &str) -> String {
+async fn get_system_prompt(prepend_system_prompt: &str) -> String {
     // TODO: switch to a readline crate whch will allow editing the default prompt before submitting
-    let user = tokio::task::spawn_blocking(|| {
-        print!("System prompt: ");
-        // TODO: switch from print! to write! and bubble up all stout Err
-        stdout().flush().ok();
-        let mut buf = String::new();
-        stdin().read_line(&mut buf).ok();
-        buf.trim().to_string()
-    })
-    .await
-    .unwrap_or_default();
+    let user = prompt_line("System prompt: ").await;
 
     // TODO: once we use default instead of prepend, fix code below
     let pre = prepend_system_prompt.trim();
@@ -109,17 +103,18 @@ async fn get_system_prompt_from_user(prepend_system_prompt: &str) -> String {
     }
 }
 
-async fn get_user_input<'a>(
+async fn get_user_prompt<'a>(
     selected_model: &EnrichedModel<'a>,
     token_count: &TokenUsage,
 ) -> String {
     loop {
-        let input = prompt_user_for_input(
+        let input = prompt_user(
             &selected_model.id,
             token_count,
             selected_model.info.context_window,
         )
         .await;
+        debug!(input=?input, "get_user_input");
         let input = input.trim();
         if input.is_empty() {
             continue;
@@ -128,28 +123,22 @@ async fn get_user_input<'a>(
     }
 }
 
-async fn prompt_user_for_input(
-    model: &str,
-    tok_history: &TokenUsage,
-    max_tokens: Option<u32>,
-) -> String {
-    let now = Local::now().format("%H:%M:%S").to_string();
-    let model = model.to_string();
-
-    let tok = tok_history.clone();
+async fn prompt_line(prompt: &str) -> String {
+    let prompt = prompt.to_string();
     tokio::task::spawn_blocking(move || {
-        let prompt = build_prompt_str(&now, &model, &tok, max_tokens);
         print!("{prompt}");
         stdout().flush().ok();
         let mut buf = String::new();
         stdin().read_line(&mut buf).ok();
+        debug!(buffer=?buf, "prompt_line");
         buf.trim().to_string()
     })
     .await
     .unwrap_or_default()
 }
 
-fn build_prompt_str(time: &str, model: &str, tokens: &TokenUsage, max: Option<u32>) -> String {
+async fn prompt_user(model: &str, tokens: &TokenUsage, max: Option<u32>) -> String {
+    let time = Local::now().format("%H:%M:%S").to_string();
     let tok_coloured = match max {
         None => tokens.to_string().white().to_string(),
         Some(m) => {
@@ -165,13 +154,13 @@ fn build_prompt_str(time: &str, model: &str, tokens: &TokenUsage, max: Option<u3
             }
         }
     };
-
-    format!(
+    let prompt = format!(
         "{}{}{}> ",
         format!("[{time}]").white(),
         format!("[{model}]").bright_black(),
         format!("[{tok_coloured}]"),
-    )
+    );
+    prompt_line(&prompt).await
 }
 
 // ── Streaming response ────────────────────────────────────────────────────────

@@ -84,7 +84,7 @@ async fn handle_config(State(s): State<AppState>) -> Json<ConfigDto> {
 #[instrument(skip_all)]
 async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
     Json(
-        s.candidate_models
+        s.available_models
             .iter()
             .map(|(model_id, model_info)| ModelDto {
                 id: model_id.clone(),
@@ -96,14 +96,14 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
 
 // ── POST /api/chat ────────────────────────────────────────────────────────────
 
-#[instrument(skip_all)]
+#[instrument(level = "trace", skip_all)]
 async fn handle_chat(
     State(s): State<AppState>,
     Json(mut chat): Json<ChatRequest>,
 ) -> Result<sse::Sse<stream::BoxStream<'static, Result<sse::Event, Infallible>>>, WebError> {
     // CRITICAL/SECURITY
     // server-side check that the client is not trying to jail out
-    if s.candidate_models.get(&chat.model).is_none() {
+    if s.available_models.get(&chat.model).is_none() {
         Err(WebError::Forbidden(format!(
             "Configuration does not allow model '{}'",
             chat.model

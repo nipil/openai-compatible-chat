@@ -90,7 +90,7 @@ pub struct ConfigDto {
 /// - Frontend <-> Backend
 /// - Backend <-> OpenAI-compatible provider
 /// Might need to split it if they diverge
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
     pub role: MessageRole,
     pub content: String,

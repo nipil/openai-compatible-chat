@@ -172,7 +172,7 @@ async fn main() -> Result<()> {
     let openai_client = OpenAiClient::with_config(oa_cfg).with_http_client(reqwest_client);
 
     // Build the list of usable models
-    let candidate_models: EnrichedModels = list_models(&openai_client)
+    let available_models: EnrichedModels = list_models(&openai_client)
         .await?
         .into_iter()
         // Constrain the model to the one specified, if any
@@ -230,7 +230,7 @@ async fn main() -> Result<()> {
     let state = AppState {
         openai_client: Arc::new(openai_client),
         prepend_system_prompt: Arc::new(cfg.prepend_system_prompt),
-        candidate_models: Arc::new(candidate_models),
+        available_models: Arc::new(available_models),
     };
 
     #[cfg(all(feature = "cli", feature = "web"))]

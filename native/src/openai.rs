@@ -164,7 +164,15 @@ pub async fn list_models(client: &Client<OpenAIConfig>) -> Result<Vec<String>, P
         .models()
         .list()
         .await
-        .map(|r| r.data.into_iter().map(|m| m.id).collect())
+        .map(|r| {
+            r.data
+                .into_iter()
+                .map(|m| {
+                    debug!(model = m.id, "List models");
+                    m.id
+                })
+                .collect()
+        })
         .map_err(|e| ProviderError::RequestError { source: e })
 }
 
