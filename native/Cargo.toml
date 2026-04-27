@@ -9,10 +9,10 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
-async-openai = { version = "0.34", features = [
+async-openai = { version = "0.36", features = [
     "chat-completion",
     "model",
-] } # pin to a known-good release; bump carefully
+] } # pin to a known-good release; bump carefully (and sync with reqwest)
 atty = "0.2"
 axum = "0.8"
 chrono = { version = "0.4", features = ["clock"] }
@@ -26,7 +26,7 @@ futures = "0.3"
 owo-colors = "4"
 portable.workspace = true
 regex.workspace = true
-reqwest = "0.12" # Update carefully to match async_openai dep version
+reqwest = "0.13" # Update carefully to match async_openai dep version
 serde_json.workspace = true
 serde_regex = "1"
 serde.workspace = true
