@@ -671,6 +671,13 @@
     "release": "2025-12-15",
     "type": "image"
   },
+  "gpt-image-2": {
+    "context_window": null,
+    "description": "State-of-the-art image generation and editing model with reasoning capabilities, near-perfect multilingual text rendering, and support for flexible resolutions up to 4K",
+    "family": "gpt-image",
+    "release": "2026-04-21",
+    "type": "image"
+  },
   "gpt-image-2-2026-04-21": {
     "context_window": null,
     "description": "State-of-the-art image generation and editing model with reasoning capabilities, near-perfect multilingual text rendering, and support for flexible resolutions up to 4K",
