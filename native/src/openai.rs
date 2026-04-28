@@ -9,7 +9,7 @@ use async_openai::types::chat::{
 };
 use portable::{ChatEvent, ChatRequest, Message, MessageRole};
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
+use strum::{AsRefStr, Display, EnumString};
 use thiserror::Error;
 use tracing::{debug, trace, warn};
 
@@ -23,7 +23,9 @@ pub enum ProviderError {
     StreamingError { source: OpenAIError },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumString)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumString, AsRefStr,
+)]
 #[strum(serialize_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum ModelType {

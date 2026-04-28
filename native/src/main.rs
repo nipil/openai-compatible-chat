@@ -217,7 +217,11 @@ async fn main() -> Result<()> {
         .filter(|(id, info)| {
             let keep = COMPATIBLE_MODEL_TYPES.contains(&info.model_type);
             if !keep {
-                info!(model = id, "Ignoring model with known incompatible type");
+                info!(
+                    "type" = &info.model_type.as_ref(),
+                    model = id,
+                    "Ignoring incompatible model"
+                );
             }
             keep
         })
