@@ -26,7 +26,7 @@
     /* keep banner dark in both themes */
     --bg-panel: #ffffff;
     --bg-input: #ffffff;
-    --bg-user-msg: #a7b2a6;
+    --bg-user-msg: #cdd1cc;
     --bg-asst-msg: #ffffff;
     --text-primary: #1a1a2e;
     --text-muted: #9ca3af;
@@ -173,6 +173,13 @@ body {
     margin-left: auto;
 }
 
+/* github link */
+
+.github-link i {
+    font-size: 32px;
+    color: var(--text-primary);
+    transition: color 0.3s ease;
+}
 
 /* ── System prompt ──────────────────────────────────────────────────────── */
 .sys-area {
