@@ -580,6 +580,34 @@
     "release": "2026-03-05",
     "type": "reasoning"
   },
+  "gpt-5.5": {
+    "context_window": 1000000,
+    "description": "OpenAI's frontier model for complex professional work; excels at agentic coding, computer use, knowledge work, and scientific research with improved token efficiency over GPT-5.4",
+    "family": "gpt-5.5",
+    "release": "2026-04-23",
+    "type": "chat"
+  },
+  "gpt-5.5-2026-04-23": {
+    "context_window": 1000000,
+    "description": "Versioned snapshot of gpt-5.5; OpenAI's frontier model for complex professional work; excels at agentic coding, computer use, knowledge work, and scientific research with improved token efficiency over GPT-5.4",
+    "family": "gpt-5.5",
+    "release": "2026-04-23",
+    "type": "chat"
+  },
+  "gpt-5.5-pro": {
+    "context_window": 1000000,
+    "description": "Higher-accuracy variant of GPT-5.5, optimized for the hardest research, math, and retrieval tasks",
+    "family": "gpt-5.5",
+    "release": "2026-04-23",
+    "type": "chat"
+  },
+  "gpt-5.5-pro-2026-04-23": {
+    "context_window": 1000000,
+    "description": "Versioned snapshot of gpt-5.5-pro; higher-accuracy variant of GPT-5.5, optimized for the hardest research, math, and retrieval tasks",
+    "family": "gpt-5.5",
+    "release": "2026-04-23",
+    "type": "chat"
+  },
   "gpt-audio": {
     "context_window": null,
     "description": "Alias for latest GPT audio generation model (GA)",
@@ -641,6 +669,13 @@
     "description": "Advanced GPT image model with improved quality and edit consistency",
     "family": "image",
     "release": "2025-12-15",
+    "type": "image"
+  },
+  "gpt-image-2-2026-04-21": {
+    "context_window": null,
+    "description": "State-of-the-art image generation and editing model with reasoning capabilities, near-perfect multilingual text rendering, and support for flexible resolutions up to 4K",
+    "family": "gpt-image",
+    "release": "2026-04-21",
     "type": "image"
   },
   "gpt-realtime": {
