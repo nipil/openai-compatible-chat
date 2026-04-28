@@ -722,6 +722,34 @@ fn App() -> impl IntoView {
             // ── Banner ────────────────────────────────────────────────────────
             <div class="banner">
 
+                // ── Left-most: clear session + reload ──
+                <button
+                    class="btn-clear"
+                    title="Clear conversation and reload"
+                    on:click=move |_| {
+                        // Abort any in-flight request cleanly
+                        do_stop();
+
+                        // Erase the chat from browser storage
+                        save_chat(&vec![]);
+
+                        // Reload the tab
+                        match web_sys::window() {
+                            Some(window) => match window.location().reload() {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    web_sys::console::error_1(
+                                        &format!("Could not reload current window : {e:?}").into(),
+                                    );
+                                }
+                            },
+                            None => {}
+                        }
+                    }
+                >
+                    "✕ Clear"
+                </button>
+
                 // Left: model dropdown
                 <select
                     class="model-select"
@@ -771,6 +799,29 @@ fn App() -> impl IntoView {
                         {move || match theme.get() { Theme::Dark => "🌞" , Theme::Light => "🌚" }}
                     </button>
                 </div>
+
+
+                // ── Right-most: open same URL in a new tab ──
+                <button
+                    class="btn-new"
+                    title="Open a new conversation tab"
+                    on:click=move |_| {
+                        let Some(window) = web_sys::window() else {
+                            web_sys::console::error_1(&"No window available".into());
+                            return;
+                        };
+                        let Ok(href) = window.location().href() else {
+                            web_sys::console::error_1(&"Could not read current location".into());
+                            return;
+                        };
+                        if let Err(e) = window.open_with_url_and_target(&href, "_blank") {
+                            web_sys::console::error_1(&format!("Could not open new windo : {e:?}").into());
+                            return;
+                        }
+                    }
+                >
+                    "＋ New"
+                </button>
             </div>
 
             // ── System prompt ─────────────────────────────────────────────────

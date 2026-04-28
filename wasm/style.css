@@ -138,6 +138,42 @@ body {
     background: rgba(255, 255, 255, 0.1);
 }
 
+.btn-clear,
+.btn-new {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-banner);
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-clear:hover,
+.btn-new:hover {
+    background: var(--bg-input);
+    border-color: var(--text-muted);
+}
+
+.btn-clear:active,
+.btn-new:active {
+    background: var(--bg-panel);
+}
+
+/* Position helpers — if your banner uses flexbox (likely) */
+
+/* pushes everything else to the right */
+.btn-clear {
+    margin-right: auto;
+}
+
+/* pushes itself to the right edge     */
+.btn-new {
+    margin-left: auto;
+}
+
+
 /* ── System prompt ──────────────────────────────────────────────────────── */
 .sys-area {
     flex-shrink: 0;
