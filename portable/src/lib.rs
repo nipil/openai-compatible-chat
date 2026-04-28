@@ -75,8 +75,9 @@ pub enum ChatEvent {
 
 // PartialEq required by leptos Memo
 // Clone required by leptos RwSignal.get()
-#[derive(Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Eq, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 pub struct ModelDto {
+    // IMPORTANT: the derive use declaration order as priority
     pub id: String,
     pub context_window: Option<u32>,
 }

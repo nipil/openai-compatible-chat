@@ -449,7 +449,8 @@ fn App() -> impl IntoView {
                     return;
                 }
                 match r.json::<Vec<ModelDto>>().await {
-                    Ok(list) => {
+                    Ok(mut list) => {
+                        list.sort();
                         // Try saved model cookie
                         if let Some(id) = get_cookie(COOKIE_MODEL)
                             .and_then(|s| list.iter().find(|m| m.id == s).map(|m| m.id.clone()))
