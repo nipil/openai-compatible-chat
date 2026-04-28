@@ -747,7 +747,7 @@ fn App() -> impl IntoView {
                         }
                     }
                 >
-                    "✕ Clear"
+                    "✕"
                 </button>
 
                 // Left: model dropdown
@@ -780,20 +780,16 @@ fn App() -> impl IntoView {
                     >
                         {move || match sel_meta.get().and_then(|m| m.context_window) {
                             // TokenUsae handles the '~' (or not) for variants
-                            Some(max) => format!("{} / {} tok", tok_count.get(), max),
-                            None      => format!("{} tok", tok_count.get()),
+                            Some(max) => format!("{} token / {}k", tok_count.get(), max / 1024),
+                            None      => format!("{} token", tok_count.get()),
                         }}
                     </span>
                 </div>
 
                 // Right: title link + theme toggle
                 <div class="banner-right">
-                    <a
-                        class="title-link"
-                        href="https://github.com/nipil/openai-compatible-chat"
-                        target="_blank"
-                    >
-                        "openai-compatible-chat"
+                    <a href="https://github.com/nipil/openai-compatible-chat" class="github-link" target="_blank">
+                        <i class="fab fa-github"></i>
                     </a>
                     <button class="theme-btn" on:click=toggle_theme>
                         {move || match theme.get() { Theme::Dark => "🌞" , Theme::Light => "🌚" }}
@@ -820,7 +816,7 @@ fn App() -> impl IntoView {
                         }
                     }
                 >
-                    "＋ New"
+                    "＋"
                 </button>
             </div>
 
