@@ -85,9 +85,6 @@ pub fn load_model_info_map(file: &Path) -> Result<EnrichedModels, ConfigError> {
         file = %file.display(),
         "Loading mappings file"
     );
-    if !Path::new(file).exists() {
-        return Ok(EnrichedModels::new());
-    }
     let raw = std::fs::read_to_string(file).map_err(|e| ConfigError::file(file, e))?;
     let models = serde_json::from_str(&raw).map_err(|e| ConfigError::invalid(file, e))?;
     Ok(models)

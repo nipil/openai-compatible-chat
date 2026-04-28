@@ -133,14 +133,26 @@ Comportement :
 
 ## Workflow de dev
 
+Proxy: si besoin, vscode setting `rust-analyzer.cargo.extraEnv`
+
+```json
+"rust-analyzer.cargo.extraEnv": {
+    "ALL_PROXY": "http://10.154.61.6:3128"
+}
+```
+
 Installer les prérequis
 
 ```shell
+# a priori nécessaire pour l'extension rust-analyzer de vscode
+rustup component add rust-src
+
 # toolchain wasm
 rustup target add wasm32-unknown-unknown
 
 # ajoute l'outil de reformattage de code depuis nightly
 # IMPORTANT: c'est le seul outil utilisé du nightly, on build via stable
+rustup toolchain install nightly
 rustup component add rustfmt --toolchain nightly
 
 # outil qui hot-build/reload le wasm et le static
