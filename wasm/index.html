@@ -6,6 +6,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>openai-compatible-chat</title>
+
+    <!-- Read theme cookie before paint to prevent FOUC (flash of unstyled content) -->
+    <script>
+        (function () {
+            // update name according to cookie name and theme name changes
+            var match = document.cookie.match(/(?:^|;\s*)theme=([^;]+)/);
+            var theme = match ? match[1] : "dark";
+            // update colors according to style changes
+            var bg = theme === "light" ? "#f4f4f5" : "#1a1a2e";
+            document.documentElement.style.backgroundColor = bg;
+            document.documentElement.setAttribute("data-theme", theme);
+        })();
+    </script>
+
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link data-trunk rel="css" href="style.css" />
     <link data-trunk rel="rust" data-wasm-opt="z" />
