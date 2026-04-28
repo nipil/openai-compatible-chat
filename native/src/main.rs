@@ -28,7 +28,7 @@ const TRACE_LOG: &str = "trace.log";
 #[derive(Parser)]
 #[command(name = "chat", about = "Interactive LLM", version)]
 struct Args {
-    #[arg(long, short = 't', default_value_t = 3000)]
+    #[arg(long, short = 't', default_value_t = 10000)]
     api_timeout_ms: u64,
 
     #[arg(long, short = 'c', default_value = "config.json")]
