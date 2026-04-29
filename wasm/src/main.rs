@@ -135,6 +135,7 @@ fn set_cookie(name: &str, value: &str) {
     let Some(html_doc) = document.dyn_into::<web_sys::HtmlDocument>().ok() else {
         return;
     };
+    // TODO: handle result ?
     let _ = html_doc.set_cookie(&format!(
         "{name}={value}; max-age=31536000; SameSite=Strict; path=/"
     ));
@@ -152,6 +153,8 @@ fn apply_theme(theme: &Theme) {
     let Some(element) = document.document_element() else {
         return;
     };
+    // TODO: enum ?
+    // TODO: handle result ?
     let _ = element.set_attribute("data-theme", theme.as_ref());
 }
 
@@ -178,6 +181,7 @@ async fn stream_chat(
         .map_err(|e| format!("could not set content type to json : {e:?}"))?; // TODO: thiserror
 
     let opts = web_sys::RequestInit::new();
+    // TODO: enum ?
     opts.set_method("POST");
     opts.set_headers(hdrs.as_ref());
     // TODO: use serde-wasm-bindgen = "0.6" ?
@@ -515,6 +519,7 @@ fn App() -> impl IntoView {
     // ── Escape key stops streaming ────────────────────────────────────────────
     let esc = window_event_listener(leptos::ev::keydown, move |e: KeyboardEvent| {
         // if escape is pressed while streaming
+        // TODO: enum ?
         if e.key() == "Escape" && streaming.get_untracked() {
             // check if abort controller signal holds an abord controller
             if let Some(ac) = abort_ctl.get_untracked() {
@@ -686,6 +691,7 @@ fn App() -> impl IntoView {
                 // TODO: show error in the UI, but not in the specific bubble ?
                 // TODO: thiserror instead of string handling ?
                 let e_low = e.to_lowercase();
+                // TODO: enum ?
                 if !e_low.contains("abort") && !e_low.contains("cancel") {
                     // TODO: maybe move to a dedicated error notification area ?
                     messages.update(|v| {
@@ -863,6 +869,7 @@ fn App() -> impl IntoView {
                     prop:value=move || input.get()
                     on:input=move |e| input.set(event_target_value(&e))
                     on:keydown=move |e: KeyboardEvent| {
+                        // TODO: enum ?
                         if e.ctrl_key() && e.key() == "Enter" && !streaming.get_untracked() {
                             // prevent multiple send ?
                             do_send();

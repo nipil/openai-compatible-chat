@@ -163,9 +163,9 @@ async fn main() -> Result<()> {
 
     // Configure a shared http client
     let reqwest_client = ReqwestClient::builder()
-        // TODO: configure proxy
-        // TODO: configure ...
         .timeout(std::time::Duration::from_millis(args.api_timeout_ms))
+        // system proxy are handled/enabled by default for HTTP/HTTPS
+        // https://docs.rs/reqwest/latest/reqwest/index.html#proxies
         .build()?;
 
     // Build the OpenAI client from parts

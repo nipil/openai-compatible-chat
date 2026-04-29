@@ -62,6 +62,7 @@ impl LiveMarkdown {
         if self.last_render.elapsed() < REFRESH_INTERVAL {
             return;
         }
+        // TODO: handle result ?
         let _ = self.paint(text);
         self.last_render = Instant::now();
     }
@@ -69,6 +70,7 @@ impl LiveMarkdown {
     /// Force a final, unthrottled render and move the cursor past it.
     pub(crate) fn finish(&mut self, text: &str) {
         if !text.is_empty() {
+            // TODO: handle result ?
             let _ = self.paint(text);
         }
         println!();
