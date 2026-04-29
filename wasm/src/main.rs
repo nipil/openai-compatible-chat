@@ -85,9 +85,6 @@ pub enum AppError {
     #[error("Could not set request headers : {source}")]
     SetHeader { source: JsError },
 
-    #[error("Could not convert chat to request body : {source}")]
-    ConvertBody { source: serde_wasm_bindgen::Error },
-
     #[error("Could not get session storage : {source}")]
     SessionStorage { source: JsError },
 
@@ -377,10 +374,15 @@ async fn stream_chat(
     let opts = web_sys::RequestInit::new();
     opts.set_method(HttpMethod::Post.as_ref());
     opts.set_headers(hdrs.as_ref());
-    opts.set_body(
-        // Faster and cleaner than : serde_json::json! + JsValue::
-        &serde_wasm_bindgen::to_value(&chat).map_err(|e| AppError::ConvertBody { source: e })?,
-    );
+
+    // Here serde_wasm_bindgen (Rust struct <=> Js Object conversions)
+    // is not really needed : we need to get a string anyway, and
+    // convert this string to a JsValue (as a string !) for set_body)
+    {
+        let body = serde_json::json!(chat).to_string();
+        let body = wasm_bindgen::JsValue::from_str(&body);
+        opts.set_body(&body);
+    }
 
     // pass the abord signal notifying end to the request
     // so that the browser/request can be cancelled from UI
