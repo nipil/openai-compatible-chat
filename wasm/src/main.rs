@@ -141,41 +141,48 @@ pub enum FutureStreamError {
     Chunk(#[from] JsError),
 }
 
-fn show_err_get_default<T>(e: AppError) -> T
+fn show_err_get_default<T>(errors: RwSignal<Vec<String>>, e: AppError) -> T
 where
     T: Default,
 {
-    // TODO: can i access the Error widget, or should i pass it everytime ?
-    // format!("⚠ Error: {e}");
-    let _ = show_error_alert(&format!("Error detected : {e:?}"));
+    let msg = e.to_string();
+    // Always display errors in the console
+    web_sys::console::error_1(&msg.clone().into());
+    // Update the error list through the signal, and
+    errors.update(|v| v.push(msg));
+    // In case of emergency, show an alert ?
+    // let _ = show_error_alert(&format!("Error detected : {e:?}"));
     T::default()
 }
 
 /// Wraps a Result<T, AppError> check and discard errors, returning the default of the Ok
-fn handle_err<T>(res: Result<T, AppError>) -> T
+fn handle_err<T>(errors: RwSignal<Vec<String>>, res: Result<T, AppError>) -> T
 where
     T: Default,
 {
     match res {
         Ok(t) => t,
-        Err(e) => show_err_get_default::<T>(e),
+        Err(e) => show_err_get_default::<T>(errors, e),
     }
 }
 
 /// Wraps a closure taking 1 argument, check and discard errors, returning the default of the Ok
-fn handle_err_clos_1<F, A, T>(f: F) -> impl Fn(A) -> T
+fn handle_err_clos_1<F, A, T>(errors: RwSignal<Vec<String>>, f: F) -> impl Fn(A) -> T
 where
     F: Fn(A) -> Result<T, AppError>,
     T: Default,
 {
     move |a| match f(a) {
         Ok(t) => t,
-        Err(e) => show_err_get_default::<T>(e),
+        Err(e) => show_err_get_default::<T>(errors, e),
     }
 }
 
 /// Wraps a future taking 0 argument, check and discard errors, returning the default of the Ok
-fn handle_err_fut_0<F, T>(fut: F) -> impl std::future::Future<Output = T>
+fn handle_err_fut_0<F, T>(
+    errors: RwSignal<Vec<String>>,
+    fut: F,
+) -> impl std::future::Future<Output = T>
 where
     F: std::future::Future<Output = Result<T, AppError>>,
     T: Default,
@@ -183,7 +190,7 @@ where
     async move {
         match fut.await {
             Ok(v) => v,
-            Err(e) => show_err_get_default::<T>(e),
+            Err(e) => show_err_get_default::<T>(errors, e),
         }
     }
 }
@@ -540,6 +547,16 @@ async fn get_url_path<T: DeserializeOwned>(path: &str) -> Result<T, AppError> {
 fn App() -> impl IntoView {
     // ── Signals ───────────────────────────────────────────────────────────────
 
+    // Create the signal once at the root and share it via context.
+    let errors: RwSignal<Vec<String>> = RwSignal::new(vec![]);
+
+    // Memo: recomputes only when the emptiness of the vec changes,
+    // not on every individual push — keeps re-renders minimal.
+    let error_panel_is_visible = Memo::new(move |_| !errors.with(Vec::is_empty));
+
+    // Clear the error on panel close
+    let error_panel_on_close = move |_| errors.set(vec![]);
+
     // the list of models available, compatible, and allowed for the config
     let models = RwSignal::new(vec![]);
 
@@ -551,7 +568,7 @@ fn App() -> impl IntoView {
 
     // holds every conversation message, and receives the reply token in last one
     // stored to, and restored from, sessionStorage in case tab reloads
-    let messages = RwSignal::new(handle_err(load_chat()));
+    let messages = RwSignal::new(handle_err(errors, load_chat()));
 
     // used to interact with the input field for the user
     let input = RwSignal::new(String::new());
@@ -581,7 +598,7 @@ fn App() -> impl IntoView {
     let conv_ref: NodeRef<leptos::html::Div> = NodeRef::new();
 
     // ── Bootstrap: load config then models ────────────────────────────────────
-    spawn_local(handle_err_fut_0(async move {
+    spawn_local(handle_err_fut_0(errors, async move {
         let cfg = get_url_path::<ConfigDto>("/api/config").await?;
         sys_prompt.set(cfg.prepend_system_prompt);
         let mut list = get_url_path::<Vec<ModelDto>>("/api/models").await?;
@@ -653,7 +670,7 @@ fn App() -> impl IntoView {
     on_cleanup(move || drop(esc));
 
     // ── Theme toggle ──────────────────────────────────────────────────────────
-    let toggle_theme = handle_err_clos_1(move |_| {
+    let toggle_theme = handle_err_clos_1(errors, move |_| {
         let new_theme = match theme.get_untracked() {
             Theme::Dark => Theme::Light,
             Theme::Light => Theme::Dark,
@@ -665,7 +682,7 @@ fn App() -> impl IntoView {
     });
 
     // ── Open new conversation ─────────────────────────────────────────────────
-    let open_new = handle_err_clos_1(move |_| {
+    let open_new = handle_err_clos_1(errors, move |_| {
         let window = get_window()?;
         let href = window
             .location()
@@ -760,7 +777,7 @@ fn App() -> impl IntoView {
         let chat_req = ChatRequest::new(model, send_msgs);
 
         // Launch an additional async task, which will stream and update, and let it run freely
-        spawn_local(handle_err_fut_0(async move {
+        spawn_local(handle_err_fut_0(errors, async move {
             // do the work, providing a closure to handle each new token
             let res = stream_chat(
                 chat_req,
@@ -830,7 +847,7 @@ fn App() -> impl IntoView {
                 <button
                     class="btn-clear"
                     title="Clear conversation and reload"
-                    on:click=handle_err_clos_1(move |_| {
+                    on:click=handle_err_clos_1(errors, move |_| {
                         // Abort any in-flight request cleanly
                         do_stop();
                         // Erase by storing an empty chat into browser storage
@@ -848,7 +865,7 @@ fn App() -> impl IntoView {
                     class="model-select"
                     prop:value=move || sel_model.get()
                     prop:disabled=move || mdl_locked.get()
-                    on:change=handle_err_clos_1(move |e| {
+                    on:change=handle_err_clos_1(errors, move |e| {
                         // get selected model
                         let model_id = event_target_value(&e);
                         // notify the rest of the UI hat model changed
@@ -935,6 +952,31 @@ fn App() -> impl IntoView {
                 }
             </div>
 
+            // ── Error panel area ──────────────────────────────────────────────
+
+            <div
+                class="error-panel"
+                // Toggle a modifier class rather than unmounting, so the
+                // CSS transition can animate in/out smoothly.
+                class:error-panel--visible=error_panel_is_visible
+            >
+                <div class="error-panel__header">
+                    <span class="error-panel__title">"Errors"</span>
+                    <button
+                        class="error-panel__close"
+                        on:click=error_panel_on_close
+                        aria-label="Dismiss all errors"
+                    >
+                        "\u{2715}" // ✕
+                    </button>
+                </div>
+                <ul class="error-panel__list">
+                    {move || errors.get().into_iter().map(|msg| view! {
+                        <li class="error-panel__item">{msg}</li>
+                    }).collect::<Vec<_>>()}
+                </ul>
+            </div>
+
             // ── Input area ────────────────────────────────────────────────────
             <div class="input-area">
                 <textarea
@@ -942,7 +984,7 @@ fn App() -> impl IntoView {
                     placeholder="Message… (Ctrl+Enter to send  •  Esc to stop)"
                     prop:value=move || input.get()
                     on:input=move |e| input.set(event_target_value(&e))
-                    on:keydown=handle_err_clos_1(move |e: KeyboardEvent| {
+                    on:keydown=handle_err_clos_1(errors, move |e: KeyboardEvent| {
                         if e.ctrl_key() && e.key() == KeyboardId::Enter.as_ref() && !streaming.get_untracked() {
                             do_send()?;
                         }
@@ -958,7 +1000,7 @@ fn App() -> impl IntoView {
                     }.into_any()
                 } else {
                     view! {
-                        <button class="btn-send" on:click=handle_err_clos_1(move |_| {
+                        <button class="btn-send" on:click=handle_err_clos_1(errors, move |_| {
                             do_send()
                         })>
                             "Send ↵"

@@ -1,6 +1,32 @@
 /* ── Theme variables ────────────────────────────────────────────────────── */
 :root,
 [data-theme="dark"] {
+    /* ── Common to both themes ──────────────────────────────────────────── */
+    --error-panel-bg: #1e1b1b;
+    --error-panel-border: #c0392b;
+    --error-panel-shadow: 0 -2px 16px rgba(0, 0, 0, 0.45);
+    --error-panel-radius: 8px 8px 0 0;
+    --error-panel-padding: 0.35rem 1rem;
+    --error-panel-max-height: 260px;
+    --error-panel-z: 9999;
+    --error-panel-transition: transform 0.25s ease, opacity 0.25s ease;
+
+    --error-header-bg: #2d1a1a;
+    --error-header-color: #e74c3c;
+    --error-header-font-size: 0.85rem;
+    --error-header-font-weight: 600;
+
+    --error-close-color: #e74c3c;
+    --error-close-hover-color: #ff6b6b;
+    --error-close-size: 1.1rem;
+
+    --error-item-color: #f0d0d0;
+    --error-item-font-size: 0.82rem;
+    --error-item-border: 1px solid #3a2020;
+    --error-item-padding: 0.35rem 0.5rem;
+    --error-item-marker: "⚠ ";
+
+    /* ── Default (for dark) ──────────────────────────────────────────────── */
     --bg-app: #1a1a2e;
     --bg-banner: #1e1e2e;
     --bg-panel: #252535;
@@ -18,12 +44,13 @@
     --table-border: #45475a;
     --quote-border: #45475a;
     --quote-text: #888;
+
 }
 
 [data-theme="light"] {
+    /* ── Overrides (for dark) ───────────────────────────────────────────── */
     --bg-app: #f4f4f5;
     --bg-banner: #e3e3e3;
-    /* keep banner dark in both themes */
     --bg-panel: #ffffff;
     --bg-input: #ffffff;
     --bg-user-msg: #cdd1cc;
@@ -362,4 +389,94 @@ body {
 
 .btn-stop:hover {
     background: #c0392b;
+}
+
+/* ── Error Panel shell ─────────────────────────────────────────── */
+.error-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: var(--error-panel-z);
+
+    background: var(--error-panel-bg);
+    border-top: 2px solid var(--error-panel-border);
+    border-radius: var(--error-panel-radius);
+    box-shadow: var(--error-panel-shadow);
+
+    /* Hidden by default — slide down out of view */
+    transform: translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+    transition: var(--error-panel-transition);
+}
+
+.error-panel--visible {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ── Error Header row ──────────────────────────────────────────── */
+.error-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--error-panel-padding);
+    background: var(--error-header-bg);
+    border-radius: var(--error-panel-radius);
+}
+
+.error-panel__title {
+    color: var(--error-header-color);
+    font-size: var(--error-header-font-size);
+    font-weight: var(--error-header-font-weight);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* ── Error Close button ────────────────────────────────────────── */
+.error-panel__close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--error-close-color);
+    font-size: var(--error-close-size);
+    line-height: 1;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    transition: color 0.15s ease;
+}
+
+.error-panel__close:hover {
+    color: var(--error-close-hover-color);
+}
+
+/* ── Error Scrollable error list ───────────────────────────────── */
+.error-panel__list {
+    list-style: none;
+    margin: 0;
+    padding: 0.25rem 0;
+    max-height: var(--error-panel-max-height);
+    overflow-y: auto;
+    /* New errors appear at the bottom — scroll anchor keeps it there */
+    overflow-anchor: auto;
+}
+
+/* ── Error Individual error row ────────────────────────────────── */
+.error-panel__item {
+    color: var(--error-item-color);
+    font-size: var(--error-item-font-size);
+    font-family: monospace;
+    padding: var(--error-item-padding);
+    border-bottom: var(--error-item-border);
+}
+
+.error-panel__item::before {
+    content: var(--error-item-marker);
+    opacity: 0.7;
+}
+
+.error-panel__item:last-child {
+    border-bottom: none;
 }
