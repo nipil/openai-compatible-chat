@@ -657,6 +657,19 @@ fn App() -> impl IntoView {
         Ok(())
     });
 
+    // ── Open new conversation ─────────────────────────────────────────────────
+    let open_new = handle_err_clos_1(move |_| {
+        let window = get_window()?;
+        let href = window
+            .location()
+            .href()
+            .map_err(|e| AppError::CurrentUrl { source: e.into() })?;
+        window
+            .open_with_url_and_target(&href, "_blank")
+            .map_err(|e| AppError::OpenWindow { source: e.into() })?;
+        Ok(())
+    });
+
     // ── Send ──────────────────────────────────────────────────────────────────
     // TODO: thiserror
     let do_send = move || {
@@ -877,15 +890,7 @@ fn App() -> impl IntoView {
                 <button
                     class="btn-new"
                     title="Open a new conversation tab"
-                    // TODO: extract as a function, same as toggle_theme
-                    on:click=handle_err_clos_1(move |_| {
-                        let window = get_window()?;
-                        let href = window.location().href()
-                            .map_err(|e| AppError::CurrentUrl { source: e.into() })?;
-                        window.open_with_url_and_target(&href, "_blank")
-                            .map_err(|e| AppError::OpenWindow { source: e.into() })?;
-                        Ok(())
-                    })
+                    on:click=open_new
                 >
                     "＋"
                 </button>
