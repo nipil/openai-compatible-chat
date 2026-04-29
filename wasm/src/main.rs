@@ -64,6 +64,15 @@ pub enum AppError {
     #[error("Could not window")]
     NoWindow,
 
+    #[error("Could not reload window")]
+    ReloadFailed { source: JsError },
+
+    #[error("Could not open new window window")]
+    OpenWindow { source: JsError },
+
+    #[error("Could not get current address")]
+    CurrentUrl { source: JsError },
+
     #[error("Window has no document")]
     NoDocument,
 
@@ -123,6 +132,9 @@ pub enum AppError {
 
     #[error("Could not access element : {source}")]
     ElementAccess { source: JsError },
+
+    #[error("No model selected")]
+    NoModelSelected,
 }
 
 #[derive(Error, Debug)]
@@ -130,6 +142,53 @@ pub enum AppError {
 pub enum FutureStreamError {
     #[error("Could not get chunk out of stream {0}")]
     Chunk(#[from] JsError),
+}
+
+fn show_err_get_default<T>(e: AppError) -> T
+where
+    T: Default,
+{
+    // TODO: can i access the Error widget, or should i pass it everytime ?
+    // format!("⚠ Error: {e}");
+    let _ = show_error_alert(&format!("Error detected : {e:?}"));
+    T::default()
+}
+
+/// Wraps a Result<T, AppError> check and discard errors, returning the default of the Ok
+fn handle_err<T>(res: Result<T, AppError>) -> T
+where
+    T: Default,
+{
+    match res {
+        Ok(t) => t,
+        Err(e) => show_err_get_default::<T>(e),
+    }
+}
+
+/// Wraps a closure taking 1 argument, check and discard errors, returning the default of the Ok
+fn handle_err_clos_1<F, A, T>(f: F) -> impl Fn(A) -> T
+where
+    F: Fn(A) -> Result<T, AppError>,
+    T: Default,
+{
+    move |a| match f(a) {
+        Ok(t) => t,
+        Err(e) => show_err_get_default::<T>(e),
+    }
+}
+
+/// Wraps a future taking 0 argument, check and discard errors, returning the default of the Ok
+fn handle_err_fut_0<F, T>(fut: F) -> impl std::future::Future<Output = T>
+where
+    F: std::future::Future<Output = Result<T, AppError>>,
+    T: Default,
+{
+    async move {
+        match fut.await {
+            Ok(v) => v,
+            Err(e) => show_err_get_default::<T>(e),
+        }
+    }
 }
 
 // ── SSE Event helper ──────────────────────────────────────────────────────────
@@ -485,13 +544,7 @@ fn App() -> impl IntoView {
 
     // holds every conversation message, and receives the reply token in last one
     // stored to, and restored from, sessionStorage in case tab reloads
-    let messages = RwSignal::new(load_chat().unwrap_or_else(|e| {
-        // FIXME: only show alert if the error panel is not working
-        let _ = show_error_alert(&format!(
-            "Could not load saved chat from browser storage: {e:?}"
-        ));
-        vec![]
-    }));
+    let messages = RwSignal::new(handle_err(load_chat()));
 
     // used to interact with the input field for the user
     let input = RwSignal::new(String::new());
@@ -521,34 +574,21 @@ fn App() -> impl IntoView {
     let conv_ref: NodeRef<leptos::html::Div> = NodeRef::new();
 
     // ── Bootstrap: load config then models ────────────────────────────────────
-    spawn_local(async move {
-        match get_url_path::<ConfigDto>("/api/config").await {
-            Err(e) => {
-                // FIXME: only show alert if the error panel is not working
-                let _ = show_error_alert(&e.to_string());
-                return;
-            }
-            Ok(cfg) => sys_prompt.set(cfg.prepend_system_prompt),
-        };
-        match get_url_path::<Vec<ModelDto>>("/api/models").await {
-            Err(e) => {
-                // FIXME: only show alert if the error panel is not working
-                let _ = show_error_alert(&e.to_string());
-                return;
-            }
-            Ok(mut list) => {
-                list.sort();
-                if let Ok(Some(id)) = get_cookie(COOKIE_MODEL)
-                    && let Some(found) = list.iter().find(|m| m.id == id)
-                {
-                    sel_model.set(found.id.clone());
-                } else if list.len() > 0 {
-                    sel_model.set(list[0].id.clone());
-                }
-                models.set(list);
-            }
-        };
-    });
+    spawn_local(handle_err_fut_0(async move {
+        let cfg = get_url_path::<ConfigDto>("/api/config").await?;
+        sys_prompt.set(cfg.prepend_system_prompt);
+        let mut list = get_url_path::<Vec<ModelDto>>("/api/models").await?;
+        list.sort();
+        if let Ok(Some(id)) = get_cookie(COOKIE_MODEL)
+            && let Some(found) = list.iter().find(|m| m.id == id)
+        {
+            sel_model.set(found.id.clone());
+        } else if list.len() > 0 {
+            sel_model.set(list[0].id.clone());
+        }
+        models.set(list);
+        Ok(())
+    }));
 
     // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -606,55 +646,42 @@ fn App() -> impl IntoView {
     on_cleanup(move || drop(esc));
 
     // ── Theme toggle ──────────────────────────────────────────────────────────
-    let toggle_theme = move |_| {
+    let toggle_theme = handle_err_clos_1(move |_| {
         let new_theme = match theme.get_untracked() {
             Theme::Dark => Theme::Light,
             Theme::Light => Theme::Dark,
         };
-        if let Err(e) = apply_theme(&new_theme) {
-            let _ = show_error_alert(&format!("Could not apply theme : {e:?}"));
-        }
-        if let Err(e) = set_cookie(COOKIE_THEME, new_theme.as_ref()) {
-            let _ = show_error_alert(&format!("Could not set theme cookie : {e:?}"));
-        }
+        apply_theme(&new_theme)?;
+        set_cookie(COOKIE_THEME, new_theme.as_ref())?;
         theme.set(new_theme);
-    };
+        Ok(())
+    });
 
     // ── Send ──────────────────────────────────────────────────────────────────
     // TODO: thiserror
     let do_send = move || {
         if streaming.get_untracked() {
-            // prevent multiple send
-            return;
+            web_sys::console::debug_1(&"Prevent multiple send".into());
+            return Ok(());
         }
 
         // IMPORTANT: handle fail path before user
         // This is the only way to link the browser (req) to the ui : 'ac' is
         // an abort-controller, linked to a abort-signal 'sig' created below
-        let ac = match AbortController::new()
-            .map_err(|e| AppError::AbortController { source: e.into() })
-        {
-            Ok(ac) => ac,
-            Err(e) => {
-                // TODO: optionally: fall back to streaming without abort support ?
-                let _ = show_error_alert(&format!("Failed to create abort-controller: {e:?}"));
-                return;
-            }
-        };
+        let ac =
+            AbortController::new().map_err(|e| AppError::AbortController { source: e.into() })?;
 
         // get user input
         let text = input.get_untracked().trim().to_string();
         if text.is_empty() {
             web_sys::console::debug_1(&"Empty input, ignoring".into());
-            return;
+            return Ok(());
         }
 
         // get selected model name
         let model = sel_model.get_untracked();
         if model.is_empty() {
-            // FIXME: only show alert if the error panel is not working
-            let _ = show_error_alert("No model selected — the model list may have failed to load.");
-            return;
+            return Err(AppError::NoModelSelected);
         }
 
         // get whole history (stored across reloads, thrown away on tab discard)
@@ -687,12 +714,7 @@ fn App() -> impl IntoView {
 
         // Persist the history (except last empty) to sessionStorage (in case tab is reloaded)
         // FIXME: model is not saved s?!
-        if let Err(e) = save_chat(&send_msgs) {
-            // FIXME: only show alert if the error panel is not working
-            let _ = show_error_alert(&format!(
-                "Could not save conversation to browser storage : {e:?}"
-            ));
-        }
+        save_chat(&send_msgs)?;
 
         // Moves message list to Leptos, which stores the value in a reference-counted cell
         // on the reactive heap, kept alive as long as any signal handle or subscriber
@@ -719,7 +741,7 @@ fn App() -> impl IntoView {
         let chat_req = ChatRequest::new(model, send_msgs);
 
         // Launch an additional async task, which will stream and update, and let it run freely
-        spawn_local(async move {
+        spawn_local(handle_err_fut_0(async move {
             // do the work, providing a closure to handle each new token
             let res = stream_chat(
                 chat_req,
@@ -751,37 +773,19 @@ fn App() -> impl IntoView {
             // removes the abort controller from the abort controller signal
             abort_ctl.set(None);
 
-            // If we had any error while sending the chat
-            match res {
-                Ok(_) => {
-                    // only save reply to sessionStorage upon success
-                    if let Err(e) = save_chat(&messages.get_untracked()) {
-                        // FIXME: only show alert if the error panel is not working
-                        let _ = show_error_alert(&format!(
-                            "Could not save conversation to browser storage : {e:?}"
-                        ));
-                    }
-                }
-                Err(e) => {
-                    // TODO: show error in the UI, but not in the specific bubble ?
-                    // This is the main handling site for errors
-                    let _ = show_error_alert(&format!("Error during chat : {e:?}"));
-                    let e_low = e.to_string().to_lowercase();
-                    // TODO: enum ? no, delete this once below is fixed
-                    if !e_low.contains("abort") && !e_low.contains("cancel") {
-                        // TODO: remove once we have a dedicated error notification area ?
-                        messages.update(|v| {
-                            // last message (whatever it is, user or assistant)
-                            // but due to the workflow, the assistant
-                            // gets the error message, for the user to read
-                            if let Some(last) = v.last_mut() {
-                                last.content = format!("⚠ Error: {e}");
-                            }
-                        });
-                    }
-                }
-            }
-        });
+            // now we have reset streaming and abort_ctl, return the eventual error
+            res?;
+
+            // only save reply to sessionStorage upon success
+            save_chat(&messages.get_untracked())?;
+
+            Ok(())
+        }));
+
+        // this spawned function is polled outside of our code
+        // so we never get its return value, and the poller
+        // expects a ()
+        Ok(())
     };
 
     // ── Stop ──────────────────────────────────────────────────────────────────
@@ -807,36 +811,17 @@ fn App() -> impl IntoView {
                 <button
                     class="btn-clear"
                     title="Clear conversation and reload"
-                    on:click=move |_| {
+                    on:click=handle_err_clos_1(move |_| {
                         // Abort any in-flight request cleanly
                         do_stop();
 
                         // Erase by storing an empty chat into browser storage
-                        if let Err(e) = save_chat(&vec![]) {
-                            // FIXME: only show alert if the error panel is not working
-                            let _ = show_error_alert(&format!(
-                                "Could not save conversation to browser storage : {e:?}"
-                            ));
-                        }
+                        save_chat(&vec![])?;
 
                         // Reload the tab
-                        match get_window() {
-                            Ok(window) => {
-                                if let Err(e) = window.location().reload() {
-                                    let _ = show_error_alert(&format!(
-                                        "Could not reload window : {e:?}"
-                                    ));
-                                    return;
-                                }
-                            }
-                            Err(e) => {
-                                let _ = show_error_alert(&format!(
-                                    "Could not get window to try and reload : {e:?}"
-                                ));
-                                return;
-                            }
-                        }
-                    }
+                        get_window()?.location().reload()
+                            .map_err(|e| AppError::ReloadFailed { source: e.into()})
+                    })
                 >
                     "✕"
                 </button>
@@ -846,18 +831,13 @@ fn App() -> impl IntoView {
                     class="model-select"
                     prop:value=move || sel_model.get()
                     prop:disabled=move || mdl_locked.get()
-                    on:change=move |e| {
+                    on:change=handle_err_clos_1(move |e| {
                         let val = event_target_value(&e);
                         // notify the rest of the UI hat model changed
                         sel_model.set(val.clone());
                         // persist to cookie
-                        if let Err(e) =set_cookie(COOKIE_MODEL, &val)  {
-                            let _ = show_error_alert(&format!(
-                                "Could not set model cookie : {e:?}"
-                            ));
-                            return;
-                        }
-                    }
+                        set_cookie(COOKIE_MODEL, &val)
+                    })
                 >
                     {move || models.get().into_iter().map(|m| {
                         let id = m.id.clone();
@@ -898,33 +878,14 @@ fn App() -> impl IntoView {
                     class="btn-new"
                     title="Open a new conversation tab"
                     // TODO: extract as a function, same as toggle_theme
-                    on:click=move |_| {
-                        match get_window() {
-                            Err(e) => {
-                                let _ = show_error_alert(&format!(
-                                    "Could not get window to try and reload : {e:?}"
-                                ));
-                                return;
-                            }
-                            Ok(window) => {
-                                let href = match window.location().href() {
-                                    Ok(href) => href,
-                                    Err(e) => {
-                                        let _ = show_error_alert(&format!(
-                                            "Could not get current address : {e:?}"
-                                        ));
-                                        return;
-                                    }
-                                };
-                                if let Err(e) = window.open_with_url_and_target(&href, "_blank") {
-                                        let _ = show_error_alert(&format!(
-                                            "Could not open new windo : {e:?}"
-                                        ));
-                                    return;
-                                }
-                            }
-                        }
-                    }
+                    on:click=handle_err_clos_1(move |_| {
+                        let window = get_window()?;
+                        let href = window.location().href()
+                            .map_err(|e| AppError::CurrentUrl { source: e.into() })?;
+                        window.open_with_url_and_target(&href, "_blank")
+                            .map_err(|e| AppError::OpenWindow { source: e.into() })?;
+                        Ok(())
+                    })
                 >
                     "＋"
                 </button>
@@ -971,12 +932,12 @@ fn App() -> impl IntoView {
                     placeholder="Message… (Ctrl+Enter to send  •  Esc to stop)"
                     prop:value=move || input.get()
                     on:input=move |e| input.set(event_target_value(&e))
-                    on:keydown=move |e: KeyboardEvent| {
+                    on:keydown=handle_err_clos_1(move |e: KeyboardEvent| {
                         if e.ctrl_key() && e.key() == KeyboardId::Enter.as_ref() && !streaming.get_untracked() {
-                            // handle result
-                            do_send();
+                            do_send()?;
                         }
-                    }
+                        Ok(())
+                    })
                     rows="3"
                 />
                 {move || if streaming.get() {
@@ -987,10 +948,9 @@ fn App() -> impl IntoView {
                     }.into_any()
                 } else {
                     view! {
-                        <button class="btn-send" on:click=move |_|
-                            // TODO: handle result
+                        <button class="btn-send" on:click=handle_err_clos_1(move |_| {
                             do_send()
-                        >
+                        })>
                             "Send ↵"
                         </button>
                     }.into_any()
