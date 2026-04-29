@@ -165,8 +165,6 @@ async fn prompt_user(model: &str, tokens: &TokenUsage, max: Option<u32>) -> Stri
 
 // ── Streaming response ────────────────────────────────────────────────────────
 
-// TODO: refactor and provide a closure for the updates ?
-
 /// One request to the provider (only initial request, not streaming response)
 #[instrument(level = "debug", skip_all)]
 async fn handle_chat(

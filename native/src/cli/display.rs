@@ -8,7 +8,7 @@ use termimad::crossterm::style::Attributes;
 use termimad::crossterm::style::Color::*;
 use termimad::{CompoundStyle, MadSkin, StyledChar, gray};
 use thiserror::Error;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::models::{EnrichedModel, EnrichedModels};
 
@@ -62,16 +62,18 @@ impl LiveMarkdown {
         if self.last_render.elapsed() < REFRESH_INTERVAL {
             return;
         }
-        // TODO: handle result ?
-        let _ = self.paint(text);
+        if let Err(e) = self.paint(text) {
+            warn!("Failed to paint : {:?}", e);
+        }
         self.last_render = Instant::now();
     }
 
     /// Force a final, unthrottled render and move the cursor past it.
     pub(crate) fn finish(&mut self, text: &str) {
         if !text.is_empty() {
-            // TODO: handle result ?
-            let _ = self.paint(text);
+            if let Err(e) = self.paint(text) {
+                warn!("Failed to paint : {:?}", e);
+            }
         }
         println!();
     }

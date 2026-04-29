@@ -161,7 +161,7 @@ pub(crate) fn get_chat_event(
 // ── API ───────────────────────────────────────────────────────────────────────
 
 pub async fn list_models(client: &Client<OpenAIConfig>) -> Result<Vec<String>, ProviderError> {
-    // TODO: deduplicate ? just in case ?
+    // do not deduplicate, rely on the provider
     client
         .models()
         .list()

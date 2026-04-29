@@ -110,8 +110,6 @@ async fn handle_chat(
         )))?
     }
 
-    // FIXME: reuse this logic for the cli version
-
     // Prepend the system prompt to the one provided by the client
     let prepend = s.prepend_system_prompt.trim();
 

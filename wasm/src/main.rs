@@ -348,7 +348,7 @@ fn set_cookie(name: &str, value: &str) -> Result<(), AppError> {
 
 fn apply_theme(theme: &Theme) -> Result<(), AppError> {
     let doc_el = get_document_element(get_document(get_window()?)?)?;
-    // Referenced in both index.html and style.css
+    // Note: this is referenced/hardcodd in both index.html and style.css too
     set_element_attribute(doc_el, "data-theme", theme.as_ref())
 }
 
@@ -368,10 +368,12 @@ async fn stream_chat(
     on_total: impl Fn(u32),
 ) -> Result<(), AppError> {
     let win = get_window()?;
+    // Build headers
+    // TODO: if i set the headers on the reqwest client in main, will this overwrite or add .. or both ?
     let hdrs = web_sys::Headers::new().map_err(|e| AppError::CreateHeaders { source: e.into() })?;
     hdrs.set("Content-Type", "application/json")
         .map_err(|e| AppError::SetHeader { source: e.into() })?;
-
+    // build options
     let opts = web_sys::RequestInit::new();
     opts.set_method(HttpMethod::Post.as_ref());
     opts.set_headers(hdrs.as_ref());
@@ -384,15 +386,18 @@ async fn stream_chat(
     // so that the browser/request can be cancelled from UI
     opts.set_signal(Some(&signal));
 
+    // prepare the full request
     let req = web_sys::Request::new_with_str_and_init("/api/chat", &opts)
         .map_err(|e| AppError::CreateRequest { source: e.into() })?;
 
+    // actually send the request
     let resp: web_sys::Response = JsFuture::from(win.fetch_with_request(&req))
         .await
         .map_err(|e| AppError::FetchRequest { source: e.into() })?
         .dyn_into()
         .map_err(|e| AppError::ConvertResponse { source: e.into() })?;
 
+    // We got an HTTP answer, check it
     if !resp.ok() {
         return Err(AppError::HttpError {
             status: resp.status(),
@@ -671,7 +676,6 @@ fn App() -> impl IntoView {
     });
 
     // ── Send ──────────────────────────────────────────────────────────────────
-    // TODO: thiserror
     let do_send = move || {
         if streaming.get_untracked() {
             web_sys::console::debug_1(&"Prevent multiple send".into());
@@ -827,10 +831,8 @@ fn App() -> impl IntoView {
                     on:click=handle_err_clos_1(move |_| {
                         // Abort any in-flight request cleanly
                         do_stop();
-
                         // Erase by storing an empty chat into browser storage
-                        save_chat(&vec![])?;
-
+                        save_chat(&[])?;
                         // Reload the tab
                         get_window()?.location().reload()
                             .map_err(|e| AppError::ReloadFailed { source: e.into()})
@@ -845,11 +847,12 @@ fn App() -> impl IntoView {
                     prop:value=move || sel_model.get()
                     prop:disabled=move || mdl_locked.get()
                     on:change=handle_err_clos_1(move |e| {
-                        let val = event_target_value(&e);
+                        // get selected model
+                        let model_id = event_target_value(&e);
                         // notify the rest of the UI hat model changed
-                        sel_model.set(val.clone());
+                        sel_model.set(model_id.clone());
                         // persist to cookie
-                        set_cookie(COOKIE_MODEL, &val)
+                        set_cookie(COOKIE_MODEL, &model_id)
                     })
                 >
                     {move || models.get().into_iter().map(|m| {
