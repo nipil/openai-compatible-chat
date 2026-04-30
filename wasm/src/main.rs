@@ -809,6 +809,20 @@ fn App() -> impl IntoView {
             // removes the abort controller from the abort controller signal
             abort_ctl.set(None);
 
+            // if we had any error, undo the last "operation"
+            if res.is_err() {
+                // pop the last message if an assistant message was being built
+                messages.update(|mv| {
+                    mv.pop_if(|m| m.role == MessageRole::Assistant);
+                });
+                // then pop the last user message, and place it back to the user prompt
+                messages.update(|mv| {
+                    if let Some(message) = mv.pop_if(|m| m.role == MessageRole::User) {
+                        input.set(message.content);
+                    }
+                });
+            }
+
             // now we have reset streaming and abort_ctl, return the eventual error
             res?;
 
