@@ -50,7 +50,7 @@ pub struct Config {
     #[serde(with = "serde_regex")]
     pub exclude_model_name_regex: Vec<Regex>,
     #[serde(default)]
-    pub prepend_system_prompt: String,
+    pub default_system_prompt: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]

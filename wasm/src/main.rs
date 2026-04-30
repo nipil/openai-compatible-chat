@@ -544,13 +544,6 @@ fn load_chat() -> Result<Vec<Message>, AppError> {
     serde_json::from_str(&text).map_err(|e| AppError::JsonError(e))
 }
 
-fn show_error_alert(msg: &str) -> Result<(), AppError> {
-    web_sys::console::error_1(&msg.into());
-    get_window()?
-        .alert_with_message(&format!("Alert : {msg}"))
-        .map_err(|e| AppError::AlertFailed { source: e.into() })
-}
-
 async fn get_url_path<T: DeserializeOwned>(path: &str) -> Result<T, AppError> {
     let resp = gloo_net::http::Request::get(path)
         .send()
@@ -626,7 +619,7 @@ fn App() -> impl IntoView {
     // ── Bootstrap: load config then models ────────────────────────────────────
     spawn_local(handle_err_fut_0(errors, async move {
         let cfg = get_url_path::<ConfigDto>("/api/config").await?;
-        sys_prompt.set(cfg.prepend_system_prompt);
+        sys_prompt.set(cfg.default_system_prompt);
         let mut list = get_url_path::<Vec<ModelDto>>("/api/models").await?;
         list.sort();
         if let Ok(Some(id)) = get_cookie(COOKIE_MODEL)

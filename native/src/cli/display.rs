@@ -1,8 +1,11 @@
 use std::io::{Write, stdout};
 use std::time::{Duration, Instant};
 
+use chrono::Local;
 use crossterm::{cursor, execute, terminal};
 use dialoguer::FuzzySelect;
+use owo_colors::OwoColorize;
+use portable::TokenUsage;
 use termimad::crossterm::style::Attribute::*;
 use termimad::crossterm::style::Attributes;
 use termimad::crossterm::style::Color::*;
@@ -216,6 +219,61 @@ fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
 }
 
 // ── Display / selection ───────────────────────────────────────────────────────
+
+pub(crate) fn print_banner(selected_model: &EnrichedModel) {
+    println!(
+        "\n{} {} {}\n",
+        "─── Conversation using".white().bold(),
+        selected_model.id.cyan().bold(),
+        "───".white().bold(),
+    );
+    let desc = selected_model.info.description.trim();
+    if desc.len() > 0 {
+        println!("description: {}", desc.white().italic());
+    }
+    let family = selected_model.info.family.trim();
+    if desc.len() > 0 {
+        println!("family: {}", family.white().italic());
+    }
+    if let Some(ref release) = selected_model.info.release {
+        let release = release.trim();
+        if release.len() > 0 {
+            println!("release: {}", release.cyan().bold());
+        }
+    }
+}
+
+pub(crate) fn build_user_prompt(model: &str, tokens: &TokenUsage, max: Option<u32>) -> String {
+    let time = Local::now().format("%H:%M:%S").to_string();
+    let tok_coloured = match max {
+        None => tokens.to_string().white().to_string(),
+        Some(m) => {
+            let r = u32::from(tokens) as f64 / m as f64;
+            if r < 0.50 {
+                tokens.to_string().bright_black().to_string()
+            } else if r < 0.75 {
+                tokens.to_string().white().to_string()
+            } else if r < 0.90 {
+                tokens.to_string().yellow().to_string()
+            } else {
+                tokens.to_string().red().to_string()
+            }
+        }
+    };
+    format!(
+        "{}{}{}",
+        format!("[{time}]").white(),
+        format!("[{model}]").bright_black(),
+        format!("[{tok_coloured}]"),
+    )
+}
+
+/// Get a styled duration
+pub(crate) fn get_duration(start: Instant) -> String {
+    format!("[{:.2}s]", start.elapsed().as_secs_f64())
+        .bright_black()
+        .to_string()
+}
 
 /// Opens an interactive fuzzy-search and returns the selected model ID.
 pub(crate) fn select_model(

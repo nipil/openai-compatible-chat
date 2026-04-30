@@ -88,7 +88,7 @@ pub struct ModelDto {
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ConfigDto {
-    pub prepend_system_prompt: String,
+    pub default_system_prompt: String,
 }
 
 /// We reuse the same structure for :

@@ -233,7 +233,7 @@ async fn main() -> Result<()> {
     // Finally assemble the state and provide it
     let state = AppState {
         openai_client: Arc::new(openai_client),
-        prepend_system_prompt: Arc::new(cfg.prepend_system_prompt),
+        default_system_prompt: Arc::new(cfg.default_system_prompt),
         available_models: Arc::new(available_models),
     };
 

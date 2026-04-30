@@ -6,7 +6,7 @@ use axum::response::{IntoResponse, Response, sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures::{StreamExt, stream};
-use portable::{ChatEvent, ChatRequest, ConfigDto, Message, MessageRole, ModelDto};
+use portable::{ChatEvent, ChatRequest, ConfigDto, ModelDto};
 use thiserror::Error;
 use tower_http::services::ServeDir;
 use tracing::{error, instrument};
@@ -75,7 +75,7 @@ fn router(state: AppState, dist_wasm: &str) -> Router {
 #[instrument(skip_all)]
 async fn handle_config(State(s): State<AppState>) -> Json<ConfigDto> {
     Json(ConfigDto {
-        prepend_system_prompt: s.prepend_system_prompt.as_ref().clone(),
+        default_system_prompt: s.default_system_prompt.as_ref().clone(),
     })
 }
 
@@ -99,7 +99,7 @@ async fn handle_models(State(s): State<AppState>) -> Json<Vec<ModelDto>> {
 #[instrument(level = "trace", skip_all)]
 async fn handle_chat(
     State(s): State<AppState>,
-    Json(mut chat): Json<ChatRequest>,
+    Json(chat): Json<ChatRequest>,
 ) -> Result<sse::Sse<stream::BoxStream<'static, Result<sse::Event, Infallible>>>, WebError> {
     // CRITICAL/SECURITY
     // server-side check that the client is not trying to jail out
@@ -108,31 +108,6 @@ async fn handle_chat(
             "Configuration does not allow model '{}'",
             chat.model
         )))?
-    }
-
-    // Prepend the system prompt to the one provided by the client
-    let prepend = s.prepend_system_prompt.trim();
-
-    // TODO: remove this part once we change the input crate and actually
-    //       give power to the user to not be limited BY HIS OWN config !
-    if !prepend.is_empty() {
-        match chat
-            .messages
-            .iter_mut()
-            .find(|m| m.role == MessageRole::System)
-        {
-            Some(msg) => {
-                // paragraph separation improves intent detection for models
-                msg.content = format!("{}\n\n{}", prepend, msg.content.trim());
-            }
-            None => {
-                let default_sys_msg = Message {
-                    role: MessageRole::System,
-                    content: prepend.to_string(),
-                };
-                chat.messages.insert(0, default_sys_msg);
-            }
-        }
     }
 
     // Can only fail here during initial request (setup)

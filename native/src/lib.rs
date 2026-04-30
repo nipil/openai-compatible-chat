@@ -19,6 +19,6 @@ pub mod web;
 #[derive(Clone)]
 pub struct AppState {
     pub openai_client: Arc<Client<OpenAIConfig>>,
-    pub prepend_system_prompt: Arc<String>,
+    pub default_system_prompt: Arc<String>,
     pub available_models: Arc<EnrichedModels>,
 }
