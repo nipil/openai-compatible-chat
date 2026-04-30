@@ -736,6 +736,9 @@ fn App() -> impl IntoView {
         // Add the input message to the history
         hist.push(Message::new(MessageRole::User, text));
 
+        // Do not send the last empty assistant slot
+        let send_msgs = hist.clone();
+
         // Add an empty message and add it to the list : this is a reserved slot
         // to later accumulate incoming token during the streaming reply :
         // - the streaming closure captures messages
@@ -743,10 +746,6 @@ fn App() -> impl IntoView {
         // - the empty slot must exist in the signal before streaming begins
         //   or the first token has nowhere to land
         hist.push(Message::new(MessageRole::Assistant, String::new()));
-
-        // Do not send the last empty assistant slot
-        // FIXME: seems suboptimal, play with it !
-        let send_msgs = hist[..hist.len() - 1].to_vec();
 
         // Persist the history (except last empty) to sessionStorage (in case tab is reloaded)
         // FIXME: model is not saved s?!
