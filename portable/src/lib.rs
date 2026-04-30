@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, Display, EnumString};
 use thiserror::Error;
 
+pub const OPENAI_CACHE_TOKEN_THRESHOLD: u32 = 1024;
+
 // ── Safer value management ────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Display, EnumString, AsRefStr)]
@@ -67,6 +69,8 @@ pub enum ChatEvent {
     TokenCount {
         prompt: u32,
         generated: u32,
+        cached: Option<u32>, // above 1024 only
+        reasoning: Option<u32>,
     },
     Error(String),
 }

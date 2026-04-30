@@ -9,7 +9,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use portable::{
     ChatEvent, ChatEventError, ChatEventKind, ChatRequest, ConfigDto, Message, MessageRole,
-    ModelDto, Theme, TokenUsage, estimate_tokens,
+    ModelDto, OPENAI_CACHE_TOKEN_THRESHOLD, Theme, TokenUsage, estimate_tokens,
 };
 use send_wrapper::SendWrapper;
 use serde::de::DeserializeOwned;
@@ -228,9 +228,21 @@ impl TryFrom<Event> for SseEventIn {
                 struct Tmp<T> {
                     prompt: T,
                     generated: T,
+                    cached: Option<T>,
+                    reasoning: Option<T>,
                 }
-                let Tmp { prompt, generated } = serde_json::from_str(&ev.data)?;
-                ChatEvent::TokenCount { prompt, generated }
+                let Tmp {
+                    prompt,
+                    generated,
+                    cached,
+                    reasoning,
+                } = serde_json::from_str(&ev.data)?;
+                ChatEvent::TokenCount {
+                    prompt,
+                    generated,
+                    cached,
+                    reasoning,
+                }
             }
             ChatEventKind::Error => ChatEvent::Error(serde_json::from_str::<String>(&ev.data)?),
         };
@@ -445,11 +457,25 @@ async fn stream_chat(
                 let sse_event = SseEventIn::try_from(es_event)?.into_inner();
                 web_sys::console::debug_1(&format!("SSE event: {:?}", sse_event).into());
                 match sse_event {
-                    ChatEvent::TokenCount { prompt, generated } => {
+                    ChatEvent::TokenCount {
+                        prompt,
+                        generated,
+                        cached,
+                        reasoning,
+                    } => {
                         // forward to the caller, who as access to the signals
                         on_total(prompt + generated);
+                        // only display in the console for now
                         web_sys::console::log_1(
-                            &format!("Token count : prompt {prompt} answer={generated}",).into(),
+                            &format!(
+                                "Token count : \
+                                prompt {prompt} \
+                                answer={generated} \
+                                reasoning={reasoning:?} \
+                                cached(prompt>{})={cached:?}",
+                                OPENAI_CACHE_TOKEN_THRESHOLD,
+                            )
+                            .into(),
                         );
                     }
                     ChatEvent::MessageToken(token) => {

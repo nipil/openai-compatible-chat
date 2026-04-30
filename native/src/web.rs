@@ -146,6 +146,8 @@ async fn handle_chat(
         // so the closure cannot borrow from the enclosing scope, and
         // should own everything it references (hence this 'move')
         move |chunk| {
+            // forward it to enhance the cache token logging in openai module
+            let model_id = chat.model.clone();
             // returns an async block the caller will need to await, and
             // async must be 'static to be polled, so 'move' to own
             async move {
@@ -154,7 +156,7 @@ async fn handle_chat(
                 // To report error during chat processing :
                 // - server-side : use log with higher severity
                 // - client-side : send ChatEvent::Error via SSE
-                let event = get_chat_event(chunk);
+                let event = get_chat_event(chunk, &model_id);
                 Ok(SseEventOut::from(event).into())
             }
         },
@@ -195,13 +197,25 @@ impl From<SseEventOut> for sse::Event {
                 })
             }
             ChatEvent::Error(err_msg) => serde_json::to_string(&err_msg),
-            ChatEvent::TokenCount { prompt, generated } => {
+            ChatEvent::TokenCount {
+                prompt,
+                generated,
+                cached,
+                reasoning,
+            } => {
                 #[derive(serde::Serialize)]
                 struct Tmp<T> {
                     prompt: T,
                     generated: T,
+                    cached: Option<T>,
+                    reasoning: Option<T>,
                 }
-                serde_json::to_string(&Tmp { prompt, generated })
+                serde_json::to_string(&Tmp {
+                    prompt,
+                    generated,
+                    cached: cached.as_ref(),
+                    reasoning: reasoning.as_ref(),
+                })
             }
         };
         // this serialization should never fail (on our side), but serde might.

@@ -48,7 +48,13 @@ pub async fn run_chat<'a>(
         let reply = handle_chat(client, &chat, |event| {
             debug!(event = ?event, "chat event");
             match event {
-                ChatEvent::TokenCount { prompt, generated } => {
+                ChatEvent::TokenCount {
+                    prompt,
+                    generated,
+                    // not displayed in CLI for now
+                    cached: _cached,
+                    reasoning: _reasoning,
+                } => {
                     token_count.set_exact(prompt + generated);
                 }
                 ChatEvent::Error(msg) => {
@@ -180,7 +186,8 @@ async fn handle_chat(
     let start = Instant::now();
 
     while let Some(chunk) = stream.next().await {
-        let event = get_chat_event(chunk);
+        // forward model to enhance the cache token logging in openai module
+        let event = get_chat_event(chunk, &chat.model);
         on_event(&event);
         if let ChatEvent::MessageToken(ref delta) = event {
             trace!(delta = delta, "delta");
