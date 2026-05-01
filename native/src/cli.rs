@@ -9,7 +9,7 @@ use tracing::{debug, error, info, instrument, trace};
 
 use crate::AppState;
 use crate::cli::display::{
-    ConsoleTheme, DisplayError, LiveMarkdown, build_user_prompt, get_duration, print_banner,
+    DisplayError, LiveMarkdown, build_user_prompt, get_duration, print_banner,
 };
 use crate::cli::prompt::{PromptError, read_multiline, select_model};
 use crate::models::EnrichedModel;
@@ -30,16 +30,16 @@ pub enum CliError {
 
 /// Run chat session until user quits or error
 pub async fn run_cli(state: AppState, theme: &Theme) -> Result<(), CliError> {
-    let console_theme = ConsoleTheme::new(&theme);
     loop {
         // let the user select a model, or exit
+        // TODO: allow using theme in dialoguer::FuzzySelect ?
         let Some(selected_model) = select_model(state.available_models.as_ref()).await? else {
             info!("User cancelation, exiting.");
             return Ok(());
         };
 
         // display the models properties
-        print_banner(&selected_model, &console_theme);
+        print_banner(&selected_model, theme);
 
         // display the help for the input system
         termimad::print_text(
@@ -58,8 +58,6 @@ pub async fn run_cli(state: AppState, theme: &Theme) -> Result<(), CliError> {
             // TODO: apply theme to reedline ?
             read_multiline("System prompt", Some(&state.default_system_prompt.clone())).await?
         else {
-            // FIXME: when model is locked, user cannot exit when inputting (infinite loop)
-            // only exit possible is when the text is scrolling and control-C
             return Ok(());
         };
         termimad::print_text("\n---\n");
@@ -69,13 +67,7 @@ pub async fn run_cli(state: AppState, theme: &Theme) -> Result<(), CliError> {
         debug!(message=?history[0], "system prompt");
 
         // Run the chat to completion
-        run_chat(
-            &state.openai_client,
-            &selected_model,
-            history,
-            &console_theme,
-        )
-        .await?;
+        run_chat(&state.openai_client, &selected_model, history, theme).await?;
     }
 }
 
@@ -85,7 +77,7 @@ pub(crate) async fn run_chat(
     client: &Client<OpenAIConfig>,
     selected_model: &EnrichedModel,
     mut history: Vec<portable::Message>,
-    theme: &ConsoleTheme,
+    theme: &Theme,
 ) -> Result<(), CliError> {
     // smart token display (exact > approximate)
     let mut token_count = TokenUsage::default();
@@ -154,7 +146,7 @@ pub(crate) async fn run_chat(
 async fn handle_chat(
     client: &Client<OpenAIConfig>,
     chat: &ChatRequest,
-    theme: &ConsoleTheme,
+    theme: &Theme,
     mut on_event: impl FnMut(&ChatEvent),
 ) -> Result<String, CliError> {
     // Can only fail here during initial request (setup)

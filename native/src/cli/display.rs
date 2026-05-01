@@ -102,7 +102,7 @@ impl ConsoleTheme {
     pub fn new(theme: &Theme) -> Self {
         match theme {
             Theme::Dark => Self::dark(),
-            Theme::Light => Self::dark(), // FIXME: update when light is done
+            Theme::Light => Self::light(),
         }
     }
     /// Dark-terminal theme — designed for black or near-black backgrounds.
@@ -220,7 +220,7 @@ pub(crate) struct LiveMarkdown {
 }
 
 impl LiveMarkdown {
-    pub(crate) fn new(theme: &ConsoleTheme) -> Self {
+    pub(crate) fn new(theme: &Theme) -> Self {
         let (w, h) = terminal::size().unwrap_or((120, 40));
         Self {
             skin: make_skin(theme),
@@ -295,8 +295,14 @@ impl LiveMarkdown {
 // ── Markdown skin ─────────────────────────────────────────────────────────────
 
 /// Build a `MadSkin` driven entirely by the provided `Theme`.
-fn make_skin(theme: &ConsoleTheme) -> MadSkin {
-    let mut skin = MadSkin::default_dark();
+fn make_skin(theme: &Theme) -> MadSkin {
+    // build a default skin
+    let mut skin = match theme {
+        Theme::Dark => MadSkin::default_dark(),
+        Theme::Light => MadSkin::default_light(),
+    };
+    // customize colors
+    let theme = ConsoleTheme::new(&theme);
 
     // Headings (h1, h2, h3, and h4-h8)
     skin.headers[0].compound_style = CompoundStyle::new(
@@ -328,7 +334,7 @@ fn make_skin(theme: &ConsoleTheme) -> MadSkin {
     };
     skin.inline_code = CompoundStyle::new(Some(theme.code), inline_bg, Bold.into());
     skin.code_block.compound_style =
-        CompoundStyle::new(Some(theme.code), Some(gray(3)), Attributes::default());
+        CompoundStyle::new(Some(theme.code), block_bg, Attributes::default());
 
     // Structural / decorative
     skin.bullet = StyledChar::new(
@@ -372,7 +378,9 @@ fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
 
 // ── Shell chrome ──────────────────────────────────────────────────────────────
 
-pub(crate) fn print_banner(selected_model: &EnrichedModel, theme: &ConsoleTheme) {
+pub(crate) fn print_banner(selected_model: &EnrichedModel, theme: &Theme) {
+    let theme = ConsoleTheme::new(&theme);
+
     // mandatory content
     println!(
         "\n{} {} {}\n",
@@ -404,9 +412,10 @@ pub(crate) fn build_user_prompt(
     model: &str,
     tokens: &TokenUsage,
     max: Option<u32>,
-    theme: &ConsoleTheme,
+    theme: &Theme,
 ) -> String {
     let time = Local::now().format("%H:%M:%S").to_string();
+    let theme = ConsoleTheme::new(&theme);
 
     let tok_color = match max {
         None => theme.token_medium,
@@ -433,7 +442,8 @@ pub(crate) fn build_user_prompt(
 }
 
 /// Returns a styled elapsed-time string, e.g. `[1.23s]`.
-pub(crate) fn get_duration(start: Instant, theme: &ConsoleTheme) -> String {
+pub(crate) fn get_duration(start: Instant, theme: &Theme) -> String {
+    let theme = ConsoleTheme::new(&theme);
     format!("[{:.2}s]", start.elapsed().as_secs_f64())
         .with(theme.duration)
         .to_string()
