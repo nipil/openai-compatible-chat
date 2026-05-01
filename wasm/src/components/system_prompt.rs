@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 
 #[component]
-pub fn SystemPrompt(sys_prompt: RwSignal<String>, started: RwSignal<bool>) -> impl IntoView {
+pub(crate) fn SystemPrompt(sys_prompt: RwSignal<String>, started: RwSignal<bool>) -> impl IntoView {
     view! {
         <div class="sys-area">
             <textarea

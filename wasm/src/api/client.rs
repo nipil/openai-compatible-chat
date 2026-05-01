@@ -2,7 +2,7 @@ use serde::de::DeserializeOwned;
 
 use crate::RequestError;
 
-pub async fn get_url_path<T: DeserializeOwned>(path: &str) -> Result<T, RequestError> {
+pub(crate) async fn get_url_path<T: DeserializeOwned>(path: &str) -> Result<T, RequestError> {
     let resp = gloo_net::http::Request::get(path)
         .send()
         .await

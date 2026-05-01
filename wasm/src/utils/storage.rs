@@ -3,9 +3,9 @@ use portable::Message;
 use crate::web::dom::{get_storage, get_window};
 use crate::{BrowserError, StorageError};
 
-pub const STORAGE_KEY_OPENAI: &str = "openai";
+pub(crate) const STORAGE_KEY_OPENAI: &str = "openai";
 
-pub fn save_chat(messages: &[Message]) -> Result<(), StorageError> {
+pub(crate) fn save_chat(messages: &[Message]) -> Result<(), StorageError> {
     let Some(storage) = get_storage(get_window()?)? else {
         return Ok(());
     };
@@ -19,7 +19,7 @@ pub fn save_chat(messages: &[Message]) -> Result<(), StorageError> {
     Ok(())
 }
 
-pub fn load_chat() -> Result<Vec<Message>, StorageError> {
+pub(crate) fn load_chat() -> Result<Vec<Message>, StorageError> {
     let Some(storage) = get_storage(get_window()?)? else {
         return Ok(vec![]);
     };

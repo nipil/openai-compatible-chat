@@ -5,10 +5,10 @@ use portable::Theme;
 use crate::BrowserError;
 use crate::web::dom::{get_document, get_html_doc, get_window};
 
-pub const COOKIE_MODEL: &str = "model";
-pub const COOKIE_THEME: &str = "theme";
-pub const COOKIE_THEME_DEFAULT: Theme = Theme::Dark;
-pub const COOKIE_MAX_AGE: u32 = 31_536_000; // 1 year
+pub(crate) const COOKIE_MODEL: &str = "model";
+pub(crate) const COOKIE_THEME: &str = "theme";
+pub(crate) const COOKIE_THEME_DEFAULT: Theme = Theme::Dark;
+pub(crate) const COOKIE_MAX_AGE: u32 = 31_536_000; // 1 year
 
 fn get_cookies(html_doc: web_sys::HtmlDocument) -> Result<String, BrowserError> {
     html_doc
@@ -28,7 +28,7 @@ fn set_cookies(
         .map_err(|e| BrowserError::CookieAccess { source: e.into() })
 }
 
-pub fn get_cookie(name: &str) -> Result<Option<String>, BrowserError> {
+pub(crate) fn get_cookie(name: &str) -> Result<Option<String>, BrowserError> {
     let cookies = get_cookies(get_html_doc(get_document(get_window()?)?)?)?;
     let found = cookies.split(';').find_map(|pair| {
         pair.trim()
@@ -38,7 +38,7 @@ pub fn get_cookie(name: &str) -> Result<Option<String>, BrowserError> {
     Ok(found)
 }
 
-pub fn set_cookie(name: &str, value: &str) -> Result<(), BrowserError> {
+pub(crate) fn set_cookie(name: &str, value: &str) -> Result<(), BrowserError> {
     let html_doc = get_html_doc(get_document(get_window()?)?)?;
     set_cookies(html_doc, name, value)
 }

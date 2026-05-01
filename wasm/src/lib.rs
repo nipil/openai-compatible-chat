@@ -1,6 +1,6 @@
-pub mod api;
+pub(crate) mod api;
 pub mod components;
-pub mod utils;
+pub(crate) mod utils;
 pub mod web;
 
 use std::fmt;
@@ -13,7 +13,7 @@ use wasm_bindgen::JsValue;
 
 #[derive(Debug, Error)]
 /// A JsValue to Error wrapper for early-return
-pub struct JsError(pub JsValue);
+pub struct JsError(pub(crate) JsValue);
 
 impl fmt::Display for JsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -29,7 +29,7 @@ impl From<JsValue> for JsError {
 
 /// Separate error type to avoid EventStreamError cycle
 #[derive(Error, Debug)]
-pub enum FutureStreamError {
+pub(crate) enum FutureStreamError {
     #[error("Could not get chunk out of stream {0}")]
     Chunk(#[from] JsError),
 }
@@ -76,7 +76,7 @@ pub enum BrowserError {
 
 /// HTTP request and SSE streaming errors
 #[derive(Error, Debug)]
-pub enum RequestError {
+pub(crate) enum RequestError {
     #[error("Connection error during request : {source}")]
     ConnectionError { source: gloo_net::Error },
 
@@ -110,7 +110,7 @@ pub enum RequestError {
 
 /// Application logic errors
 #[derive(Error, Debug)]
-pub enum LogicError {
+pub(crate) enum LogicError {
     #[error("Could not serialize/deserialize data : {0}")]
     JsonError(#[from] serde_json::Error),
 
@@ -120,7 +120,7 @@ pub enum LogicError {
 
 /// Aggregate error for storage
 #[derive(Error, Debug)]
-pub enum StorageError {
+pub(crate) enum StorageError {
     #[error("Could not access storage : {0}")]
     Browser(#[from] BrowserError),
 
@@ -130,7 +130,7 @@ pub enum StorageError {
 
 /// Aggregated error for the application
 #[derive(Error, Debug)]
-pub enum AppError {
+pub(crate) enum AppError {
     #[error("Browser error : {0}")]
     Browser(#[from] BrowserError),
 
@@ -144,21 +144,21 @@ pub enum AppError {
     Storage(#[from] StorageError),
 }
 
-pub fn show_err_get_default<T: Default>(errors: RwSignal<Vec<String>>, e: AppError) -> T {
+pub(crate) fn show_err_get_default<T: Default>(errors: RwSignal<Vec<String>>, e: AppError) -> T {
     let msg = e.to_string();
     web_sys::console::error_1(&msg.clone().into());
     errors.update(|v| v.push(msg));
     T::default()
 }
 
-pub fn handle_err<T: Default>(errors: RwSignal<Vec<String>>, res: Result<T, AppError>) -> T {
+pub(crate) fn handle_err<T: Default>(errors: RwSignal<Vec<String>>, res: Result<T, AppError>) -> T {
     match res {
         Ok(t) => t,
         Err(e) => show_err_get_default::<T>(errors, e),
     }
 }
 
-pub fn handle_err_clos_1<F, A, T>(errors: RwSignal<Vec<String>>, f: F) -> impl Fn(A) -> T
+pub(crate) fn handle_err_clos_1<F, A, T>(errors: RwSignal<Vec<String>>, f: F) -> impl Fn(A) -> T
 where
     F: Fn(A) -> Result<T, AppError>,
     T: Default,
@@ -169,7 +169,7 @@ where
     }
 }
 
-pub fn handle_err_fut_0<F, T>(
+pub(crate) fn handle_err_fut_0<F, T>(
     errors: RwSignal<Vec<String>>,
     fut: F,
 ) -> impl std::future::Future<Output = T>

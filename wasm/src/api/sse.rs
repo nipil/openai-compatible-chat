@@ -81,7 +81,7 @@ impl SseEventIn {
     }
 }
 
-pub async fn stream_chat(
+pub(crate) async fn stream_chat(
     window: Window,
     chat: ChatRequest,
     signal: AbortSignal,

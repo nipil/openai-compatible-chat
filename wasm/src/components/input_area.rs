@@ -7,7 +7,7 @@ use crate::{AppError, handle_err_clos_1};
 /// InputArea receives on_send, which returns a Result to be wrapped
 /// by handle_err_clos_1 on keydown (Ctrl+Enter) or click on Send.
 #[component]
-pub fn InputArea(
+pub(crate) fn InputArea(
     errors: RwSignal<Vec<String>>,
     input: RwSignal<String>,
     streaming: RwSignal<bool>,

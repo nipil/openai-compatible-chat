@@ -6,7 +6,7 @@ use crate::utils::tokens::token_color_style;
 use crate::web::cookies::{COOKIE_MODEL, set_cookie};
 
 #[component]
-pub fn Banner(
+pub(crate) fn Banner(
     errors: RwSignal<Vec<String>>,
     models: RwSignal<Vec<ModelDto>>,
     sel_model: RwSignal<String>,

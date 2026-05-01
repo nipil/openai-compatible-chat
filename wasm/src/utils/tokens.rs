@@ -1,6 +1,6 @@
 use portable::TokenUsage;
 
-pub fn token_color_style(count: &TokenUsage, max: Option<u32>) -> String {
+pub(crate) fn token_color_style(count: &TokenUsage, max: Option<u32>) -> String {
     let (bg, color) = match max {
         None => ("rgba(128,128,128,0.4)", "var(--text-banner)"),
         Some(m) => {

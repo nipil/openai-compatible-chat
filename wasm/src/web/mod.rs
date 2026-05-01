@@ -1,3 +1,3 @@
 pub mod cookies;
-pub mod dom;
+pub(crate) mod dom;
 pub mod theme;

@@ -4,7 +4,7 @@ use portable::{Message, MessageRole};
 use crate::utils::markdown::to_html;
 
 #[component]
-pub fn Conversation(
+pub(crate) fn Conversation(
     messages: RwSignal<Vec<Message>>,
     conv_ref: NodeRef<leptos::html::Div>,
 ) -> impl IntoView {
