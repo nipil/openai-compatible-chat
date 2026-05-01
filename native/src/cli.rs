@@ -3,13 +3,13 @@ use std::time::Instant;
 use async_openai::Client;
 use async_openai::config::OpenAIConfig;
 use futures::StreamExt;
-use portable::{ChatEvent, ChatRequest, Message, MessageRole, TokenUsage, estimate_tokens};
+use portable::{ChatEvent, ChatRequest, Message, MessageRole, Theme, TokenUsage, estimate_tokens};
 use thiserror::Error;
 use tracing::{debug, error, info, instrument, trace};
 
 use crate::AppState;
 use crate::cli::display::{
-    DisplayError, LiveMarkdown, build_user_prompt, get_duration, print_banner,
+    ConsoleTheme, DisplayError, LiveMarkdown, build_user_prompt, get_duration, print_banner,
 };
 use crate::cli::prompt::{PromptError, read_multiline, select_model};
 use crate::models::EnrichedModel;
@@ -29,7 +29,8 @@ pub enum CliError {
 }
 
 /// Run chat session until user quits or error
-pub async fn run_cli(state: AppState) -> Result<(), CliError> {
+pub async fn run_cli(state: AppState, theme: &Theme) -> Result<(), CliError> {
+    let console_theme = ConsoleTheme::new(&theme);
     loop {
         // let the user select a model, or exit
         let Some(selected_model) = select_model(state.available_models.as_ref()).await? else {
@@ -38,8 +39,7 @@ pub async fn run_cli(state: AppState) -> Result<(), CliError> {
         };
 
         // display the models properties
-        print_banner(&selected_model);
-        termimad::print_text("");
+        print_banner(&selected_model, &console_theme);
 
         // display the help for the input system
         termimad::print_text(
@@ -55,6 +55,7 @@ pub async fn run_cli(state: AppState) -> Result<(), CliError> {
 
         // let the user select a system prompt, or exit
         let Some(system_prompt) =
+            // TODO: apply theme to reedline ?
             read_multiline("System prompt", Some(&state.default_system_prompt.clone())).await?
         else {
             // FIXME: when model is locked, user cannot exit when inputting (infinite loop)
@@ -68,7 +69,13 @@ pub async fn run_cli(state: AppState) -> Result<(), CliError> {
         debug!(message=?history[0], "system prompt");
 
         // Run the chat to completion
-        run_chat(&state.openai_client, &selected_model, history).await?;
+        run_chat(
+            &state.openai_client,
+            &selected_model,
+            history,
+            &console_theme,
+        )
+        .await?;
     }
 }
 
@@ -78,6 +85,7 @@ pub(crate) async fn run_chat(
     client: &Client<OpenAIConfig>,
     selected_model: &EnrichedModel,
     mut history: Vec<portable::Message>,
+    theme: &ConsoleTheme,
 ) -> Result<(), CliError> {
     // smart token display (exact > approximate)
     let mut token_count = TokenUsage::default();
@@ -90,6 +98,7 @@ pub(crate) async fn run_chat(
             &selected_model.id,
             &token_count,
             selected_model.info.context_window,
+            theme,
         );
         let input = match read_multiline(&prompt, None).await? {
             Some(input) => {
@@ -110,7 +119,7 @@ pub(crate) async fn run_chat(
         history.push(Message::new(MessageRole::User, input));
         let chat = ChatRequest::new(selected_model.id.to_string(), history.clone());
         let start = Instant::now();
-        let reply = handle_chat(client, &chat, |event| {
+        let reply = handle_chat(client, &chat, theme, |event| {
             // handle streaming events
             debug!(event = ?event, "chat event");
             match event {
@@ -130,7 +139,7 @@ pub(crate) async fn run_chat(
             }
         })
         .await?;
-        println!("{}", get_duration(start));
+        println!("{}", get_duration(start, theme));
         termimad::print_text("---");
 
         debug!(reply = reply, "reply");
@@ -145,13 +154,14 @@ pub(crate) async fn run_chat(
 async fn handle_chat(
     client: &Client<OpenAIConfig>,
     chat: &ChatRequest,
+    theme: &ConsoleTheme,
     mut on_event: impl FnMut(&ChatEvent),
 ) -> Result<String, CliError> {
     // Can only fail here during initial request (setup)
     let mut stream = send_chat_request(&client, chat).await?;
 
     let mut full = String::new();
-    let mut live = LiveMarkdown::new();
+    let mut live = LiveMarkdown::new(theme);
 
     while let Some(chunk) = stream.next().await {
         // forward model to enhance the cache token logging in openai module

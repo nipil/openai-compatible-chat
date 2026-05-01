@@ -132,6 +132,8 @@ pub(crate) async fn select_model(
     .await??;
 
     let Some(index) = index else {
+        // When pressing escape, fuzzyselect returns Ok(None)
+        // When pressing ctrl-c, fuzzyselect does NOT handle it, and the process dies
         return Ok(None); // no choice was made
     };
 

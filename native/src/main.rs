@@ -1,5 +1,6 @@
 use std::env;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
@@ -12,6 +13,7 @@ use native::config::{Config, load_config, load_model_info_map};
 use native::models::{COMPATIBLE_MODEL_TYPES, EnrichedModels};
 use native::openai::list_models;
 use native::web::run_web;
+use portable::Theme;
 use regex::Regex;
 use reqwest::Client as ReqwestClient;
 use tracing::{error, info, warn};
@@ -52,7 +54,14 @@ struct Args {
 enum Commands {
     /// CLI subcommand
     #[cfg(feature = "cli")]
-    Cli,
+    Cli {
+        #[arg(
+        long,
+        default_value = Theme::Dark.as_ref(),
+        value_parser = Theme::from_str
+    )]
+        theme: Theme,
+    },
 
     /// Web subcommand
     #[cfg(feature = "web")]
@@ -256,8 +265,8 @@ async fn main() -> Result<()> {
     #[cfg(all(feature = "cli", feature = "web"))]
     match &args.command {
         #[cfg(feature = "cli")]
-        Commands::Cli => {
-            run_cli(state).await?;
+        Commands::Cli { theme } => {
+            run_cli(state, &theme).await?;
         }
         #[cfg(feature = "web")]
         Commands::Web { port, dist_wasm } => {
