@@ -22,9 +22,9 @@ pub enum ChatError {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
-pub async fn run_chat<'a>(
+pub async fn run_chat(
     client: &Client<OpenAIConfig>,
-    selected_model: &EnrichedModel<'a>,
+    selected_model: &EnrichedModel,
     mut history: Vec<portable::Message>,
 ) -> Result<(), ChatError> {
     // smart token display (exact > approximate)
@@ -35,7 +35,7 @@ pub async fn run_chat<'a>(
 
         // get user input
         let prompt = build_user_prompt(
-            selected_model.id,
+            &selected_model.id,
             &token_count,
             selected_model.info.context_window,
         );

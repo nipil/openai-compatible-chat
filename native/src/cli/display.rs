@@ -11,6 +11,7 @@ use termimad::crossterm::style::Attributes;
 use termimad::crossterm::style::Color::*;
 use termimad::{CompoundStyle, MadSkin, StyledChar, gray};
 use thiserror::Error;
+use tokio::task::JoinError;
 use tracing::{error, info, warn};
 
 use crate::models::{EnrichedModel, EnrichedModels};
@@ -27,6 +28,8 @@ pub enum DisplayError {
     SelectionFailed(String),
     #[error("Model not found : {0}")]
     ModelNotFound(String),
+    #[error("Thread join error : {0}")]
+    Join(#[from] JoinError),
 }
 
 const REFRESH_INTERVAL: Duration = Duration::from_millis(100);
@@ -276,35 +279,43 @@ pub(crate) fn get_duration(start: Instant) -> String {
 }
 
 /// Opens an interactive fuzzy-search and returns the selected model ID.
-pub(crate) fn select_model(
+pub(crate) async fn select_model(
     models: &EnrichedModels,
-) -> Result<Option<EnrichedModel<'_>>, DisplayError> {
+) -> Result<Option<EnrichedModel>, DisplayError> {
     // Handle the simple cases
-    match models.iter().next() {
-        None => {
-            error!("No model available for selection");
-            return Ok(None);
-        }
-        Some((model_id, model_info)) => {
-            if models.len() == 1 {
-                info!(model = model_id, "Auto-selected model");
-                return Ok(Some(EnrichedModel::new(model_id, model_info)));
-            }
-        }
+    let Some((model_id, model_info)) = models.iter().next() else {
+        error!("No model available for selection");
+        return Ok(None);
+    };
+    if models.len() == 1 {
+        info!(model = model_id, "Auto-selected model");
+        return Ok(Some(EnrichedModel::new(
+            model_id.into(),
+            model_info.clone(),
+        )));
     }
 
     // Build sorted list of models and let user choose
-    let mut choices: Vec<&str> = models.keys().map(|k| k.as_str()).collect();
+    let mut choices: Vec<String> = models.keys().map(|k| k.clone()).collect();
     choices.sort();
-    let index = match FuzzySelect::new()
-        .with_prompt("Select model")
-        .items(&choices)
-        .default(0)
-        .interact_opt()
-        .map_err(|e| DisplayError::SelectionFailed(format!("Selection failed: {e}")))?
-    {
-        Some(index) => index,
-        None => return Ok(None), // no choice was made
+
+    let index = tokio::task::spawn_blocking({
+        // so that choices_dup can move yet choices stay available
+        let choices_dup = choices.clone();
+        move || {
+            // The theme in fuzzyselect is not send+'static
+            FuzzySelect::new()
+                .with_prompt("Select model")
+                .items(choices_dup)
+                .default(0)
+                .interact_opt()
+        }
+    })
+    .await?
+    .map_err(|e| DisplayError::SelectionFailed(format!("Selection failed: {e}")))?;
+
+    let Some(index) = index else {
+        return Ok(None); // no choice was made
     };
 
     // Look up the key from the index
@@ -315,11 +326,14 @@ pub(crate) fn select_model(
     };
 
     // Look up the info from the id
-    let Some(model_info) = models.get(*model_id) else {
+    let Some(model_info) = models.get(model_id) else {
         Err(DisplayError::SelectionFailed(format!(
             "Selection failed: {model_id}"
         )))?
     };
 
-    Ok(Some(EnrichedModel::new(model_id, model_info)))
+    Ok(Some(EnrichedModel::new(
+        model_id.into(),
+        model_info.clone(),
+    )))
 }

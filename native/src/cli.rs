@@ -25,7 +25,7 @@ pub enum CliError {
 pub async fn run_cli(state: AppState) -> Result<(), CliError> {
     loop {
         // let the user select a model, or exit
-        let Some(selected_model) = select_model(state.available_models.as_ref())? else {
+        let Some(selected_model) = select_model(state.available_models.as_ref()).await? else {
             info!("User cancelation, exiting.");
             return Ok(());
         };
