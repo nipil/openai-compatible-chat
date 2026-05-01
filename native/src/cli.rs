@@ -47,7 +47,7 @@ pub async fn run_cli(state: AppState, theme: &Theme) -> Result<(), CliError> {
             ---\n\
             **Multiline editor**\n\n\
             - *Enter* adds a line\n\
-            - *Ctrl+Enter* submits\n\
+            - *Ctrl+Enter* or *Ctrl+D* submits\n\
             - *Ctrl+C* cancels\n\
             \n\
             ---\n",

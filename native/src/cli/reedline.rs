@@ -143,7 +143,7 @@ impl Prompt for AppPrompt {
         };
 
         Cow::Owned(format!(
-            "{chrome}{indicator} {token_color}{tokens}T tok{reset} {tag_color}[{model_color}{model_id}{tag_color}]{reset}",
+            "{chrome}{indicator} {token_color}{tokens} tok{reset} {tag_color}[{model_color}{model_id}{tag_color}]{reset}",
             chrome = crossterm_to_ansi_foreground(self.colors.chrome),
             indicator = RIGHT_PROMPT_END,
             model_color = crossterm_to_ansi_foreground(self.colors.model_name),
@@ -211,6 +211,13 @@ pub(crate) fn build_reedline(hinter_style: Style) -> Reedline {
 
     // Ctrl+Enter → submit (the only way to leave the editor)
     keybindings.add_binding(KeyModifiers::CONTROL, KeyCode::Enter, ReedlineEvent::Submit);
+
+    // Ctrl+D → submit (the only way to leave the editor) --> Alternate when in vscode
+    keybindings.add_binding(
+        KeyModifiers::CONTROL,
+        KeyCode::Char('d'),
+        ReedlineEvent::Submit,
+    );
 
     // Ctrl+C → abort (gives Signal::CtrlC so the caller can handle it)
     keybindings.add_binding(
