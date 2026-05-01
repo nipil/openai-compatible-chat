@@ -51,42 +51,20 @@ Binaries are automatically generated at each release.
 1. Go to the [releases page](https://github.com/nipil/openai-compatible-chat/releases)
 
 2. Download the archive for your system:
-   - 🪟 Windows: `openai-compatible-chat-x86_64-pc-windows-msvc.zip`
-   - 🐧 Linux: `openai-compatible-chat-x86_64-unknown-linux-gnu.tar.gz`
-   - 🍎 macOS: `openai-compatible-chat-aarch64-apple-darwin.tar.gz` (Apple Silicon)
-   - 🍎 macOS: `openai-compatible-chat-x86_64-apple-darwin.tar.gz` (Intel)
+   - 🪟 Windows: `openai-compatible-chat-x86_64-pc-windows-msvc.zip` (MSVC)
+   - 🐧 Linux: `openai-compatible-chat-x86_64-unknown-linux-musl.zip` (static MUSL)
+   - 🍎 macOS: `openai-compatible-chat-aarch64-apple-darwin.zip` (Apple Silicon)
+   - 🍎 macOS: `openai-compatible-chat-x86_64-apple-darwin.zip` (Intel)
+   - 🍎 macOS: `openai-compatible-chat-macos.zip` (universal)
 
-3. Extract the archive
+3. Extract the ZIP archive
 
-### 🪟 Windows
+4. On Linux/macOS: make the binary executable (using `chmod +x`)
 
-- Extract the `.zip`
-- Run the binary:
+5. Run the included executable
 
-```powershell
-.\openai-compatible-chat.exe
-```
-
-### 🐧 Linux / 🍎 macOS
-
-- Extract the archive:
-
-```bash
-tar -xzf openai-compatible-chat-*.tar.gz
-cd openai-compatible-chat-*
-```
-
-- Make the binary executable (if needed):
-
-```bash
-chmod +x openai-compatible-chat
-```
-
-- Run:
-
-```bash
-./openai-compatible-chat
-```
+- after setting up a [configuration file](#configuration)
+- and taking a look at the [usage](#usage)
 
 ## Update
 
@@ -109,7 +87,7 @@ Create a `config.json` file in the same folder as the binary, adapting the examp
 
 ## Usage
 
-```
+```text
 Usage: openai-compatible-chat [OPTIONS] <COMMAND>
 
 Commands:
