@@ -2,7 +2,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::info;
 
@@ -43,7 +43,7 @@ impl ConfigError {
 
 // ── Configurations ────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub api_key: String,
     pub base_url: String,

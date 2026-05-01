@@ -8,10 +8,11 @@ use async_openai::config::OpenAIConfig;
 use clap::{Parser, Subcommand};
 use native::AppState;
 use native::cli::run_cli;
-use native::config::{load_config, load_model_info_map};
+use native::config::{Config, load_config, load_model_info_map};
 use native::models::{COMPATIBLE_MODEL_TYPES, EnrichedModels};
 use native::openai::list_models;
 use native::web::run_web;
+use regex::Regex;
 use reqwest::Client as ReqwestClient;
 use tracing::{error, info, warn};
 use tracing_appender::rolling;
@@ -91,6 +92,19 @@ fn use_color() -> bool {
     atty::is(atty::Stream::Stdout)
 }
 
+fn example_configuration() -> String {
+    let example = Config {
+        api_key: String::from("sk-svcacct-************************"),
+        base_url: String::from("https://api.openai.com/v1"),
+        exclude_model_name_regex: vec![Regex::new(r".*-3.5-turbo-\d+").unwrap()],
+        default_system_prompt: String::from(
+            "This system prompt will be shown as default for every new session",
+        ),
+    };
+    serde_json::to_string_pretty(&example)
+        .expect("Hardcoded example configuration should not fail to serialize")
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Enable ANSI colour codes on legacy Windows consoles (cmd.exe).
@@ -146,6 +160,8 @@ async fn main() -> Result<()> {
 
     // Load configuration once
     let cfg = load_config(Path::new(&args.config_file)).map_err(|e| {
+        eprintln!("Here is an example configuration :");
+        eprintln!("{}", example_configuration());
         error!(exc = e.to_string(), "Error loading configuration");
         e
     })?;
