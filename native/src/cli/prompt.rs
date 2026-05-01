@@ -7,7 +7,6 @@ use thiserror::Error;
 use tokio::task::JoinError;
 use tracing::{debug, error, info, trace, warn};
 
-use crate::cli::display::DisplayError;
 use crate::models::{EnrichedModel, EnrichedModels};
 
 #[derive(Error, Debug)]
@@ -16,6 +15,10 @@ pub enum PromptError {
     Input(#[from] std::io::Error),
     #[error("Thread join error : {0}")]
     Join(#[from] JoinError),
+    #[error("Fuzzy prompt failed : {0}")]
+    Fuzzy(#[from] dialoguer::Error),
+    #[error("Selection failed : {0}")]
+    SelectionFailed(String),
 }
 
 /// Validator: Enter always inserts a newline, never submits ---
@@ -50,7 +53,7 @@ fn build_editor() -> Reedline {
 
 /// Drops into the reedline editor, optionally pre-filled with `prefill`.
 /// Returns the submitted text, or None on Ctrl+C / Ctrl+D.
-pub(crate) fn read_multiline(
+pub(crate) async fn read_multiline(
     prompt: &str,
     prefill: Option<&str>,
 ) -> Result<Option<String>, PromptError> {
@@ -72,7 +75,8 @@ pub(crate) fn read_multiline(
         DefaultPromptSegment::Basic("· ".to_string()),
     );
 
-    let res = editor.read_line(&prompt)?;
+    // prompt the user while not blocking the thread
+    let res = non_blocking(move || editor.read_line(&prompt)).await??;
 
     let res = match res {
         Signal::Success(buf) => {
@@ -95,7 +99,7 @@ pub(crate) fn read_multiline(
 /// Opens an interactive fuzzy-search and returns the selected model ID.
 pub(crate) async fn select_model(
     models: &EnrichedModels,
-) -> Result<Option<EnrichedModel>, DisplayError> {
+) -> Result<Option<EnrichedModel>, PromptError> {
     // Handle the simple cases
     let Some((model_id, model_info)) = models.iter().next() else {
         error!("No model available for selection");
@@ -113,7 +117,7 @@ pub(crate) async fn select_model(
     let mut choices: Vec<String> = models.keys().map(|k| k.clone()).collect();
     choices.sort();
 
-    let index = tokio::task::spawn_blocking({
+    let index = non_blocking({
         // so that choices_dup can move yet choices stay available
         let choices_dup = choices.clone();
         move || {
@@ -125,8 +129,7 @@ pub(crate) async fn select_model(
                 .interact_opt()
         }
     })
-    .await?
-    .map_err(|e| DisplayError::SelectionFailed(format!("Selection failed: {e}")))?;
+    .await??;
 
     let Some(index) = index else {
         return Ok(None); // no choice was made
@@ -134,14 +137,14 @@ pub(crate) async fn select_model(
 
     // Look up the key from the index
     let Some(model_id) = choices.get(index) else {
-        Err(DisplayError::SelectionFailed(format!(
+        Err(PromptError::SelectionFailed(format!(
             "Selection failed: {index}"
         )))?
     };
 
     // Look up the info from the id
     let Some(model_info) = models.get(model_id) else {
-        Err(DisplayError::SelectionFailed(format!(
+        Err(PromptError::SelectionFailed(format!(
             "Selection failed: {model_id}"
         )))?
     };
@@ -150,4 +153,13 @@ pub(crate) async fn select_model(
         model_id.into(),
         model_info.clone(),
     )))
+}
+
+/// Factored function to not block the main thread while reading the inputs
+pub(crate) async fn non_blocking<F, T>(f: F) -> Result<T, PromptError>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    Ok(tokio::task::spawn_blocking(f).await?)
 }

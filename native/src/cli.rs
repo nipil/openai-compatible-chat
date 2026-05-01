@@ -55,7 +55,7 @@ pub async fn run_cli(state: AppState) -> Result<(), CliError> {
 
         // let the user select a system prompt, or exit
         let Some(system_prompt) =
-            read_multiline("System prompt", Some(&state.default_system_prompt.clone()))?
+            read_multiline("System prompt", Some(&state.default_system_prompt.clone())).await?
         else {
             continue;
         };
@@ -89,7 +89,7 @@ pub(crate) async fn run_chat(
             &token_count,
             selected_model.info.context_window,
         );
-        let input = match read_multiline(&prompt, None)? {
+        let input = match read_multiline(&prompt, None).await? {
             Some(input) => {
                 // until we succeed
                 if input.trim().len() == 0 {

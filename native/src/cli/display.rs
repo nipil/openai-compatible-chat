@@ -10,7 +10,6 @@ use termimad::crossterm::style::Attributes;
 use termimad::crossterm::style::Color::*;
 use termimad::{CompoundStyle, MadSkin, StyledChar, gray};
 use thiserror::Error;
-use tokio::task::JoinError;
 use tracing::warn;
 
 use crate::models::EnrichedModel;
@@ -23,12 +22,8 @@ const SCROLLBAR_TRACK: char = '│';
 
 #[derive(Error, Debug)]
 pub enum DisplayError {
-    #[error("SelectionFailed : {0}")]
-    SelectionFailed(String),
     #[error("Model not found : {0}")]
     ModelNotFound(String),
-    #[error("Thread join error : {0}")]
-    Join(#[from] JoinError),
 }
 
 const REFRESH_INTERVAL: Duration = Duration::from_millis(100);
