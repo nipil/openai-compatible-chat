@@ -57,7 +57,9 @@ pub async fn run_cli(state: AppState) -> Result<(), CliError> {
         let Some(system_prompt) =
             read_multiline("System prompt", Some(&state.default_system_prompt.clone())).await?
         else {
-            continue;
+            // FIXME: when model is locked, user cannot exit when inputting (infinite loop)
+            // only exit possible is when the text is scrolling and control-C
+            return Ok(());
         };
         termimad::print_text("\n---\n");
 
