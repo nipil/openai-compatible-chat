@@ -27,7 +27,7 @@ compile_error!("At lease one of the main features should be enabled !");
 const TRACE_LOG: &str = "trace.log";
 
 #[derive(Parser)]
-#[command(name = "chat", about = "Interactive LLM", version)]
+#[command(name = "chat", about = "openai-compatible-chat", version)]
 struct Args {
     #[arg(long, short = 't', default_value_t = 10000)]
     api_timeout_ms: u64,

@@ -1,139 +1,183 @@
-# CLI Chatbot (OpenAI)
+# CLI Chatbot (OpenAI-compatible)
 
-Simple chatbot en ligne de commande (CLI) en Rust, utilisant l’API OpenAI (publique ou privée).
+## Table of Contents
 
-Sample rendering for WEB in light mode
+- [Installation](#installation)
+- [Update](#update)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Features](#features)
+- [Dev Workflow](#dev-workflow)
+- [Architecture](#architecture)
+- [What's next?](#whats-next)
+
+## Description
+
+Simple command-line and web chatbot written in Rust.
+
+It is compatible with
+
+- any OpenAI-compatible provider (public or private)
+- any model supporting `/v1/chat/completions` end points
+
+About the code
+
+- the majority of the code was first written by Claude.ai, and I used ChatGPT for various things
+  - i spent about 10% of the time beforehand, drafting a prompt with the design of the product
+  - about 75% of the "generate working code" job was done in 10% of the time by Claude
+  - i spent 80% of the time ... doing 25% of the "quality work" i enjoy (learn by reworking)
+
+- current state
+  - reworked the whole thing to learn about [each component and technology](#architecture)
+  - cleaning, refactoring and improving the parts until i was satisfied with its shape
+  - error management, which was entirely missing (because i did not request it at first)
+
+## Sample rendering
+
+Web interface
 
 ![sample](docs/sample-web.png)
 
-Sample rendering for CLI in dark mode
+CLI in dark mode
 
 ![sample](docs/sample-cli.png)
 
-A noter que la majorité du code a été écrit par Claude.ai, ue j'ai utilisé ChatGPT pour plein de trucs, et que je me suis amusé à nettoyer/refactorer/améliorer pour ce qui en valait la peine à mon avis (principalement la robustesse).
-
----
-
 ## Installation
 
-Les binaires sont générés automatiquement à chaque release.
+Binaries are automatically generated at each release.
 
-### 📦 Télécharger un binaire
+### 📦 Download a binary
 
-1. Aller sur la [page des releases)(https://github.com/nipil/openai-compatible-chat/releases)
+1. Go to the [releases page](https://github.com/nipil/openai-compatible-chat/releases)
 
-2. Télécharger l’archive correspondant à votre système :
-   - 🪟 Windows : `chatbot-x86_64-pc-windows-msvc.zip`
-   - 🐧 Linux : `chatbot-x86_64-unknown-linux-gnu.tar.gz`
-   - 🍎 macOS : `chatbot-aarch64-apple-darwin.tar.gz` (Apple Silicon)
-   - 🍎 macOS : `chatbot-x86_64-apple-darwin.tar.gz` (Intel)
+2. Download the archive for your system:
+   - 🪟 Windows: `openai-compatible-chat-x86_64-pc-windows-msvc.zip`
+   - 🐧 Linux: `openai-compatible-chat-x86_64-unknown-linux-gnu.tar.gz`
+   - 🍎 macOS: `openai-compatible-chat-aarch64-apple-darwin.tar.gz` (Apple Silicon)
+   - 🍎 macOS: `openai-compatible-chat-x86_64-apple-darwin.tar.gz` (Intel)
 
-3. Extraire l’archive
-
----
+3. Extract the archive
 
 ### 🪟 Windows
 
-- Extraire le `.zip`
-- Lancer le binaire :
+- Extract the `.zip`
+- Run the binary:
 
 ```powershell
-.\chatbot.exe
+.\openai-compatible-chat.exe
 ```
-
----
 
 ### 🐧 Linux / 🍎 macOS
 
-- Extraire l’archive :
+- Extract the archive:
 
 ```bash
-tar -xzf chatbot-*.tar.gz
-cd chatbot-*
+tar -xzf openai-compatible-chat-*.tar.gz
+cd openai-compatible-chat-*
 ```
 
-- Rendre le binaire exécutable (si nécessaire) :
+- Make the binary executable (if needed):
 
 ```bash
-chmod +x chatbot
+chmod +x openai-compatible-chat
 ```
 
-- Lancer :
+- Run:
 
 ```bash
-./chatbot
+./openai-compatible-chat
 ```
 
----
+## Update
 
-## Mise à jour
-
-Télécharger simplement la dernière version depuis la page des releases et remplacer l’ancien binaire.
-
----
+Simply download the latest version from the releases page and replace the old binary.
 
 ## Configuration
 
-Créer un fichier `config.json` dans le même dossier que le binaire :
+Create a `config.json` file in the same folder as the binary, adapting the example below:
 
 ```json
 {
-  "api_key": "YOUR_API_KEY",
+  "api_key": "sk-svcacct-************************",
   "base_url": "https://api.openai.com/v1",
-  "exclude_model_name_regex": ["realtime", "audio"],
-  "prepend_system_prompt": "You are a concise assistant."
+  "exclude_model_name_regex": [
+    ".*-3.5-turbo-\\d+"
+  ],
+  "default_system_prompt": "This system prompt will be shown as default for every new session"
 }
 ```
 
----
+## Usage
 
-## Lancement
+```
+Usage: openai-compatible-chat [OPTIONS] <COMMAND>
 
-```bash
-./chatbot
+Commands:
+  cli   CLI subcommand
+  web   Web subcommand
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+  -t, --api-timeout-ms <API_TIMEOUT_MS>  [default: 10000]
+  -c, --config-file <CONFIG_FILE>        [default: config.json]
+  -i, --info-file <INFO_FILE>            [default: ai_model_info/openai.json]
+  -m, --model-lock <MODEL_LOCK>
+      --log-file <LOG_FILE>
+  -h, --help                             Print help
+  -V, --version                          Print version
 ```
 
-(Sur Windows : `chatbot.exe`)
+### CLI mode
 
----
-
-### Sélection directe du modèle
-
-Vous pouvez bypass le menu de sélection avec :
+Start an interactive chat session in your terminal:
 
 ```bash
-./chatbot --model gpt-4o
+./openai-compatible-chat cli
 ```
 
-Comportement :
+### Web mode
 
-- vérifie que le modèle existe dans la liste récupérée via l’API
-- applique les filtres (exclusions + regex)
-- si valide → démarrage direct de la conversation
-- sinon → message d’erreur + retour au menu
+Start the web interface, serving the compiled WASM frontend and proxying API requests:
 
----
+```bash
+./openai-compatible-chat web --port 8080
+```
 
-## Fonctionnalités
+```
+Options:
+  -p, --port <PORT>            Port to listen on
+  -d, --dist-wasm <DIST_WASM>  Path to WASM dist directory [default: wasm/dist]
+```
 
-- sélection interactive du modèle
-- streaming des réponses
-- historique conversationnel
-- estimation des tokens (`~`)
-- filtrage des modèles (regex + exclusions automatiques)
-- gestion des erreurs (modèle interdit, dépassement contexte)
+Then open `http://localhost:8080` in your browser.
 
----
+### Direct model selection
 
-## Notes
+You can bypass the model selection menu with:
 
-- `CTRL-C` : quitter proprement
-- dépassement de contexte → conversation verrouillée
-- les modèles non autorisés pour la clé API fournie sont ajoutés automatiquement à `exclusion.json`
+```bash
+./openai-compatible-chat --model-lock gpt-4o cli
+```
 
-## Workflow de dev
+Behavior:
 
-Proxy: si besoin, vscode setting `rust-analyzer.cargo.extraEnv`
+- verifies that the model exists in the list retrieved via the API
+- applies filters (exclusions + regex)
+- if valid → starts the conversation directly
+- otherwise → error message + back to menu
+
+## Features
+
+- interactive model selection
+- streaming responses
+- disposable history (no storage at all)
+- token display (exact or estimated, cache efficiency on info log level)
+- model filtering (regex) via configuration
+- error handling (forbidden model, context overflow, plus all possible unhappy path)
+
+## Dev Workflow
+
+Proxy: if needed, set the VSCode setting `rust-analyzer.cargo.extraEnv`:
 
 ```json
 "rust-analyzer.cargo.extraEnv": {
@@ -141,87 +185,89 @@ Proxy: si besoin, vscode setting `rust-analyzer.cargo.extraEnv`
 }
 ```
 
-Installer les prérequis
+Install prerequisites:
 
 ```shell
-# a priori nécessaire pour l'extension rust-analyzer de vscode
+# required for the rust-analyzer VSCode extension
 rustup component add rust-src
 
-# toolchain wasm
+# wasm toolchain
 rustup target add wasm32-unknown-unknown
 
-# ajoute l'outil de reformattage de code depuis nightly
-# IMPORTANT: c'est le seul outil utilisé du nightly, on build via stable
+# adds the code formatter (only) from nightly
+# IMPORTANT: builds are done using stable !
 rustup toolchain install nightly
 rustup component add rustfmt --toolchain nightly
 
-# outil qui hot-build/reload le wasm et le static
+# tool for hot-building/reloading wasm and static files
 cargo install trunk
 
-# outil qui hot-build/reload le code natif
+# tool for hot-building/reloading native code
 cargo install watchexec-cli
 ```
 
-### Model infos
+### Model info
 
-Il faut garder les fichiers json dans `ai_model_info` à jour, car ils sont utilisés en tant que métadonnées pour filtrer quels modèles utiliser pour chaque fonction.
+The JSON files in `ai_model_info` must be kept up to date, as they are used as metadata to filter which models to use for each function.
 
-Cependant, ces données ne sont pas disponibles de manière officielles et centralisées, et il faut les mettre à jour périodiquement pour ajouter les nouveaux modèles (que l'api remonte) en utilisant des données publiques.
+However, this data is not officially and centrally available, and must be periodically updated to add new models (returned by the API) using public data.
 
-Personnellement, j'utilise le workflow suivant pour faire mettre à jour les infos
+The recommended workflow to update model info:
 
-- utiliser [Claude.ia](https://claude.ai) car il a accès à internet... et fait le boulot
-- pour un fichier d'infos de modèles pour lequel il y a des évolutions à faire
-  - extraire de chaque fichier json tous les modèles **incomplets** (avec des null)
-  - obtenir la liste des *id* modèle récupérés pour lesquels on a pas d'info (cf. logs)
+- use [Claude.ai](https://claude.ai) since it has internet access and does the job
+- for a model info file that needs updating:
+  - extract all **incomplete** models (those with `null` fields) from the JSON file
+  - get the list of model *ids* retrieved from the API for which you have no info (see logs)
 
-Lui *Ctrl-V le lot de JSON incomplets*, avant de faire votre demande.
+Paste the batch of incomplete JSON, then submit the prompt below with your list of missing models:
 
-Et soumettre le "prompt" ci-dessous avec votre liste de modèles manquants :
-
-    Can you please update my attached incomplete json model metadata compilation WITH ACCURATE DATA (no hallucinating !!) from up-to-date sources, for all AI model id listed below, which i just got from the AI prover API
+```text
+Can you please update my attached incomplete json model metadata compilation
+WITH ACCURATE DATA (no hallucinating !!) from up-to-date sources,
+for all AI model id listed below, which i just got from the AI provider API
 
     ```
     gpt-5.4-nano-2026-03-17
     gpt-5.4-mini-2026-03-17
     ```
+```
 
-Attendre, et claquer son résultat dans le fichier json d'origine.
+Wait for the result, then paste it back into the original JSON file.
 
-Puis, exécuter la commande ci-dessous pour **pretty-fier les json**,ce qui permet lors des commits d'avoir un diff propre, qui peut être analysé pour suivre les changements.
+Then run the command below to **pretty-print the JSON**, which makes commits produce a clean diff that can be reviewed to track changes:
 
 ```bash
 cargo run -p ai_model_info ai_model_info
 ```
 
-**Revoir les modifications** apportées, vérifier qu'elles sont "cohérentes".
+**Review the changes** made, and verify they are "consistent".
 
-Copier le récapitulatif des actions de Claude (utiliser le bouton "copy" pour récupérer **au format markdown !**)
+Copy Claude's summary of actions (use the "copy" button to get it **in markdown format!**)
 
-Commiter en s'assurant de bien **archiver l'explication** de Claude au message de commit
+Commit, making sure to **archive Claude's explanation** in the commit message.
 
 ### Debug
 
-Démarre le backend (prendre le port de `wasm/Trunk.toml [[proxy]] backend`)
+Start the backend (use the port from key `backend` in section `[[proxy]]` of `wasm/Trunk.toml`):
 
 ```shell
 watchexec --clear --quiet --restart --debounce 1s --stop-signal SIGTERM --ignore "wasm/**" --exts rs cargo run -p native -- web --port 3000
 ```
 
-Hot-build et reload du code rust/wasm et serveur du static
+Hot-build and reload Rust/WASM code and serve static files:
 
 ```shell
 cd wasm
 watchexec --clear --quiet --restart --debounce 1s --stop-signal SIGTERM --watch "../portable" --exts rs trunk serve
 ```
 
-Hot-build documentation
+Hot-build documentation if needed
 
 ```shell
 watchexec --clear --quiet --restart --debounce 10s --stop-signal SIGTERM --watch Cargo.lock cargo doc --locked
 ```
 
-Visiter `http://localhost:8080` dans le navigateur
+Visit `http://localhost:8080` in your browser.
 
 ### Release
 
@@ -236,7 +282,7 @@ cargo build --release
 
 ## Architecture
 
-![Composants et liens](docs/architecture.svg)
+![Components and links](docs/architecture.svg)
 
 That's the entire stack:
 
@@ -247,20 +293,20 @@ No database, no auth middleware, no extra complexity.
 
 ### Backend: Axum
 
-It's the simplest, most modern Rust web framework. Lightweight, built on Tokio, and has excellent support for streaming responses via SSE (Server-Sent Events). It will serve two purposes: proxying requests to OpenAI (keeping your API key server-side), and serving the compiled WASM frontend as static files.
+The simplest, most modern Rust web framework. Lightweight, built on Tokio, and with excellent support for streaming responses via SSE (Server-Sent Events). It serves two purposes: proxying requests to OpenAI (keeping your API key server-side), and serving the compiled WASM frontend as static files.
 
 ### Frontend: Leptos
 
-The best choice for a simple reactive SPA in Rust/WASM right now. It has a clean component model, handles async and reactive state elegantly, and its compiled output is very small. You won't need a router, so you'll only use its core reactivity and component system.
+The best choice for a simple reactive SPA in Rust/WASM right now. It has a clean component model, handles async and reactive state elegantly, and its compiled output is very small. No router needed — only core reactivity and the component system are used.
 
 ### Build tooling: Trunk
 
-The standard tool for building and bundling Rust WASM frontends. It handles the WASM compilation, asset pipeline, and dev server with hot-reload out of the box. Zero config for a simple project like this.
+The standard tool for building and bundling Rust WASM frontends. It handles WASM compilation, asset pipeline, and dev server with hot-reload out of the box. Zero config for a simple project like this.
 
 ### Application flow
 
-The streaming flow will be: Leptos frontend sends a fetch request → Axum backend forwards it to OpenAI with streaming enabled → Axum streams tokens back as SSE → Leptos reads the SSE stream and appends tokens to the UI reactively.
+The streaming flow: Leptos frontend sends a fetch request → Axum backend forwards it to OpenAI with streaming enabled → Axum streams tokens back as SSE → Leptos reads the SSE stream and appends tokens to the UI reactively.
 
-## What's next ?
+## What's next?
 
-There is surely [something fun to do !](docs/TODO.md)
+There is surely [something fun to do!](docs/TODO.md)
