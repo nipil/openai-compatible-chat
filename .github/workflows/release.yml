@@ -27,22 +27,22 @@ jobs:
           - name:   Linux x64 (static)
             os:     ubuntu-22.04
             target: x86_64-unknown-linux-musl
-            binary: chat
+            binary: openai-compatible-chat
 
           - name:   Windows x64
             os:     windows-2022
             target: x86_64-pc-windows-msvc
-            binary: chat.exe
+            binary: openai-compatible-chat.exe
 
           - name:   macOS ARM
             os:     macos-15
             target: aarch64-apple-darwin
-            binary: chat
+            binary: openai-compatible-chat
 
           - name:   macOS Intel
             os:     macos-15
             target: x86_64-apple-darwin
-            binary: chat
+            binary: openai-compatible-chat
 
     steps:
       - name: Checkout
@@ -87,7 +87,7 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         run: |
           mv target/${{ matrix.target }}/release/${{ matrix.binary }} \
-             chat-${{ matrix.target }}
+             openai-compatible-chat-${{ matrix.target }}
 
       # Rename Windows
       - name: Rename binary (Windows)
@@ -95,20 +95,20 @@ jobs:
         shell: pwsh
         run: |
           Move-Item target/${{ matrix.target }}/release/${{ matrix.binary }} `
-                    chat-${{ matrix.target }}.exe
+                    openai-compatible-chat-${{ matrix.target }}.exe
 
       # Rename macOS
       - name: Rename binary (macOS)
         if: startsWith(matrix.os, 'macos')
         run: |
           mv target/${{ matrix.target }}/release/${{ matrix.binary }} \
-             chat-${{ matrix.target }}
+             openai-compatible-chat-${{ matrix.target }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: chat-${{ matrix.target }}
-          path: chat-${{ matrix.target }}*   # capture .exe aussi
+          name: openai-compatible-chat-${{ matrix.target }}
+          path: openai-compatible-chat-${{ matrix.target }}*   # capture .exe aussi
 
   macos-universal:
     name: Build macOS universal binary
@@ -125,17 +125,17 @@ jobs:
         run: |
           mkdir macos
 
-          cp artifacts/chat-aarch64-apple-darwin/chat-aarch64-apple-darwin macos/chat-arm64
-          cp artifacts/chat-x86_64-apple-darwin/chat-x86_64-apple-darwin macos/chat-x64
+          cp artifacts/openai-compatible-chat-aarch64-apple-darwin/openai-compatible-chat-aarch64-apple-darwin macos/openai-compatible-chat-arm64
+          cp artifacts/openai-compatible-chat-x86_64-apple-darwin/openai-compatible-chat-x86_64-apple-darwin macos/openai-compatible-chat-x64
 
-          lipo -create macos/chat-arm64 macos/chat-x64 -o macos/chat-macos
-          chmod +x macos/chat-macos
+          lipo -create macos/openai-compatible-chat-arm64 macos/openai-compatible-chat-x64 -o macos/openai-compatible-chat-macos
+          chmod +x macos/openai-compatible-chat-macos
 
       - name: Upload universal binary
         uses: actions/upload-artifact@v4
         with:
-          name: chat-macos
-          path: macos/chat-macos
+          name: openai-compatible-chat-macos
+          path: macos/openai-compatible-chat-macos
 
   release:
     name: Create GitHub Release
