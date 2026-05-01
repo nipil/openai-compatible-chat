@@ -1,14 +1,21 @@
+use dialoguer::FuzzySelect;
 use reedline::{
     DefaultPrompt, DefaultPromptSegment, EditCommand, Emacs, KeyCode, KeyModifiers, Reedline,
     ReedlineEvent, Signal, ValidationResult, Validator, default_emacs_keybindings,
 };
 use thiserror::Error;
-use tracing::{debug, trace, warn};
+use tokio::task::JoinError;
+use tracing::{debug, error, info, trace, warn};
+
+use crate::cli::display::DisplayError;
+use crate::models::{EnrichedModel, EnrichedModels};
 
 #[derive(Error, Debug)]
 pub enum PromptError {
     #[error("IO error {0}")]
     Input(#[from] std::io::Error),
+    #[error("Thread join error : {0}")]
+    Join(#[from] JoinError),
 }
 
 /// Validator: Enter always inserts a newline, never submits ---
@@ -66,6 +73,7 @@ pub(crate) fn read_multiline(
     );
 
     let res = editor.read_line(&prompt)?;
+
     let res = match res {
         Signal::Success(buf) => {
             trace!("reedline success: {buf:?}");
@@ -82,4 +90,64 @@ pub(crate) fn read_multiline(
     };
 
     Ok(res)
+}
+
+/// Opens an interactive fuzzy-search and returns the selected model ID.
+pub(crate) async fn select_model(
+    models: &EnrichedModels,
+) -> Result<Option<EnrichedModel>, DisplayError> {
+    // Handle the simple cases
+    let Some((model_id, model_info)) = models.iter().next() else {
+        error!("No model available for selection");
+        return Ok(None);
+    };
+    if models.len() == 1 {
+        info!(model = model_id, "Auto-selected model");
+        return Ok(Some(EnrichedModel::new(
+            model_id.into(),
+            model_info.clone(),
+        )));
+    }
+
+    // Build sorted list of models and let user choose
+    let mut choices: Vec<String> = models.keys().map(|k| k.clone()).collect();
+    choices.sort();
+
+    let index = tokio::task::spawn_blocking({
+        // so that choices_dup can move yet choices stay available
+        let choices_dup = choices.clone();
+        move || {
+            // The theme in fuzzyselect is not send+'static
+            FuzzySelect::new()
+                .with_prompt("Select model")
+                .items(choices_dup)
+                .default(0)
+                .interact_opt()
+        }
+    })
+    .await?
+    .map_err(|e| DisplayError::SelectionFailed(format!("Selection failed: {e}")))?;
+
+    let Some(index) = index else {
+        return Ok(None); // no choice was made
+    };
+
+    // Look up the key from the index
+    let Some(model_id) = choices.get(index) else {
+        Err(DisplayError::SelectionFailed(format!(
+            "Selection failed: {index}"
+        )))?
+    };
+
+    // Look up the info from the id
+    let Some(model_info) = models.get(model_id) else {
+        Err(DisplayError::SelectionFailed(format!(
+            "Selection failed: {model_id}"
+        )))?
+    };
+
+    Ok(Some(EnrichedModel::new(
+        model_id.into(),
+        model_info.clone(),
+    )))
 }

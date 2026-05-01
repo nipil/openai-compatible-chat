@@ -3,7 +3,6 @@ use std::time::{Duration, Instant};
 
 use chrono::Local;
 use crossterm::{cursor, execute, terminal};
-use dialoguer::FuzzySelect;
 use owo_colors::OwoColorize;
 use portable::TokenUsage;
 use termimad::crossterm::style::Attribute::*;
@@ -12,9 +11,9 @@ use termimad::crossterm::style::Color::*;
 use termimad::{CompoundStyle, MadSkin, StyledChar, gray};
 use thiserror::Error;
 use tokio::task::JoinError;
-use tracing::{error, info, warn};
+use tracing::warn;
 
-use crate::models::{EnrichedModel, EnrichedModels};
+use crate::models::EnrichedModel;
 
 const BULLET_CHAR: char = '●';
 const HRULE_CHAR: char = '─';
@@ -276,64 +275,4 @@ pub(crate) fn get_duration(start: Instant) -> String {
     format!("[{:.2}s]", start.elapsed().as_secs_f64())
         .bright_black()
         .to_string()
-}
-
-/// Opens an interactive fuzzy-search and returns the selected model ID.
-pub(crate) async fn select_model(
-    models: &EnrichedModels,
-) -> Result<Option<EnrichedModel>, DisplayError> {
-    // Handle the simple cases
-    let Some((model_id, model_info)) = models.iter().next() else {
-        error!("No model available for selection");
-        return Ok(None);
-    };
-    if models.len() == 1 {
-        info!(model = model_id, "Auto-selected model");
-        return Ok(Some(EnrichedModel::new(
-            model_id.into(),
-            model_info.clone(),
-        )));
-    }
-
-    // Build sorted list of models and let user choose
-    let mut choices: Vec<String> = models.keys().map(|k| k.clone()).collect();
-    choices.sort();
-
-    let index = tokio::task::spawn_blocking({
-        // so that choices_dup can move yet choices stay available
-        let choices_dup = choices.clone();
-        move || {
-            // The theme in fuzzyselect is not send+'static
-            FuzzySelect::new()
-                .with_prompt("Select model")
-                .items(choices_dup)
-                .default(0)
-                .interact_opt()
-        }
-    })
-    .await?
-    .map_err(|e| DisplayError::SelectionFailed(format!("Selection failed: {e}")))?;
-
-    let Some(index) = index else {
-        return Ok(None); // no choice was made
-    };
-
-    // Look up the key from the index
-    let Some(model_id) = choices.get(index) else {
-        Err(DisplayError::SelectionFailed(format!(
-            "Selection failed: {index}"
-        )))?
-    };
-
-    // Look up the info from the id
-    let Some(model_info) = models.get(model_id) else {
-        Err(DisplayError::SelectionFailed(format!(
-            "Selection failed: {model_id}"
-        )))?
-    };
-
-    Ok(Some(EnrichedModel::new(
-        model_id.into(),
-        model_info.clone(),
-    )))
 }
