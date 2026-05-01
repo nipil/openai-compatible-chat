@@ -3,20 +3,20 @@ use std::time::Instant;
 use async_openai::Client;
 use async_openai::config::OpenAIConfig;
 use futures::StreamExt;
-use portable::{ChatEvent, ChatRequest, Message, MessageRole, Theme, TokenUsage, estimate_tokens};
+use portable::{ChatEvent, ChatRequest, Message, MessageRole, Theme, estimate_tokens};
 use thiserror::Error;
 use tracing::{debug, error, info, instrument, trace};
 
 use crate::AppState;
-use crate::cli::display::{
-    DisplayError, LiveMarkdown, build_user_prompt, get_duration, print_banner,
-};
-use crate::cli::prompt::{PromptError, read_multiline, select_model};
-use crate::models::EnrichedModel;
+use crate::cli::display::{DisplayError, LiveMarkdown, get_duration, print_banner};
+use crate::cli::prompt::{PromptError, PromptState, read_multiline, select_model};
+use crate::cli::reedline::AppPrompt;
 use crate::openai::{ProviderError, get_chat_event, send_chat_request};
 
 mod display;
 mod prompt;
+mod reedline;
+mod themes;
 
 #[derive(Error, Debug)]
 pub enum CliError {
@@ -53,21 +53,31 @@ pub async fn run_cli(state: AppState, theme: &Theme) -> Result<(), CliError> {
             ---\n",
         );
 
+        // build the app prompt for the application
+        let prompt = AppPrompt::new(theme, PromptState::new(selected_model));
+
         // let the user select a system prompt, or exit
         let Some(system_prompt) =
-            // TODO: apply theme to reedline ?
-            read_multiline("System prompt", Some(&state.default_system_prompt.clone())).await?
+            read_multiline(prompt.clone(), Some(&state.default_system_prompt.clone())).await?
         else {
             return Ok(());
         };
         termimad::print_text("\n---\n");
+
+        // guard is dropped immediately
+        prompt
+            .state
+            .write()
+            .expect("Prompt `state` RwLock should not be poisonned")
+            // Now the system prompt is set, show that we are in user mode
+            .current_role = MessageRole::User;
 
         // Initialize history with system prompt
         let history = vec![Message::new(MessageRole::System, system_prompt)];
         debug!(message=?history[0], "system prompt");
 
         // Run the chat to completion
-        run_chat(&state.openai_client, &selected_model, history, theme).await?;
+        run_chat(&state.openai_client, prompt, history).await?;
     }
 }
 
@@ -75,26 +85,23 @@ pub async fn run_cli(state: AppState, theme: &Theme) -> Result<(), CliError> {
 
 pub(crate) async fn run_chat(
     client: &Client<OpenAIConfig>,
-    selected_model: &EnrichedModel,
+    prompt: AppPrompt,
     mut history: Vec<portable::Message>,
-    theme: &Theme,
 ) -> Result<(), CliError> {
     // smart token display (exact > approximate)
-    let mut token_count = TokenUsage::default();
     loop {
-        // update token usage with estimate if nothing better
-        token_count.set_approximate(estimate_tokens(&history));
+        // guard is dropped immediately
+        prompt
+            .state
+            .write()
+            .expect("Prompt `state` RwLock should not be poisonned")
+            .token_usage
+            // update token usage with estimate (if nothing better is inside)
+            .set_approximate(estimate_tokens(&history));
 
-        // get user input
-        let prompt = build_user_prompt(
-            &selected_model.id,
-            &token_count,
-            selected_model.info.context_window,
-            theme,
-        );
-        let input = match read_multiline(&prompt, None).await? {
+        // get the user input until we succeed
+        let input = match read_multiline(prompt.clone(), None).await? {
             Some(input) => {
-                // until we succeed
                 if input.trim().len() == 0 {
                     continue;
                 }
@@ -107,31 +114,51 @@ pub(crate) async fn run_chat(
         debug!(input = input, "user input");
         termimad::print_text("\n---\n");
 
+        // guard is dropped immediately
+        let model_id = prompt
+            .state
+            .read()
+            .expect("Prompt `state` RwLock should not be poisonned")
+            .selected_model
+            .id
+            .clone();
+
         // prepare chat request
         history.push(Message::new(MessageRole::User, input));
-        let chat = ChatRequest::new(selected_model.id.to_string(), history.clone());
+        let chat = ChatRequest::new(model_id, history.clone());
         let start = Instant::now();
-        let reply = handle_chat(client, &chat, theme, |event| {
-            // handle streaming events
+
+        // handle streaming events
+        let reply = handle_chat(client, &chat, &prompt.theme, |event| {
             debug!(event = ?event, "chat event");
+
             match event {
                 ChatEvent::TokenCount {
-                    prompt,
+                    prompt: token_prompt,
                     generated,
                     // not displayed in CLI for now
                     cached: _cached,
                     reasoning: _reasoning,
                 } => {
-                    token_count.set_exact(prompt + generated);
+                    // guard is dropped immediately
+                    prompt
+                        .state
+                        .write()
+                        .expect("Prompt `state` RwLock should not be poisonned")
+                        .token_usage
+                        .set_exact(token_prompt + generated);
                 }
+
                 ChatEvent::Error(msg) => {
                     error!(error = msg, "run_chat Streaming error");
                 }
+
                 _ => {}
             }
         })
         .await?;
-        println!("{}", get_duration(start, theme));
+
+        println!("{}", get_duration(start, &prompt.theme));
         termimad::print_text("---");
 
         debug!(reply = reply, "reply");

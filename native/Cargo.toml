@@ -38,6 +38,7 @@ tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 reedline = { version = "0.47.0", features = ["system_clipboard"] }
+nu-ansi-term = "0.50.3"
 
 [target.'cfg(windows)'.dependencies]
 enable-ansi-support = "0.3.1"

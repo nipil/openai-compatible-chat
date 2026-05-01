@@ -1,12 +1,12 @@
 use dialoguer::FuzzySelect;
-use reedline::{
-    DefaultPrompt, DefaultPromptSegment, EditCommand, Emacs, KeyCode, KeyModifiers, Reedline,
-    ReedlineEvent, Signal, ValidationResult, Validator, default_emacs_keybindings,
-};
+use nu_ansi_term::Style;
+use portable::{MessageRole, TokenUsage};
+use reedline::{EditCommand, Signal};
 use thiserror::Error;
 use tokio::task::JoinError;
 use tracing::{debug, error, info, trace, warn};
 
+use crate::cli::reedline::{AppPrompt, build_reedline, crossterm_to_nu};
 use crate::models::{EnrichedModel, EnrichedModels};
 
 #[derive(Error, Debug)]
@@ -21,43 +21,33 @@ pub enum PromptError {
     SelectionFailed(String),
 }
 
-/// Validator: Enter always inserts a newline, never submits ---
-struct MultilineValidator;
+// Wrap it in Arc<RwLock<>> so the editor loop can mutate it and the prompt
+// can read it from &self without needing &mut.
 
-impl Validator for MultilineValidator {
-    fn validate(&self, _line: &str) -> ValidationResult {
-        // Returning Incomplete means reedline inserts a newline on Enter.
-        // Submission only happens via the explicit Ctrl+Enter binding below.
-        ValidationResult::Incomplete
-    }
+/// Live state that can change between readline calls.
+pub(crate) struct PromptState {
+    pub(crate) selected_model: EnrichedModel,
+    pub(crate) current_role: MessageRole,
+    pub(crate) token_usage: TokenUsage,
 }
 
-/// Build the editor with custom keybindings ---
-fn build_editor() -> Reedline {
-    let mut keybindings = default_emacs_keybindings();
-
-    // Ctrl+Enter → submit (the only way to leave the editor)
-    keybindings.add_binding(KeyModifiers::CONTROL, KeyCode::Enter, ReedlineEvent::Submit);
-
-    // Ctrl+C → abort (gives Signal::CtrlC so the caller can handle it)
-    keybindings.add_binding(
-        KeyModifiers::CONTROL,
-        KeyCode::Char('c'),
-        ReedlineEvent::CtrlC,
-    );
-
-    Reedline::create()
-        .with_validator(Box::new(MultilineValidator))
-        .with_edit_mode(Box::new(Emacs::new(keybindings)))
+impl PromptState {
+    pub(crate) fn new(model: EnrichedModel) -> Self {
+        Self {
+            selected_model: model,
+            current_role: MessageRole::System,
+            token_usage: TokenUsage::default(),
+        }
+    }
 }
 
 /// Drops into the reedline editor, optionally pre-filled with `prefill`.
 /// Returns the submitted text, or None on Ctrl+C / Ctrl+D.
 pub(crate) async fn read_multiline(
-    prompt: &str,
+    prompt: AppPrompt,
     prefill: Option<&str>,
 ) -> Result<Option<String>, PromptError> {
-    let mut editor = build_editor();
+    let mut editor = build_reedline(Style::new().fg(crossterm_to_nu(prompt.colors.as_ref().meta)));
 
     // Pre-fill: run edit commands against the buffer before handing
     // control to the user. InsertString handles embedded '\n' correctly,
@@ -66,14 +56,6 @@ pub(crate) async fn read_multiline(
         debug!("reedline prefill : {prefill:?}");
         editor.run_edit_commands(&[EditCommand::InsertString(String::from(prefill))]);
     }
-
-    // A simple two-segment prompt:
-    //   first line
-    //   continuation
-    let prompt = DefaultPrompt::new(
-        DefaultPromptSegment::Basic(prompt.to_string()),
-        DefaultPromptSegment::Basic("· ".to_string()),
-    );
 
     // prompt the user while not blocking the thread
     let res = non_blocking(move || editor.read_line(&prompt)).await??;
