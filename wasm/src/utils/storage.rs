@@ -3,7 +3,7 @@ use portable::Message;
 use crate::web::dom::{get_storage, get_window};
 use crate::{BrowserError, StorageError};
 
-pub(crate) const STORAGE_KEY_OPENAI: &str = "openai";
+const STORAGE_KEY_OPENAI: &str = "openai";
 
 pub(crate) fn save_chat(messages: &[Message]) -> Result<(), StorageError> {
     let Some(storage) = get_storage(get_window()?)? else {

@@ -7,8 +7,8 @@ use crate::web::dom::{get_document, get_html_doc, get_window};
 
 pub(crate) const COOKIE_MODEL: &str = "model";
 pub(crate) const COOKIE_THEME: &str = "theme";
-pub(crate) const COOKIE_THEME_DEFAULT: Theme = Theme::Dark;
-pub(crate) const COOKIE_MAX_AGE: u32 = 31_536_000; // 1 year
+const COOKIE_THEME_DEFAULT: Theme = Theme::Dark;
+const COOKIE_MAX_AGE: u32 = 31_536_000; // 1 year
 
 fn get_cookies(html_doc: web_sys::HtmlDocument) -> Result<String, BrowserError> {
     html_doc
