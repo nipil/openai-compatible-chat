@@ -46,7 +46,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -105,7 +105,7 @@ jobs:
              openai-compatible-chat-${{ matrix.target }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openai-compatible-chat-${{ matrix.target }}
           path: openai-compatible-chat-${{ matrix.target }}*   # capture .exe aussi
@@ -117,7 +117,7 @@ jobs:
 
     steps:
       - name: Download macOS artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts/
 
@@ -132,7 +132,7 @@ jobs:
           chmod +x macos/openai-compatible-chat-macos
 
       - name: Upload universal binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openai-compatible-chat-macos
           path: macos/openai-compatible-chat-macos
@@ -146,7 +146,7 @@ jobs:
 
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts/
           merge-multiple: true
