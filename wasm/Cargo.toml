@@ -40,26 +40,5 @@ web-sys = { version = "0.3", features = [
         "Window",
 ] }
 
-# CLAUDE GUIDELINES TO ERROR HANDLING IN WEB_SYS
-# **Definitely log/report — these indicate real problems:**
-# - `Request`, `RequestInit`, `Headers`, `Response`
-#   -> network failures, malformed requests
-# - `ReadableStream`, `ReadableStreamDefaultReader`
-#   -> stream errors mid-response, these affect UX directly
-# - `AbortController`, `AbortSignal`
-#   -> unexpected aborts (expected aborts are noise, log only unexpected ones)
-# - `Storage` — localStorage read/write failures
-#   -> (e.g. private browsing, quota exceeded)
-
-# **Log only, not user-facing — environmental/browser issues:**
-# - `Window`, `Document`, `Element`, `HtmlDocument`
-#   if these fail, something is wrong with the DOM environment
-#   but there's nothing meaningful to tell the user
-# - `KeyboardEvent` — malformed event data, log only
-
-# **Mostly ignore — expected failures:**
-# - Cookie r/w via `Element` — cookie access can fail silently in many browsers due to privacy settings, not actionable
-
-
 [features]
 print-tokens = []

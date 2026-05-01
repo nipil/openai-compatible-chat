@@ -33,14 +33,12 @@ pub(crate) fn InputArea(
                 rows="3"
             />
             {move || if streaming.get() {
-                // FIXME
                 view! {
                     <button class="btn-stop" on:click=move |_| on_stop()>
                         "⏹ Stop (Esc)"
                     </button>
                 }.into_any()
             } else {
-                // FIXME
                 view! {
                     <button
                         class="btn-send"
