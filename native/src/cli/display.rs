@@ -61,6 +61,10 @@ pub struct ConsoleTheme {
     // ── Code ─────────────────────────────────────────────────────────────────
     /// Foreground for both inline `code` and fenced code blocks
     pub code: Color,
+    /// Background for inline code (slightly darker shade than `code_block_bg`)
+    /// and code blocks.  `None` falls back to the termimad default grays.
+    /// Use `Some(gray(n))` from termimad for ANSI grey ramp values (0–23).
+    pub code_bg: Option<Color>,
 
     // ── Structural / decorative markdown elements ─────────────────────────────
     /// Bullet markers, horizontal rules, scrollbar thumb
@@ -101,35 +105,106 @@ impl ConsoleTheme {
             Theme::Light => Self::dark(), // FIXME: update when light is done
         }
     }
-
-    /// Rich-inspired dark-terminal theme (the only built-in theme for now).
-    fn dark() -> Self {
+    /// Dark-terminal theme — designed for black or near-black backgrounds.
+    ///
+    /// Colour strategy:
+    ///   - Headings use fully-saturated bright hues: they need to pierce the
+    ///     dark background without extra weight.
+    ///   - Inline styles lean on White and Yellow — the two colours that feel
+    ///     "light" without being neon, keeping body text comfortable at length.
+    ///   - Code uses Green on a near-black panel — the classic terminal look,
+    ///     with just enough background lift to visually box the snippet.
+    ///   - Chrome / secondary info uses White → DarkGrey as a two-level
+    ///     hierarchy: primary labels are bright, ambient noise fades back.
+    ///   - Token thresholds follow the traffic-light convention with full-
+    ///     brightness variants that stand out against the dark surface.
+    pub fn dark() -> Self {
         Self {
-            heading_1: Cyan,
-            heading_2: Magenta,
-            heading_3: Yellow,
-            heading_n: White,
+            // ── Headings — vivid hues that cut through dark backgrounds ───────
+            heading_1: Cyan,    // bright teal   — commanding, cool
+            heading_2: Magenta, // bright violet — clearly secondary
+            heading_3: Yellow,  // bright amber  — warm third level
+            heading_n: White,   // plain bright  — lowest heading weight
 
-            strong: White,
-            emphasis: Yellow,
-            deleted: Red,
+            // ── Inline styles ─────────────────────────────────────────────────
+            strong: White,    // bright white bold — pure contrast pop
+            emphasis: Yellow, // warm amber italic — distinct without clashing
+            deleted: Red,     // bright red strikethrough — unmistakably "wrong"
 
-            code: Green,
+            // ── Code ─────────────────────────────────────────────────────────
+            code: Green, // classic terminal green — sharp on dark BG
+            // gray(2) = near-black — barely-visible panel behind green text
+            code_bg: Some(gray(2)),
 
-            accent: Cyan,
-            border: Blue,
+            // ── Structural / decorative ───────────────────────────────────────
+            accent: Cyan, // bullets, hrules, scrollbar — echoes heading_1
+            border: Blue, // table borders, blockquote bar — quieter than Cyan
 
-            chrome: White,
-            model_name: Cyan,
-            meta: White,
-            timestamp: White,
-            tag: DarkGrey,
-            duration: DarkGrey,
+            // ── Shell chrome ──────────────────────────────────────────────────
+            chrome: White,      // "───" decorators — full brightness
+            model_name: Cyan,   // prominent ID — mirrors heading_1
+            meta: White,        // description / family — same weight as chrome
+            timestamp: White,   // [HH:MM:SS] — visible but not dominant
+            tag: DarkGrey,      // [model-id] secondary tag — recedes
+            duration: DarkGrey, // elapsed time — background noise
 
-            token_low: DarkGrey,
-            token_medium: White,
-            token_warn: Yellow,
-            token_critical: Red,
+            // ── Token thresholds — traffic-light on dark BG ───────────────────
+            token_low: DarkGrey, // barely there
+            token_medium: White, // neutral presence
+            token_warn: Yellow,  // amber warning — mirrors emphasis
+            token_critical: Red, // clear alarm
+        }
+    }
+
+    /// Light-terminal theme — designed for white or near-white backgrounds.
+    ///
+    /// Colour strategy:
+    ///   - Headings use the *Dark* variants of the primary hues so they pop
+    ///     against white without bleeding into each other.
+    ///   - Inline styles stay in the dark-ink range so bold/italic feel
+    ///     intentional, not washed out.
+    ///   - Code uses DarkGreen — the classic "terminal green" remains very
+    ///     legible on light surfaces.
+    ///   - Chrome / secondary info uses Black → DarkGrey → Grey as a clear
+    ///     three-level hierarchy of visual weight.
+    ///   - Token thresholds mirror the dark theme's traffic-light intent but
+    ///     with darker/more-saturated variants that show up on light BG.
+    pub fn light() -> Self {
+        Self {
+            // ── Headings — each a distinct hue, darker than the BG ───────────
+            heading_1: DarkCyan,    // deep teal   — prominent, calm
+            heading_2: DarkMagenta, // deep violet — clearly secondary
+            heading_3: DarkYellow,  // olive/amber  — warm third level
+            heading_n: Black,       // plain ink    — lowest heading weight
+
+            // ── Inline styles ─────────────────────────────────────────────────
+            strong: Black,         // crisp bold black — maximum contrast
+            emphasis: DarkMagenta, // italic violet — warm without clashing
+            deleted: DarkRed,      // dark red strikethrough — clearly "wrong"
+
+            // ── Code ─────────────────────────────────────────────────────────
+            code: DarkGreen, // deep green — universally readable on white
+            // gray(20) = light silver — subtle off-white panel, just enough
+            // separation from the page background without jarring contrast
+            code_bg: Some(gray(20)),
+
+            // ── Structural / decorative ───────────────────────────────────────
+            accent: DarkCyan, // bullets, hrules, scrollbar
+            border: DarkBlue, // table borders, blockquote bar
+
+            // ── Shell chrome ──────────────────────────────────────────────────
+            chrome: Black,        // "───" decorators — strong ink
+            model_name: DarkBlue, // prominent ID, distinct from headings
+            meta: DarkGrey,       // description / family — quiet secondary
+            timestamp: DarkGrey,  // [HH:MM:SS] — present but unobtrusive
+            tag: Grey,            // [model-id] secondary tag — lightest chrome
+            duration: Grey,       // elapsed time — background noise
+
+            // ── Token thresholds — traffic-light on light BG ──────────────────
+            token_low: Grey,         // barely there
+            token_medium: DarkGrey,  // neutral presence
+            token_warn: DarkYellow,  // amber warning
+            token_critical: DarkRed, // clear alarm
         }
     }
 }
@@ -241,9 +316,17 @@ fn make_skin(theme: &ConsoleTheme) -> MadSkin {
     skin.strikeout = CompoundStyle::new(Some(theme.deleted), None, CrossedOut.into());
 
     // Code  (gray(n) : 0 = near-black … 23 = near-white)
-    skin.inline_code = CompoundStyle::new(Some(theme.code), Some(gray(2)), Bold.into());
-
-    // Code block: same fg, slightly lighter dark background for contrast
+    // When code_bg is set, inline code uses that shade and block code uses the
+    // next step along the ramp (slightly more contrasted) — same two-tone trick
+    // as before, now driven by the theme.
+    let (inline_bg, block_bg) = match theme.code_bg {
+        Some(Color::AnsiValue(n)) => (
+            Some(Color::AnsiValue(n)),
+            Some(Color::AnsiValue(n.saturating_add(1))),
+        ),
+        other => (other, other),
+    };
+    skin.inline_code = CompoundStyle::new(Some(theme.code), inline_bg, Bold.into());
     skin.code_block.compound_style =
         CompoundStyle::new(Some(theme.code), Some(gray(3)), Attributes::default());
 
