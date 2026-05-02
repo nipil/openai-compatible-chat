@@ -47,7 +47,7 @@ pub(crate) async fn read_multiline(
     prompt: AppPrompt,
     prefill: Option<&str>,
 ) -> Result<Option<String>, PromptError> {
-    let mut editor = build_reedline(Style::new().fg(crossterm_to_nu(prompt.colors.as_ref().meta)));
+    let mut editor = build_reedline(Style::new().fg(crossterm_to_nu(prompt.colors.as_ref().meta))); // ghost text = meta color
 
     // Pre-fill: run edit commands against the buffer before handing
     // control to the user. InsertString handles embedded '\n' correctly,

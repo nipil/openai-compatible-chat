@@ -217,12 +217,9 @@ pub(crate) fn build_reedline(hinter_style: Style) -> Reedline {
         ReedlineEvent::CtrlC,
     );
 
-    // ghost text = meta color
-    let hinter = DefaultHinter::default().with_style(hinter_style);
-
     // create a reedline editor
     Reedline::create()
-        .with_hinter(Box::new(hinter))
+        .with_hinter(Box::new(DefaultHinter::default().with_style(hinter_style)))
         .with_validator(Box::new(MultilineValidator))
         .with_edit_mode(Box::new(Emacs::new(keybindings)))
 }
