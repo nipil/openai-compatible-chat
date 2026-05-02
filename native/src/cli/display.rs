@@ -89,6 +89,18 @@ impl LiveMarkdown {
         let rendered = format!("{}", self.skin.term_text(text));
         let lines = count_visual_lines(&rendered, self.term_width);
 
+        // Guard: nothing is on-screen yet and there is still nothing to render.
+        // Without this, the patch branch below would call MoveUp(1) from the
+        // cursor position immediately after any pre-existing terminal output
+        // (e.g. the separator drawn before streaming starts), erasing it.
+        // This triggers when an early token produces empty/whitespace output
+        // that termimad collapses to "": count_visual_lines returns 0, so
+        // `lines > lines_on_screen` is false and we'd fall into the patch
+        // branch where visual_rows_for_line("") == 1 unconditionally.
+        if lines == 0 && self.lines_on_screen == 0 {
+            return Ok(());
+        }
+
         // Disable live updates once the block becomes tall.
         let threshold = (self.term_height as f32 * LIVE_UPDATE_HEIGHT_PERCENT) as u16;
         if !self.disabled && lines > threshold {
