@@ -121,7 +121,7 @@ Start the web interface, serving the compiled WASM frontend and proxying API req
 ./openai-compatible-chat web --port 8080
 ```
 
-```
+```text
 Options:
   -p, --port <PORT>            Port to listen on
   -d, --dist-wasm <DIST_WASM>  Path to WASM dist directory [default: wasm/dist]
@@ -183,6 +183,18 @@ cargo install trunk
 # tool for hot-building/reloading native code
 cargo install watchexec-cli
 ```
+
+Version management
+
+```shell
+# show dupplicated (often, pulled) versions
+cargo tree -d --depth 1
+
+# show unused dependencies
+cargo +nightly udeps
+
+# unlike "cargo update", shows versions beyond semver
+cargo outdated
 
 ### Model info
 
