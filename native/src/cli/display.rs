@@ -83,8 +83,9 @@ impl LiveMarkdown {
     }
 
     /// Erase the previous render and redraw.
-    /// Disables live updates once content exceeds `LIVE_UPDATE_HEIGHT_PERCENT`
-    /// of the terminal height to avoid thrashing on very long responses.
+    /// - Disables live updates once content exceeds `LIVE_UPDATE_HEIGHT_PERCENT`
+    ///   of the terminal height to avoid thrashing on very long responses.
+    /// - only clear/updates the last line if possible, to avoid flicker
     fn paint(&mut self, text: &str) -> std::io::Result<()> {
         let rendered = format!("{}", self.skin.term_text(text));
         let lines = count_visual_lines(&rendered, self.term_width);
@@ -101,22 +102,66 @@ impl LiveMarkdown {
             return Ok(());
         }
 
-        // Erase the previous render.
-        let mut out = stdout().lock(); // lock once for the whole operation
-        if self.lines_on_screen > 0 {
+        let mut out = stdout().lock();
+
+        // After every paint() call, regardless of which path was taken, the
+        // cursor is at the start of the line immediately below the rendered
+        // content.
+        if lines > self.lines_on_screen {
+            // ── A new line was added: full clear + redraw ──────────────────
+            // Infrequent (only on newlines), so flicker here is imperceptible.
+            if self.lines_on_screen > 0 {
+                execute!(
+                    out,
+                    cursor::MoveUp(self.lines_on_screen),
+                    terminal::Clear(terminal::ClearType::FromCursorDown),
+                    style::Print(&rendered),
+                )?;
+            } else {
+                execute!(out, style::Print(&rendered))?;
+            }
+            // check for ending newline (see above)
+            if !rendered.ends_with('\n') {
+                execute!(out, style::Print("\n"))?;
+            }
+            self.lines_on_screen = lines;
+        } else {
+            // ── Same line count: patch only the last visual line ───────────
+            // This is the hot path — runs on every token, no flicker.
+            let last = last_rendered_line(&rendered);
+            let last_rows = visual_rows_for_line(last, self.term_width);
             execute!(
                 out,
-                cursor::MoveUp(self.lines_on_screen),
+                cursor::MoveUp(last_rows),
                 terminal::Clear(terminal::ClearType::FromCursorDown),
+                style::Print(last),
             )?;
+            // check for ending newline (see above)
+            if !last.ends_with('\n') {
+                execute!(out, style::Print("\n"))?;
+            }
         }
 
-        // Print the content
-        // Single batched write — no gap between clear and new content
-        execute!(out, style::Print(&rendered))?;
-        self.lines_on_screen = lines;
         Ok(())
     }
+}
+
+/// How many terminal rows a single (already-plain) line occupies after wrapping.
+fn visual_rows_for_line(line: &str, term_width: u16) -> u16 {
+    if term_width == 0 {
+        return 1;
+    }
+    // Strip ANSI in case the caller passes a raw rendered line
+    let plain = console::strip_ansi_codes(line);
+    let w = UnicodeWidthStr::width(plain.as_ref()) as u16;
+    if w == 0 { 1 } else { w.div_ceil(term_width) }
+}
+
+/// Extract the last logical line from a rendered string (ANSI codes intact),
+/// trimming any trailing newline first so we don't get an empty slice.
+fn last_rendered_line(rendered: &str) -> &str {
+    let trimmed = rendered.trim_end_matches('\n');
+    trimmed.rsplit_once('\n').map_or(trimmed, |(_, last)| last)
 }
 
 // ── Markdown skin ─────────────────────────────────────────────────────────────
@@ -213,11 +258,7 @@ fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
 
     meaningful
         .iter()
-        .map(|l| {
-            // Use display width, not char count — wide chars (emoji, CJK) are 2 cols
-            let w = UnicodeWidthStr::width(*l) as u16;
-            if w == 0 { 1 } else { w.div_ceil(term_width) }
-        })
+        .map(|l| visual_rows_for_line(l, term_width))
         .sum()
 }
 
