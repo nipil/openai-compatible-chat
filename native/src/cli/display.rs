@@ -22,11 +22,6 @@ const QUOTE_CHAR: char = '▐';
 const SCROLLBAR_THUMB: char = '▐';
 const SCROLLBAR_TRACK: char = '│';
 
-// ── Live markdown ─────────────────────────────────────────────────────────────
-
-const REFRESH_INTERVAL: Duration = Duration::from_millis(100);
-const LIVE_UPDATE_HEIGHT_PERCENT: f32 = 0.6;
-
 // ── Error ─────────────────────────────────────────────────────────────────────
 
 #[derive(Error, Debug)]
@@ -34,6 +29,10 @@ pub enum DisplayError {
     #[error("Model not found : {0}")]
     ModelNotFound(String),
 }
+// ── Live markdown ─────────────────────────────────────────────────────────────
+
+const REFRESH_INTERVAL: Duration = Duration::from_millis(100);
+const LIVE_UPDATE_HEIGHT_PERCENT: f32 = 0.6;
 
 /// Streams partial markdown to the terminal with in-place re-rendering.
 pub(crate) struct LiveMarkdown {
@@ -146,6 +145,34 @@ impl LiveMarkdown {
     }
 }
 
+// ── Live markdown helpers ─────────────────────────────────────────────────────
+
+/// Count how many terminal rows `rendered` occupies, accounting for ANSI
+/// escape sequences (stripped for measurement) and soft line-wrapping.
+fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
+    if term_width == 0 {
+        return 0;
+    }
+    let plain = console::strip_ansi_codes(rendered);
+
+    // Count actual newlines rather than using .lines(), so we handle the
+    // trailing-newline case explicitly and don't silently drop it.
+    let segments: Vec<&str> = plain.split('\n').collect();
+
+    // If the text ends with '\n' the last segment is "", which represents
+    // the cursor sitting on the next blank line — don't add a row for it.
+    let meaningful = if segments.last().map_or(false, |s| s.is_empty()) {
+        &segments[..segments.len() - 1]
+    } else {
+        &segments[..]
+    };
+
+    meaningful
+        .iter()
+        .map(|l| visual_rows_for_line(l, term_width))
+        .sum()
+}
+
 /// How many terminal rows a single (already-plain) line occupies after wrapping.
 fn visual_rows_for_line(line: &str, term_width: u16) -> u16 {
     if term_width == 0 {
@@ -232,34 +259,6 @@ fn make_skin(theme: &Theme) -> MadSkin {
     );
 
     skin
-}
-
-// ── Live markdown display ─────────────────────────────────────────────────────
-
-/// Count how many terminal rows `rendered` occupies, accounting for ANSI
-/// escape sequences (stripped for measurement) and soft line-wrapping.
-fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
-    if term_width == 0 {
-        return 0;
-    }
-    let plain = console::strip_ansi_codes(rendered);
-
-    // Count actual newlines rather than using .lines(), so we handle the
-    // trailing-newline case explicitly and don't silently drop it.
-    let segments: Vec<&str> = plain.split('\n').collect();
-
-    // If the text ends with '\n' the last segment is "", which represents
-    // the cursor sitting on the next blank line — don't add a row for it.
-    let meaningful = if segments.last().map_or(false, |s| s.is_empty()) {
-        &segments[..segments.len() - 1]
-    } else {
-        &segments[..]
-    };
-
-    meaningful
-        .iter()
-        .map(|l| visual_rows_for_line(l, term_width))
-        .sum()
 }
 
 // ── Shell chrome ──────────────────────────────────────────────────────────────
