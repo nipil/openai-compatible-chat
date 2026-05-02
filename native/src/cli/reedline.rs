@@ -75,19 +75,10 @@ pub(crate) fn crossterm_to_nu(crossterm_color: CrosstermColor) -> nu_ansi_term::
 // Regroup updatable prompt state and the immutable theme enum and crossterm colors
 #[derive(Clone)]
 pub(crate) struct AppPrompt {
-    pub(crate) theme: Arc<Theme>,
     pub(crate) colors: Arc<ConsoleColors>,
+    pub(crate) refresh_ms: Arc<u64>,
     pub(crate) state: Arc<RwLock<PromptState>>,
-}
-
-impl AppPrompt {
-    pub(crate) fn new(theme: &Theme, state: PromptState) -> Self {
-        Self {
-            colors: Arc::new(ConsoleColors::new(theme)),
-            theme: Arc::new(theme.clone()),
-            state: Arc::new(RwLock::new(state)),
-        }
-    }
+    pub(crate) theme: Arc<Theme>,
 }
 
 impl Prompt for AppPrompt {

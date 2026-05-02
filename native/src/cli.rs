@@ -1,3 +1,4 @@
+use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
 use async_openai::Client;
@@ -11,12 +12,15 @@ use crate::AppState;
 use crate::cli::display::{DisplayError, LiveMarkdown, get_duration, print_banner};
 use crate::cli::prompt::{PromptError, PromptState, read_multiline, select_model};
 use crate::cli::reedline::AppPrompt;
+use crate::cli::themes::ConsoleColors;
 use crate::openai::{ProviderError, get_chat_event, send_chat_request};
 
 mod display;
 mod prompt;
 mod reedline;
 mod themes;
+
+pub const DEFAULT_CLI_REFRESH_INTERVAL_MS: u64 = 100;
 
 #[derive(Error, Debug)]
 pub enum CliError {
@@ -29,7 +33,7 @@ pub enum CliError {
 }
 
 /// Run chat session until user quits or error
-pub async fn run_cli(state: AppState, theme: &Theme) -> Result<(), CliError> {
+pub async fn run_cli(state: AppState, theme: &Theme, refresh_ms: u64) -> Result<(), CliError> {
     loop {
         // let the user select a model, or exit
         // TODO: allow using theme in dialoguer::FuzzySelect ?
@@ -54,7 +58,12 @@ pub async fn run_cli(state: AppState, theme: &Theme) -> Result<(), CliError> {
         );
 
         // build the app prompt for the application
-        let prompt = AppPrompt::new(theme, PromptState::new(selected_model));
+        let prompt = AppPrompt {
+            colors: Arc::new(ConsoleColors::new(theme)),
+            refresh_ms: Arc::new(refresh_ms),
+            state: Arc::new(RwLock::new(PromptState::new(selected_model))),
+            theme: Arc::new(theme.clone()),
+        };
 
         // let the user select a system prompt, or exit
         let Some(system_prompt) =
@@ -128,8 +137,8 @@ pub(crate) async fn run_chat(
         let chat = ChatRequest::new(model_id, history.clone());
         let start = Instant::now();
 
-        // handle streaming events
-        let reply = handle_chat(client, &chat, &prompt.theme, |event| {
+        // local action on some streaming events
+        let on_event = |event: &ChatEvent| {
             debug!(event = ?event, "chat event");
 
             match event {
@@ -155,7 +164,16 @@ pub(crate) async fn run_chat(
 
                 _ => {}
             }
-        })
+        };
+
+        // handle the streaing answers and most events
+        let reply = handle_chat(
+            client,
+            &chat,
+            &prompt.theme,
+            *prompt.refresh_ms.as_ref(),
+            on_event,
+        )
         .await?;
 
         println!("{}", get_duration(start, &prompt.theme));
@@ -174,13 +192,14 @@ async fn handle_chat(
     client: &Client<OpenAIConfig>,
     chat: &ChatRequest,
     theme: &Theme,
+    refresh_ms: u64,
     mut on_event: impl FnMut(&ChatEvent),
 ) -> Result<String, CliError> {
     // Can only fail here during initial request (setup)
     let mut stream = send_chat_request(&client, chat).await?;
 
     let mut full = String::new();
-    let mut live = LiveMarkdown::new(theme);
+    let mut live = LiveMarkdown::new(theme, refresh_ms);
 
     while let Some(chunk) = stream.next().await {
         // forward model to enhance the cache token logging in openai module

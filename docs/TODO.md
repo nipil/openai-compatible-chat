@@ -13,7 +13,3 @@ move configs to XDG (and have it explain what it is)
 WEB: favicon pas affichée dans le tab
 
 CFG: add auth headers + cookies
-
-CLI arg pour set le refresh rate
-
-UX: supprimer le timout par défaut et le rendre optionel

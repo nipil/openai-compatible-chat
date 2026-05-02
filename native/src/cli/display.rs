@@ -31,7 +31,6 @@ pub enum DisplayError {
 }
 // ── Live markdown ─────────────────────────────────────────────────────────────
 
-const REFRESH_INTERVAL: Duration = Duration::from_millis(100);
 const LIVE_UPDATE_HEIGHT_PERCENT: f32 = 0.6;
 
 /// Streams partial markdown to the terminal with in-place re-rendering.
@@ -42,10 +41,11 @@ pub(crate) struct LiveMarkdown {
     term_height: u16,
     last_render: Instant,
     disabled: bool,
+    refresh_ms: u64,
 }
 
 impl LiveMarkdown {
-    pub(crate) fn new(theme: &Theme) -> Self {
+    pub(crate) fn new(theme: &Theme, refresh_ms: u64) -> Self {
         let (w, h) = terminal::size().unwrap_or((120, 40));
         Self {
             skin: make_skin(theme),
@@ -54,15 +54,16 @@ impl LiveMarkdown {
             term_height: h,
             last_render: Instant::now() - Duration::from_secs(1),
             disabled: false,
+            refresh_ms,
         }
     }
 
-    /// Call after every streamed chunk — throttled to `REFRESH_INTERVAL`.
+    /// Call after every streamed chunk — throttled to `refresh_ms`.
     pub(crate) fn update(&mut self, text: &str) {
         if self.disabled {
             return;
         }
-        if self.last_render.elapsed() < REFRESH_INTERVAL {
+        if self.last_render.elapsed() < Duration::from_millis(self.refresh_ms) {
             return;
         }
         if let Err(e) = self.paint(text) {

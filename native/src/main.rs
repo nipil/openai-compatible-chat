@@ -8,7 +8,7 @@ use async_openai::Client as OpenAiClient;
 use async_openai::config::OpenAIConfig;
 use clap::{Parser, Subcommand};
 use native::AppState;
-use native::cli::run_cli;
+use native::cli::{DEFAULT_CLI_REFRESH_INTERVAL_MS, run_cli};
 use native::config::{Config, load_config, load_model_info_map};
 use native::models::{COMPATIBLE_MODEL_TYPES, EnrichedModels};
 use native::openai::list_models;
@@ -31,8 +31,8 @@ const TRACE_LOG: &str = "trace.log";
 #[derive(Parser)]
 #[command(name = "chat", about = "openai-compatible-chat", version)]
 struct Args {
-    #[arg(long, short = 't', default_value_t = 10000)]
-    api_timeout_ms: u64,
+    #[arg(long, short = 't')]
+    api_timeout_sec: Option<u64>,
 
     #[arg(long, short = 'c', default_value = "config.json")]
     config_file: String,
@@ -55,12 +55,11 @@ enum Commands {
     /// CLI subcommand
     #[cfg(feature = "cli")]
     Cli {
-        #[arg(
-        long,
-        default_value = Theme::Dark.as_ref(),
-        value_parser = Theme::from_str
-    )]
+        #[arg(long, default_value = Theme::Dark.as_ref(), value_parser = Theme::from_str)]
         theme: Theme,
+
+        #[arg(long, default_value_t = DEFAULT_CLI_REFRESH_INTERVAL_MS)]
+        refresh_ms: u64,
     },
 
     /// Web subcommand
@@ -187,11 +186,17 @@ async fn main() -> Result<()> {
         .with_api_base(cfg.base_url);
 
     // Configure a shared http client
-    let reqwest_client = ReqwestClient::builder()
-        .timeout(std::time::Duration::from_millis(args.api_timeout_ms))
+    let reqwest_client = {
         // system proxy are handled/enabled by default for HTTP/HTTPS
         // https://docs.rs/reqwest/latest/reqwest/index.html#proxies
-        .build()?;
+        let mut builder = ReqwestClient::builder();
+        // Apply conditional timeout
+        builder = match args.api_timeout_sec {
+            None => builder,
+            Some(seconds) => builder.timeout(std::time::Duration::from_secs(seconds)),
+        };
+        builder.build()?
+    };
 
     // Build the OpenAI client from parts
     let openai_client = OpenAiClient::with_config(oa_cfg).with_http_client(reqwest_client);
@@ -265,8 +270,8 @@ async fn main() -> Result<()> {
     #[cfg(all(feature = "cli", feature = "web"))]
     match &args.command {
         #[cfg(feature = "cli")]
-        Commands::Cli { theme } => {
-            run_cli(state, &theme).await?;
+        Commands::Cli { theme, refresh_ms } => {
+            run_cli(state, &theme, *refresh_ms).await?;
         }
         #[cfg(feature = "web")]
         Commands::Web { port, dist_wasm } => {
