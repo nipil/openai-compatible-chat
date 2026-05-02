@@ -1,5 +1,5 @@
 use std::env;
-use std::path::Path;
+use std::io::ErrorKind;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -9,12 +9,13 @@ use async_openai::config::OpenAIConfig;
 use clap::{Parser, Subcommand};
 use native::AppState;
 use native::cli::{DEFAULT_CLI_REFRESH_INTERVAL_MS, run_cli};
-use native::config::{Config, load_config, load_model_info_map};
+use native::config::{
+    Config, ConfigError, DEFAULT_MODEL_INFO_FILE_URL, load_config, load_model_info_map,
+};
 use native::models::{COMPATIBLE_MODEL_TYPES, EnrichedModels};
 use native::openai::list_models;
 use native::web::run_web;
 use portable::Theme;
-use regex::Regex;
 use reqwest::Client as ReqwestClient;
 use tracing::{error, info, warn};
 use tracing_appender::rolling;
@@ -34,11 +35,11 @@ struct Args {
     #[arg(long, short = 't')]
     api_timeout_sec: Option<u64>,
 
-    #[arg(long, short = 'c', default_value = "config.json")]
-    config_file: String,
+    #[arg(long, short = 'c')]
+    config_file: Option<String>,
 
-    #[arg(long, short = 'i', default_value = "ai_model_info/openai.json")]
-    info_file: String,
+    #[arg(long, short = 'i')]
+    info_file: Option<String>,
 
     #[arg(long, short = 'm')]
     model_lock: Option<String>,
@@ -100,19 +101,6 @@ fn use_color() -> bool {
     atty::is(atty::Stream::Stdout)
 }
 
-fn example_configuration() -> String {
-    let example = Config {
-        api_key: String::from("sk-svcacct-************************"),
-        base_url: String::from("https://api.openai.com/v1"),
-        exclude_model_name_regex: vec![Regex::new(r".*-3.5-turbo-\d+").unwrap()],
-        default_system_prompt: String::from(
-            "This system prompt will be shown as default for every new session",
-        ),
-    };
-    serde_json::to_string_pretty(&example)
-        .expect("Hardcoded example configuration should not fail to serialize")
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     // Enable ANSI colour codes on legacy Windows consoles (cmd.exe).
@@ -166,17 +154,34 @@ async fn main() -> Result<()> {
         .with(file_layer)
         .init();
 
-    // Load configuration once
-    let cfg = load_config(Path::new(&args.config_file)).map_err(|e| {
-        eprintln!("Here is an example configuration :");
-        eprintln!("{}", example_configuration());
-        error!(exc = e.to_string(), "Error loading configuration");
-        e
-    })?;
+    let cfg = match load_config(args.config_file) {
+        Ok(cfg) => cfg,
+        Err(ConfigError::Io { path, source }) if source.kind() == ErrorKind::NotFound => {
+            eprintln!(
+                "Configuration not found at following location :\n\
+                \n\
+                {path}\n\
+                \n\
+                Here is an example :\n\
+                \n\
+                {config}\n\
+                \n\
+                Please provide a configuration !",
+                path = path.to_string_lossy(),
+                config = Config::default().to_json()
+            );
+            return Ok(());
+        }
+        Err(e) => Err(e)?,
+    };
 
     // Load model information
-    let mut info_map = load_model_info_map(Path::new(&args.info_file)).map_err(|e| {
+    let mut info_map = load_model_info_map(args.info_file).map_err(|e| {
         error!(exc = e.to_string(), "Error loading model information");
+        eprintln!(
+            "Get the latest file from \n{}And place it at the location below shown above",
+            DEFAULT_MODEL_INFO_FILE_URL
+        );
         e
     })?;
 
