@@ -1,7 +1,7 @@
-use std::io::{Write, stdout};
+use std::io::stdout;
 use std::time::{Duration, Instant};
 
-use crossterm::style::Stylize as _; // .with(color), .bold(), .italic()
+use crossterm::style::{self, Stylize as _}; // .with(color), .bold(), .italic()
 use crossterm::{cursor, execute, terminal};
 use portable::Theme;
 use termimad::crossterm::style::Attribute::*; // Bold, Italic, CrossedOut, Underlined
@@ -9,6 +9,7 @@ use termimad::crossterm::style::{Attributes, Color};
 use termimad::{CompoundStyle, MadSkin, StyledChar, gray};
 use thiserror::Error;
 use tracing::warn;
+use unicode_width::UnicodeWidthStr;
 
 use crate::cli::themes::ConsoleColors;
 use crate::models::EnrichedModel;
@@ -94,24 +95,25 @@ impl LiveMarkdown {
             self.disabled = true;
             // Flush whatever we have left as plain text so nothing is lost.
             if self.lines_on_screen == 0 {
-                print!("{rendered}");
-                stdout().flush()?;
+                // Batch into one write to avoid tearing
+                execute!(stdout(), style::Print(&rendered))?;
             }
             return Ok(());
         }
 
         // Erase the previous render.
+        let mut out = stdout().lock(); // lock once for the whole operation
         if self.lines_on_screen > 0 {
             execute!(
-                stdout(),
+                out,
                 cursor::MoveUp(self.lines_on_screen),
                 terminal::Clear(terminal::ClearType::FromCursorDown),
             )?;
         }
 
         // Print the content
-        print!("{rendered}");
-        stdout().flush()?;
+        // Single batched write — no gap between clear and new content
+        execute!(out, style::Print(&rendered))?;
         self.lines_on_screen = lines;
         Ok(())
     }
@@ -195,9 +197,27 @@ fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
     if term_width == 0 {
         return 0;
     }
-    console::strip_ansi_codes(rendered)
-        .lines()
-        .map(|l| (l.chars().count() as u16).saturating_sub(1) / term_width + 1)
+    let plain = console::strip_ansi_codes(rendered);
+
+    // Count actual newlines rather than using .lines(), so we handle the
+    // trailing-newline case explicitly and don't silently drop it.
+    let segments: Vec<&str> = plain.split('\n').collect();
+
+    // If the text ends with '\n' the last segment is "", which represents
+    // the cursor sitting on the next blank line — don't add a row for it.
+    let meaningful = if segments.last().map_or(false, |s| s.is_empty()) {
+        &segments[..segments.len() - 1]
+    } else {
+        &segments[..]
+    };
+
+    meaningful
+        .iter()
+        .map(|l| {
+            // Use display width, not char count — wide chars (emoji, CJK) are 2 cols
+            let w = UnicodeWidthStr::width(*l) as u16;
+            if w == 0 { 1 } else { w.div_ceil(term_width) }
+        })
         .sum()
 }
 

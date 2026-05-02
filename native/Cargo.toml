@@ -37,8 +37,12 @@ tower-http = { version = "0.6", features = ["cors", "fs"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# TODO: eval usefulness of the clipboard feature ?
+# TODO: eval history ?
 reedline = { version = "0.47.0", features = ["system_clipboard"] }
+# TODO strip minor versions?
 nu-ansi-term = "0.50.3"
+unicode-width = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 enable-ansi-support = "0.3.1"
