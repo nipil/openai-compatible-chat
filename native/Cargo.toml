@@ -51,5 +51,4 @@ enable-ansi-support = "0.3.1"
 cli = []
 cors-permissive = []
 default = ["cli", "web"]
-print-tokens = []        # TODO: remove ?
 web = []

@@ -39,6 +39,3 @@ web-sys = { version = "0.3.95", features = [
         "Storage",
         "Window",
 ] }
-
-[features]
-print-tokens = []
