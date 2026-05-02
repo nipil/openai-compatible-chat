@@ -1,5 +1,5 @@
 use std::env;
-use std::io::ErrorKind;
+use std::process::ExitCode;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -9,15 +9,13 @@ use async_openai::config::OpenAIConfig;
 use clap::{Parser, Subcommand};
 use native::AppState;
 use native::cli::{DEFAULT_CLI_REFRESH_INTERVAL_MS, run_cli};
-use native::config::{
-    Config, ConfigError, DEFAULT_MODEL_INFO_FILE_URL, load_config, load_model_info_map,
-};
+use native::config::{ConfigManager, DEFAULT_MODEL_INFO_FILE_URL, ModelInfoManager};
 use native::models::{COMPATIBLE_MODEL_TYPES, EnrichedModels};
 use native::openai::list_models;
 use native::web::run_web;
 use portable::Theme;
 use reqwest::Client as ReqwestClient;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 use tracing_appender::rolling;
 use tracing_subscriber::filter::{EnvFilter, LevelFilter};
 use tracing_subscriber::layer::SubscriberExt;
@@ -53,7 +51,16 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// CLI subcommand
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommands,
+    },
+
+    ModelInfo {
+        #[command(subcommand)]
+        command: ModelInfoCommands,
+    },
+
     #[cfg(feature = "cli")]
     Cli {
         #[arg(long, default_value = Theme::Dark.as_ref(), value_parser = Theme::from_str)]
@@ -63,16 +70,34 @@ enum Commands {
         refresh_ms: u64,
     },
 
-    /// Web subcommand
     #[cfg(feature = "web")]
     Web {
         /// Port to listen on
         #[arg(short = 'p', long = "port")]
         port: u16,
 
-        /// Path to
+        /// Path to serve the WASM/JS and static files from
         #[arg(long, short = 'd', default_value = "wasm/dist")]
         dist_wasm: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum ConfigCommands {
+    SetKey,
+    Show,
+}
+
+#[derive(Subcommand)]
+enum ModelInfoCommands {
+    Show,
+
+    Update {
+        /// Url to retrieve the model description from.
+        /// OpenAI api does not give these info.
+        /// See `ai_model_info` package in the project.
+        #[arg(long, short = 'u', default_value = DEFAULT_MODEL_INFO_FILE_URL)]
+        url: String,
     },
 }
 
@@ -101,8 +126,7 @@ fn use_color() -> bool {
     atty::is(atty::Stream::Stdout)
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+async fn run() -> Result<ExitCode> {
     // Enable ANSI colour codes on legacy Windows consoles (cmd.exe).
     // No-op on Windows 10+ / modern terminals / all Unix systems.
     #[cfg(windows)]
@@ -154,36 +178,37 @@ async fn main() -> Result<()> {
         .with(file_layer)
         .init();
 
-    let cfg = match load_config(args.config_file) {
-        Ok(cfg) => cfg,
-        Err(ConfigError::Io { path, source }) if source.kind() == ErrorKind::NotFound => {
-            eprintln!(
-                "Configuration not found at following location :\n\
-                \n\
-                {path}\n\
-                \n\
-                Here is an example :\n\
-                \n\
-                {config}\n\
-                \n\
-                Please provide a configuration !",
-                path = path.to_string_lossy(),
-                config = Config::default().to_json()
-            );
-            return Ok(());
+    // process configuration commands
+    if let Commands::Config { command } = &args.command {
+        match command {
+            ConfigCommands::SetKey => {
+                ConfigManager::new(args.config_file.as_ref())?
+                    .load_or_default()?
+                    .set_key()?
+                    .save()?;
+                println!("Configuration API key updated.");
+                return Ok(ExitCode::SUCCESS);
+            }
+            ConfigCommands::Show => {
+                ConfigManager::new(args.config_file.as_ref())?
+                    .load_or_default()?
+                    .show()?;
+                return Ok(ExitCode::SUCCESS);
+            }
         }
-        Err(e) => Err(e)?,
-    };
+    }
 
-    // Load model information
-    let mut info_map = load_model_info_map(args.info_file).map_err(|e| {
-        error!(exc = e.to_string(), "Error loading model information");
-        eprintln!(
-            "Get the latest file from \n{}And place it at the location below shown above",
-            DEFAULT_MODEL_INFO_FILE_URL
-        );
-        e
-    })?;
+    // load configuration once
+    let cfg = ConfigManager::new(args.config_file.as_ref())?
+        .load()?
+        .config
+        .clone();
+
+    // Check that we have something loaded
+    if cfg.api_key.is_empty() {
+        eprintln!("Empty api key ! Set it with `config set-key`");
+        return Ok(ExitCode::FAILURE);
+    }
 
     // Create shared components
     let oa_cfg = OpenAIConfig::new()
@@ -203,8 +228,41 @@ async fn main() -> Result<()> {
         builder.build()?
     };
 
+    // process model info commands
+    if let Commands::ModelInfo { command } = &args.command {
+        match command {
+            ModelInfoCommands::Show => {
+                ModelInfoManager::new(args.info_file.as_ref())?
+                    .load_or_default()?
+                    .show()?;
+                return Ok(ExitCode::SUCCESS);
+            }
+            ModelInfoCommands::Update { url } => {
+                ModelInfoManager::new(args.info_file.as_ref())?
+                    .load_or_default()?
+                    .update(&reqwest_client, url)
+                    .await?
+                    .save()?;
+                println!("Model info updated.");
+                return Ok(ExitCode::SUCCESS);
+            }
+        }
+    }
+
     // Build the OpenAI client from parts
     let openai_client = OpenAiClient::with_config(oa_cfg).with_http_client(reqwest_client);
+
+    // Load model information
+    let mut enriched_models = ModelInfoManager::new(args.info_file.as_ref())?
+        .load()?
+        .enriched_models
+        .clone();
+
+    // Check that we have something loaded
+    if enriched_models.is_empty() {
+        eprintln!("Empty model info ! Get it with `model-info update`");
+        return Ok(ExitCode::FAILURE);
+    }
 
     // Build the list of usable models
     let available_models: EnrichedModels = list_models(&openai_client)
@@ -240,7 +298,7 @@ async fn main() -> Result<()> {
         })
         // Extract additional information for the ones we know
         .filter_map(|id| {
-            info_map
+            enriched_models
                 .remove(&id)
                 .or_else(|| {
                     warn!(model = id, "No metadata available, update required");
@@ -263,7 +321,7 @@ async fn main() -> Result<()> {
         .collect();
 
     // Drop unused model information to free up memory before the actual run
-    drop(info_map);
+    drop(enriched_models);
 
     // Finally assemble the state and provide it
     let state = AppState {
@@ -282,6 +340,19 @@ async fn main() -> Result<()> {
         Commands::Web { port, dist_wasm } => {
             run_web(state, port, dist_wasm).await?;
         }
+        _ => {}
     }
-    Ok(())
+    Ok(ExitCode::from(0))
+}
+
+#[tokio::main]
+async fn main() -> ExitCode {
+    match run().await {
+        Ok(code) => return code,
+        Err(e) => {
+            // still keeps the pretty printing of anyhow
+            eprintln!("Error: {e:#}");
+            ExitCode::FAILURE
+        }
+    }
 }

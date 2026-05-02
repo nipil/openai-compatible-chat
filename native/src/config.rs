@@ -1,11 +1,13 @@
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 use directories_next::ProjectDirs;
 use regex::Regex;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::models::EnrichedModels;
 use crate::openai::ModelType;
@@ -25,12 +27,18 @@ pub enum ConfigError {
         source: io::Error,
     },
 
+    #[error("Network request error `{0}`")]
+    Update(#[from] reqwest::Error),
+
     #[error("invalid content in `{path}`")]
     InvalidContent {
         path: PathBuf,
         #[source]
         source: serde_json::Error,
     },
+
+    #[error("file {path} exists and overwrite was not forced")]
+    NoClobber { path: PathBuf },
 
     #[error("failed to detect standard directories from home")]
     Directories,
@@ -54,20 +62,16 @@ impl ConfigError {
 
 // ── Configurations ────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub api_key: String,
     pub base_url: String,
+
     #[serde(with = "serde_regex")]
     pub exclude_model_name_regex: Vec<Regex>,
+
     #[serde(default)]
     pub default_system_prompt: String,
-}
-
-impl Config {
-    pub fn to_json(&self) -> String {
-        serde_json::to_string_pretty(self).expect("Configuration should not fail to serialize")
-    }
 }
 
 impl Default for Config {
@@ -81,66 +85,207 @@ impl Default for Config {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+pub struct ConfigManager {
+    path: PathBuf,
+    pub config: Config,
+}
+
+impl ConfigManager {
+    pub fn new(file: Option<&String>) -> Result<Self, ConfigError> {
+        let dirs = Directories::new().ok_or_else(|| ConfigError::Directories)?;
+        let path = match file {
+            Some(file) => Ok(PathBuf::from(file)),
+            None => {
+                let path = Path::new(DEFAULT_CONFIG_FILE_NAME);
+                dirs.config_file(path).map_err(|e| ConfigError::io(path, e))
+            }
+        }?;
+
+        Ok(Self {
+            path,
+            config: Config::default(),
+        })
+    }
+
+    fn to_json(&self) -> Result<String, ConfigError> {
+        serde_json::to_string_pretty(&self.config).map_err(|e| ConfigError::json(&self.path, e))
+    }
+
+    pub fn show(&self) -> Result<&Self, ConfigError> {
+        eprintln!("Configuration : {file}", file = self.path.to_string_lossy());
+        println!("{}", self.to_json()?);
+        Ok(self)
+    }
+
+    pub fn save(&self) -> Result<&Self, ConfigError> {
+        info!(
+            file = %self.path.display(),
+            "Saving configuration"
+        );
+        // TODO: async write
+        fs::write(&self.path, self.to_json()?).map_err(|e| ConfigError::io(&self.path, e))?;
+        Ok(self)
+    }
+
+    pub fn load(&mut self) -> Result<&mut Self, ConfigError> {
+        info!(
+            file = %self.path.display(),
+            "Loading configuration file"
+        );
+
+        // TODO: async read
+        let content =
+            std::fs::read_to_string(&self.path).map_err(|e| ConfigError::io(&self.path, e))?;
+        self.config =
+            serde_json::from_str(&content).map_err(|e| ConfigError::json(&self.path, e))?;
+
+        Ok(self)
+    }
+
+    pub fn load_or_default(&mut self) -> Result<&mut Self, ConfigError> {
+        match self.load() {
+            Err(ConfigError::Io { path, source }) if source.kind() == ErrorKind::NotFound => {
+                warn!(
+                    file = %path.to_string_lossy(),
+                    "Configuration not found, using defaults"
+                );
+                self.config = Config::default();
+                Ok(self)
+            }
+            Ok(_) => Ok(self),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn set_key(&mut self) -> Result<&Self, ConfigError> {
+        print!(
+            "Configuration : {file}\nAPI key ? ",
+            file = self.path.to_string_lossy()
+        );
+        let _ = io::stdout().flush();
+
+        let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .map_err(|e| ConfigError::io(&self.path, e))?;
+
+        self.config.api_key = input.trim().into();
+
+        println!("API key set in {file}", file = self.path.to_string_lossy());
+        Ok(self)
+    }
+}
+
+// ── ModelInfo ──────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ModelInfo {
     pub(crate) description: String,
     pub(crate) family: String,
+
     #[serde(rename = "type")]
     pub model_type: ModelType,
+
     pub(crate) context_window: Option<u32>,
     pub(crate) release: Option<String>,
 }
 
-// ── I/O helpers ──────────────────────────────────────────────────────────────
-
-// tracing macro specific: %=Display and ?=Debug
-// Path does not implement Display
-// There is a std::path::Display which provides .display()
-// And this wrapper provides a thing that impl fmt::Display
-// Every day you learn...
-
-pub fn load_config(file: Option<String>) -> Result<Config, ConfigError> {
-    let dirs = Directories::new().ok_or_else(|| ConfigError::Directories)?;
-
-    let file = match file {
-        Some(file) => PathBuf::from(file),
-        None => {
-            let path = Path::new(DEFAULT_CONFIG_FILE_NAME);
-            dirs.config_file(path)
-                .map_err(|e| ConfigError::io(path, e))?
-        }
-    };
-
-    info!(
-        file = %file.display(),
-        "Loading configuration file"
-    );
-
-    let raw = std::fs::read_to_string(&file).map_err(|e| ConfigError::io(&file, e))?;
-    let cfg = serde_json::from_str(&raw).map_err(|e| ConfigError::json(&file, e))?;
-
-    Ok(cfg)
+pub struct ModelInfoManager {
+    path: PathBuf,
+    pub enriched_models: EnrichedModels,
 }
 
-pub fn load_model_info_map(file: Option<String>) -> Result<EnrichedModels, ConfigError> {
-    let dirs = Directories::new().ok_or_else(|| ConfigError::Directories)?;
+impl ModelInfoManager {
+    pub fn new(file: Option<&String>) -> Result<Self, ConfigError> {
+        let dirs = Directories::new().ok_or_else(|| ConfigError::Directories)?;
+        let path = match file {
+            Some(file) => Ok(PathBuf::from(file)),
+            None => {
+                let path = Path::new(DEFAULT_MODEL_INFO_FILE_NAME);
+                dirs.data_file(path).map_err(|e| ConfigError::io(path, e))
+            }
+        }?;
 
-    let file = match file {
-        Some(file) => PathBuf::from(file),
-        None => {
-            let path = Path::new(DEFAULT_MODEL_INFO_FILE_NAME);
-            dirs.data_file(path).map_err(|e| ConfigError::io(path, e))?
+        Ok(Self {
+            path,
+            enriched_models: EnrichedModels::default(),
+        })
+    }
+
+    fn to_json(&self) -> Result<String, ConfigError> {
+        serde_json::to_string_pretty(&self.enriched_models)
+            .map_err(|e| ConfigError::json(&self.path, e))
+    }
+
+    pub fn show(&self) -> Result<&Self, ConfigError> {
+        eprintln!("Model info : {file}", file = self.path.to_string_lossy());
+        println!("{}", self.to_json()?);
+        Ok(self)
+    }
+
+    pub fn save(&self) -> Result<&Self, ConfigError> {
+        info!(
+            file = %self.path.display(),
+            "Saving model info"
+        );
+        // TODO: async write
+        fs::write(&self.path, self.to_json()?).map_err(|e| ConfigError::io(&self.path, e))?;
+        Ok(self)
+    }
+
+    pub fn load(&mut self) -> Result<&mut Self, ConfigError> {
+        info!(
+            file = %self.path.display(),
+            "Loading model info"
+        );
+
+        // TODO: async read
+        let content =
+            std::fs::read_to_string(&self.path).map_err(|e| ConfigError::io(&self.path, e))?;
+        self.enriched_models = serde_json::from_str::<EnrichedModels>(&content)
+            .map_err(|e| ConfigError::json(&self.path, e))?;
+
+        Ok(self)
+    }
+
+    pub fn load_or_default(&mut self) -> Result<&mut Self, ConfigError> {
+        match self.load() {
+            Err(ConfigError::Io { path, source }) if source.kind() == ErrorKind::NotFound => {
+                warn!(
+                    file = %path.to_string_lossy(),
+                    "Model info not found, using defaults"
+                );
+                self.enriched_models = EnrichedModels::default();
+                Ok(self)
+            }
+            Ok(_) => Ok(self),
+            Err(e) => Err(e),
         }
-    };
+    }
 
-    tracing::info!(
-        file = %file.display(),
-        "Loading mappings file"
-    );
-    let raw = std::fs::read_to_string(&file).map_err(|e| ConfigError::io(&file, e))?;
-    let models = serde_json::from_str(&raw).map_err(|e| ConfigError::json(&file, e))?;
-    Ok(models)
+    pub async fn update(&mut self, client: &Client, url: &str) -> Result<&mut Self, ConfigError> {
+        info!(url = url, "Updating model info");
+
+        let enriched_models = client
+            .get(url)
+            .send()
+            .await?
+            .json::<EnrichedModels>()
+            .await?;
+
+        self.enriched_models = enriched_models;
+
+        info!(
+            count = self.enriched_models.len(),
+            file = %self.path.display(),
+            "Fetched model info"
+        );
+
+        return Ok(self);
+    }
 }
+
+// ── XDG directories ───────────────────────────────────────────────────────────
 
 // an impl to easily access XDG compliant folders
 pub(crate) struct Directories {
@@ -168,18 +313,22 @@ impl Directories {
     /// Get a full config file path (parent directory is ensured)
     pub fn config_file(&self, relative: &Path) -> std::io::Result<PathBuf> {
         let full = self.config_dir().join(relative);
+
         if let Some(parent) = full.parent() {
             fs::create_dir_all(parent)?;
         }
+
         Ok(full)
     }
 
     /// Get a full data file path (parent directory is ensured)
     pub fn data_file(&self, relative: &Path) -> std::io::Result<PathBuf> {
         let full = self.data_dir().join(relative);
+
         if let Some(parent) = full.parent() {
             fs::create_dir_all(parent)?;
         }
+
         Ok(full)
     }
 }
