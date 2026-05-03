@@ -18,11 +18,11 @@ pub(crate) fn InputArea(
         <div class="input-area">
             <textarea
                 class="input-textarea"
-                placeholder="Message… (Alt+Enter to send  •  Esc to stop)"
+                placeholder="Message… (Cltr+Enter to send  •  Esc to stop)"
                 prop:value=move || input.get()
                 on:input=move |e| input.set(event_target_value(&e))
                 on:keydown=handle_err_clos_1(errors, move |e: KeyboardEvent| {
-                    if e.alt_key()
+                    if e.ctrl_key()
                         && e.key() == KeyboardId::Enter.as_ref()
                         && !streaming.get_untracked()
                     {

@@ -48,10 +48,11 @@ pub async fn run_cli(state: AppState, theme: &Theme, refresh_ms: u64) -> Result<
         termimad::print_text(
             "\n\
             ---\n\
-            **Multiline editor**\n\n\
+            **Multiline editor**\n\
+            \n\
             - *Enter* adds a line\n\
-            - *Alt+Enter* or *Ctrl+D* submits\n\
-            - *Ctrl+C* cancels\n\
+            - *Ctrl+D* submits input\n\
+            - *Ctrl+C* ends conversation\n\
             \n\
             ---\n",
         );
