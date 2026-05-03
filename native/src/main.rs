@@ -75,10 +75,6 @@ enum Commands {
         /// Port to listen on
         #[arg(short = 'p', long = "port")]
         port: u16,
-
-        /// Path to serve the WASM/JS and static files from
-        #[arg(long, short = 'd', default_value = "wasm/dist")]
-        dist_wasm: String,
     },
 }
 
@@ -337,8 +333,8 @@ async fn run() -> Result<ExitCode> {
             run_cli(state, &theme, *refresh_ms).await?;
         }
         #[cfg(feature = "web")]
-        Commands::Web { port, dist_wasm } => {
-            run_web(state, port, dist_wasm).await?;
+        Commands::Web { port } => {
+            run_web(state, port).await?;
         }
         _ => {}
     }

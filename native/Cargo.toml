@@ -22,10 +22,16 @@ crossterm = "0.29.0"
 dialoguer = { version = "0.12.0", features = [
     "fuzzy-select",
 ] } # FuzzySelect for model picking
+directories-next = "2.0.0"
 futures.workspace = true
+http = "1.4.0"
+mime_guess = "2.0.5"
+nu-ansi-term = "0.50.3"
 portable.workspace = true
+reedline = { version = "0.47.0", features = ["system_clipboard"] }
 regex.workspace = true
 reqwest = "0.13.3" # Update carefully to match async_openai dep version
+rust-embed = "8.11.0"
 serde_json.workspace = true
 serde_regex = "1"
 serde.workspace = true
@@ -33,21 +39,19 @@ strum.workspace = true
 termimad = "0.34.1" # markdown → ANSI terminal rendering
 thiserror.workspace = true
 tokio = { version = "1.52.1", features = ["full"] }
-tower-http = { version = "0.6.8", features = ["cors", "fs"] }
+tower = "0.5.3"
+tower-http = { version = "0.6.8", features = ["cors", "fs", "trace"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-reedline = { version = "0.47.0", features = ["system_clipboard"] }
-nu-ansi-term = "0.50.3"
 unicode-width = "0.2.2"
-directories-next = "2.0.0"
 
 [target.'cfg(windows)'.dependencies]
 enable-ansi-support = "0.3.1"
 
 [features]
-
 cli = []
 cors-permissive = []
 default = ["cli", "web"]
-web = []
+embed = []
+web = ["embed"]

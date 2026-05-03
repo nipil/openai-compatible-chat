@@ -1,23 +1,28 @@
 use std::convert::Infallible;
 
-use axum::extract::State;
-use axum::http::StatusCode;
+use axum::body::Body;
+use axum::extract::{Request, State};
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response, sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures::{StreamExt, stream};
 use portable::{ChatEvent, ChatRequest, ConfigDto, ModelDto};
+use rust_embed::RustEmbed;
 use thiserror::Error;
-use tower_http::services::ServeDir;
-use tracing::{error, instrument};
+use tracing::{debug, error, instrument};
 
 use crate::AppState;
 use crate::openai::{ProviderError, get_chat_event, send_chat_request};
+
+#[cfg(not(feature = "embed"))]
+const DEFAULT_WASM_DIST: &str = "wasm/dist";
 
 #[derive(Error, Debug)]
 enum WebError {
     #[error("API error {0}")]
     Api(#[from] ProviderError),
+
     #[error("Forbidden {0}")]
     Forbidden(String),
 }
@@ -35,8 +40,8 @@ impl IntoResponse for WebError {
 
 // ── Web entrypoint ────────────────────────────────────────────────────────────
 
-pub async fn run_web(state: AppState, port: &u16, dist_wasm: &str) -> Result<(), std::io::Error> {
-    let app = router(state, dist_wasm);
+pub async fn run_web(state: AppState, port: &u16) -> Result<(), std::io::Error> {
+    let app = router(state);
     let listen_addr = format!("localhost:{port}");
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
     println!("Server listening on {listen_addr}");
@@ -47,6 +52,7 @@ pub async fn run_web(state: AppState, port: &u16, dist_wasm: &str) -> Result<(),
 // ── Router ────────────────────────────────────────────────────────────────────
 
 trait RouterExt {
+    fn fallback_static_assets(self) -> Self;
     fn maybe_cors_permissive(self) -> Self;
 }
 
@@ -58,15 +64,69 @@ impl RouterExt for Router {
         }
         self
     }
+
+    fn fallback_static_assets(self) -> Self {
+        #[cfg(feature = "embed")]
+        {
+            self.fallback_service(tower::service_fn(|req: Request| async move {
+                serve_asset(req.uri().path())
+            }))
+        }
+        #[cfg(not(feature = "embed"))]
+        {
+            use tower_http::services::ServeDir;
+            self.fallback_service(
+                ServeDir::new(DEFAULT_WASM_DIST).append_index_html_on_directories(true),
+            )
+        }
+    }
 }
 
-fn router(state: AppState, dist_wasm: &str) -> Router {
+// ── Embedding files into binary ───────────────────────────────────────────────
+
+/// The path resolution works as follows:
+/// - In debug and when debug-embed feature is not enabled, the folder path is
+///   resolved relative to where the binary is run from.
+/// - In release or when debug-embed feature is enabled, the folder path is
+///   resolved relative to where Cargo.toml is.
+#[derive(RustEmbed)]
+#[folder = "../wasm/dist"]
+struct Assets;
+
+fn serve_asset(path: &str) -> Result<Response, Infallible> {
+    let mut path = path.trim_start_matches('/');
+    if path.is_empty() {
+        path = "index.html";
+    }
+    let response = match Assets::get(path) {
+        Some(content) => {
+            debug!(file = path, "Asset found");
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+            Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, mime.as_ref())
+                .body(Body::from(content.data))
+        }
+        None => {
+            debug!(file = path, "Asset not found");
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Body::from("Not Found"))
+        }
+    };
+
+    Ok(response.expect("Hardcoded response should not fail"))
+}
+
+// ── Router ────────────────────────────────────────────────────────────────────
+
+fn router(state: AppState) -> Router {
     Router::new()
         .route("/api/config", get(handle_config))
         .route("/api/models", get(handle_models))
         .route("/api/chat", post(handle_chat))
-        .fallback_service(ServeDir::new(dist_wasm).append_index_html_on_directories(true))
         .with_state(state)
+        .fallback_static_assets()
         .maybe_cors_permissive()
 }
 
