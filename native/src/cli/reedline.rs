@@ -8,9 +8,9 @@ use crossterm::style::Color as CrosstermColor;
 use nu_ansi_term::{Color as NuColor, Style};
 use portable::Theme;
 use reedline::{
-    DefaultHinter, Emacs, KeyCode, KeyModifiers, Prompt, PromptEditMode, PromptHistorySearch,
-    PromptHistorySearchStatus, Reedline, ReedlineEvent, ValidationResult, Validator,
-    default_emacs_keybindings,
+    DefaultHinter, Emacs, Highlighter, KeyCode, KeyModifiers, Prompt, PromptEditMode,
+    PromptHistorySearch, PromptHistorySearchStatus, Reedline, ReedlineEvent, StyledText,
+    ValidationResult, Validator, default_emacs_keybindings,
 };
 
 use crate::cli::prompt::PromptState;
@@ -196,6 +196,17 @@ impl Prompt for AppPrompt {
     }
 }
 
+/// Custom no-op highlighter to remove any styling
+struct NoHighlighter;
+
+impl Highlighter for NoHighlighter {
+    fn highlight(&self, line: &str, _cursor: usize) -> StyledText {
+        let mut styled = StyledText::new();
+        styled.push((Style::new(), line.to_string()));
+        styled
+    }
+}
+
 /// Build the editor with custom keybindings ---
 pub(crate) fn build_reedline(hinter_style: Style) -> Reedline {
     let mut keybindings = default_emacs_keybindings();
@@ -216,6 +227,8 @@ pub(crate) fn build_reedline(hinter_style: Style) -> Reedline {
 
     // create a reedline editor
     Reedline::create()
+        // .with_highlighter(Box::new(DefaultHighlighter::new()))
+        .with_highlighter(Box::new(NoHighlighter))
         .with_hinter(Box::new(DefaultHinter::default().with_style(hinter_style)))
         .with_validator(Box::new(MultilineValidator))
         .with_edit_mode(Box::new(Emacs::new(keybindings)))
