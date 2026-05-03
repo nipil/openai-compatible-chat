@@ -109,15 +109,21 @@ pub(crate) async fn run_chat(
             .set_approximate(estimate_tokens(&history));
 
         // get the user input until we succeed
-        let input = match read_multiline(prompt.clone(), None).await? {
-            Some(input) => {
+        let input = match read_multiline(prompt.clone(), None).await {
+            Ok(Some(input)) => {
                 if input.trim().len() == 0 {
                     continue;
                 }
                 input
             }
-            // or he quits
-            None => return Ok(()),
+            Ok(None) => {
+                // decline selection (escape)
+                return Ok(());
+            }
+            Err(e) => {
+                // interrupt prompt (Ctrl-C)
+                Err(e)?
+            }
         };
         debug!(input = input, "user input");
         termimad::print_text("\n---\n");

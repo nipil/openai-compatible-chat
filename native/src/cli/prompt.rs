@@ -82,6 +82,8 @@ pub(crate) async fn read_multiline(
 pub(crate) async fn select_model(
     models: &EnrichedModels,
 ) -> Result<Option<EnrichedModel>, PromptError> {
+    termimad::print_text("\n---\n");
+
     // Handle the simple cases
     let Some((model_id, model_info)) = models.iter().next() else {
         error!("No model available for selection");
