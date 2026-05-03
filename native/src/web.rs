@@ -1,22 +1,23 @@
 use std::convert::Infallible;
 
-use axum::body::Body;
-use axum::extract::{Request, State};
-use axum::http::{StatusCode, header};
+use axum::extract::State;
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response, sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures::{StreamExt, stream};
 use portable::{ChatEvent, ChatRequest, ConfigDto, ModelDto};
-use rust_embed::RustEmbed;
 use thiserror::Error;
-use tracing::{debug, error, instrument};
+use tracing::{error, instrument};
 
 use crate::AppState;
 use crate::openai::{ProviderError, get_chat_event, send_chat_request};
 
 #[cfg(not(feature = "embed"))]
 const DEFAULT_WASM_DIST: &str = "wasm/dist";
+
+#[cfg(feature = "embed")]
+pub(crate) mod embed;
 
 #[derive(Error, Debug)]
 enum WebError {
@@ -63,68 +64,32 @@ impl RouterExt for Router {
     fn maybe_cors_permissive(self) -> Self {
         #[cfg(feature = "cors-permissive")]
         {
-            return self.layer(tower_http::cors::CorsLayer::permissive());
+            use tower_http::cors::CorsLayer;
+            return self.layer(CorsLayer::permissive());
         }
+        #[cfg(not(feature = "cors-permissive"))]
         self
     }
 
     fn fallback_static_assets(self) -> Self {
         #[cfg(feature = "embed")]
         {
-            self.fallback_service(tower::service_fn(|req: Request| async move {
+            use axum::extract::Request;
+            use embed::serve_asset;
+            use tower::service_fn;
+
+            self.fallback_service(service_fn(|req: Request| async move {
                 serve_asset(req.uri().path())
             }))
         }
-
         #[cfg(not(feature = "embed"))]
         {
+            use tower_http::services::ServeDir;
             self.fallback_service(
-                tower_http::services::ServeDir::new(DEFAULT_WASM_DIST)
-                    .append_index_html_on_directories(true),
+                ServeDir::new(DEFAULT_WASM_DIST).append_index_html_on_directories(true),
             )
         }
     }
-}
-
-// ── Embedding files into binary ───────────────────────────────────────────────
-
-/// The path resolution works as follows:
-/// - In debug and when debug-embed feature is not enabled, the folder path is
-///   resolved relative to where the binary is run from.
-/// - In release or when debug-embed feature is enabled, the folder path is
-///   resolved relative to where Cargo.toml is.
-#[derive(RustEmbed)]
-#[folder = "../wasm/dist"]
-struct Assets;
-
-fn serve_asset(path: &str) -> Result<Response, Infallible> {
-    let mut path = path.trim_start_matches('/');
-    if path.is_empty() {
-        path = "index.html";
-    }
-
-    let response = match Assets::get(path) {
-        Some(content) => {
-            debug!(file = path, "Asset found");
-
-            let mime = mime_guess::from_path(path).first_or_octet_stream();
-
-            Response::builder()
-                .status(StatusCode::OK)
-                .header(header::CONTENT_TYPE, mime.as_ref())
-                .body(Body::from(content.data))
-        }
-
-        None => {
-            debug!(file = path, "Asset not found");
-
-            Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::from("Not Found"))
-        }
-    };
-
-    Ok(response.expect("Hardcoded response should not fail"))
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
