@@ -32,6 +32,15 @@ About the code
   - cleaning, refactoring and improving the parts until i was satisfied with its shape
   - error management, which was entirely missing (because i did not request it at first)
 
+## Features
+
+- interactive model selection
+- streaming responses
+- disposable history (no storage at all)
+- token display (exact or estimated, cache efficiency on info log level)
+- model filtering (regex) via configuration
+- error handling (forbidden model, context overflow, plus all possible unhappy path)
+
 ## Sample rendering
 
 Web interface
@@ -72,86 +81,102 @@ Simply download the latest version from the releases page and replace the old bi
 
 ## Configuration
 
-Create a `config.json` file in the same folder as the binary, adapting the example below:
+Use `config set-key` command to set your api key (and automatically generate a default configuration)
+
+Use `config show` command to see your configuration.
 
 ```json
 {
-  "api_key": "sk-svcacct-************************",
+  "api_key": "",
   "base_url": "https://api.openai.com/v1",
-  "exclude_model_name_regex": [
-    ".*-3.5-turbo-\\d+"
-  ],
-  "default_system_prompt": "This system prompt will be shown as default for every new session"
+  "exclude_model_name_regex": [],
+  "default_system_prompt": ""
 }
 ```
 
+Use `model-info update` command to automatically fetch the most-up to date model info.
+
+Use `model-info show` command to see the current metadata (pipe to `jq` for a prettier output !)
+
+```json
+{
+  ...
+  "gpt-3.5-turbo": {
+    "context_window": 16384,
+    "description": "Fast, cost-effective chat model",
+    "family": "gpt-3.5",
+    "release": "2023-03-01",
+    "type": "chat"
+  },
+  ...
+}
+```
+
+Proxy should be detected automatically by your `http_proxy` and `https_proxy` environment variables.
+
 ## Usage
 
+Common parameters
+
 ```text
-Usage: openai-compatible-chat [OPTIONS] <COMMAND>
+Usage: openai-compatible-chat.exe [OPTIONS] <COMMAND>
 
 Commands:
-  cli   CLI subcommand
-  web   Web subcommand
-  help  Print this message or the help of the given subcommand(s)
+  config
+  model-info
+  cli
+  web
+  help        Print this message or the help of the given subcommand(s)
 
 Options:
-  -t, --api-timeout-ms <API_TIMEOUT_MS>  [default: 10000]
-  -c, --config-file <CONFIG_FILE>        [default: config.json]
-  -i, --info-file <INFO_FILE>            [default: ai_model_info/openai.json]
+  -t, --api-timeout-sec <API_TIMEOUT_SEC>
+  -c, --config-file <CONFIG_FILE>
+  -i, --info-file <INFO_FILE>
   -m, --model-lock <MODEL_LOCK>
       --log-file <LOG_FILE>
-  -h, --help                             Print help
-  -V, --version                          Print version
+  -h, --help                               Print help
+  -V, --version                            Print version
 ```
-
-### CLI mode
-
-Start an interactive chat session in your terminal:
-
-```bash
-./openai-compatible-chat cli
-```
-
-### Web mode
-
-Start the web interface, serving the compiled WASM frontend and proxying API requests:
-
-```bash
-./openai-compatible-chat web --port 8080
-```
-
-```text
-Options:
-  -p, --port <PORT>            Port to listen on
-  -d, --dist-wasm <DIST_WASM>  Path to WASM dist directory [default: wasm/dist]
-```
-
-Then open `http://localhost:8080` in your browser.
-
-### Direct model selection
 
 You can bypass the model selection menu with:
 
 ```bash
-./openai-compatible-chat --model-lock gpt-4o cli
+--model-lock gpt-4o cli
 ```
 
 Behavior:
 
 - verifies that the model exists in the list retrieved via the API
-- applies filters (exclusions + regex)
+- applies filters (regex + compatible types)
 - if valid → starts the conversation directly
-- otherwise → error message + back to menu
+- otherwise → error message
 
-## Features
+### CLI mode
 
-- interactive model selection
-- streaming responses
-- disposable history (no storage at all)
-- token display (exact or estimated, cache efficiency on info log level)
-- model filtering (regex) via configuration
-- error handling (forbidden model, context overflow, plus all possible unhappy path)
+```text
+Usage: openai-compatible-chat.exe cli [OPTIONS]
+
+Options:
+      --theme <THEME>            [default: dark]
+      --refresh-ms <REFRESH_MS>  [default: 100]
+  -h, --help                     Print help
+```
+
+A `light` theme is available *but might have trouble in your terminal*,
+due to the fact that terminals are made to be dark, and so many "fixes"
+are applied naturally, by the window manager, and stuff to "make it work".
+
+### Web mode
+
+```text
+Usage: openai-compatible-chat.exe web --port <PORT>
+
+Options:
+  -p, --port <PORT>  Port to listen on
+  -h, --help         Print help```
+```
+
+Then open `http://localhost:PORT` in your browser.
 
 ## Dev Workflow
 
@@ -159,7 +184,7 @@ Proxy: if needed, set the VSCode setting `rust-analyzer.cargo.extraEnv`:
 
 ```json
 "rust-analyzer.cargo.extraEnv": {
-    "ALL_PROXY": "http://10.154.61.6:3128"
+  "ALL_PROXY": "http://10.154.61.6:3128"
 }
 ```
 
@@ -184,7 +209,7 @@ cargo install trunk
 cargo install watchexec-cli
 ```
 
-Version management
+Dependency management
 
 ```shell
 # show dupplicated (often, pulled) versions
@@ -195,6 +220,7 @@ cargo +nightly udeps
 
 # unlike "cargo update", shows versions beyond semver
 cargo outdated
+```
 
 ### Model info
 
@@ -257,13 +283,17 @@ Hot-build documentation if needed
 watchexec --clear --quiet --restart --debounce 10s --stop-signal SIGTERM --watch Cargo.lock cargo doc --locked
 ```
 
-Visit `http://localhost:8080` in your browser.
+Visit `http://localhost:8080` in your browser (as stated below, the `favicon.svg` will not show)
 
 ### Release
 
 ```shell
 cd wasm && trunk build --release
 ```
+
+IMPORTANT: when the `embed` feature is enabled, the static files are re-embedded each time the module file where they are is `touch`ed.
+
+NOTE: the `favicon.svg` is not managed by `trunk` it should be manually copied to `dist` folder before building `native` to be available.
 
 ```shell
 cd ..
@@ -280,6 +310,8 @@ That's the entire stack:
 - Leptos + Trunk on the front.
 
 No database, no auth middleware, no extra complexity.
+
+For local use only, though you could "open" it, if you do not mind sharing your API key.
 
 ### Backend: Axum
 

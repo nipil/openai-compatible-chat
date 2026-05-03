@@ -4,8 +4,6 @@ NIX: add a sytemd unit for user so that it auto-starts in web mode
 
 UX: provide model info to frontend
 
-WEB: favicon pas affichée dans le tab
-
 CFG: add auth headers + cookies
 
 QC: implement pathological cases here if needed (huge payload) dans opeanai::send_chat_request
