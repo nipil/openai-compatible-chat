@@ -1,7 +1,5 @@
 # What remains to be done
 
-BUG: light theme, unreadable typed text : light on light (while ctrl-r search is actually dark!)
-
 UX: try to autodetect light/dark theme
 
 NIX: add a sytemd unit for user so that it auto-starts in web mode

@@ -117,8 +117,8 @@ impl ConsoleColors {
             duration: DarkGrey, // elapsed time — background noise
 
             // ── Token thresholds — traffic-light on dark BG ───────────────────
-            token_low: DarkGrey, // barely there
-            token_medium: White, // neutral presence
+            token_low: Blue,     // barely there
+            token_medium: Green, // neutral presence
             token_warn: Yellow,  // amber warning — mirrors emphasis
             token_critical: Red, // clear alarm
         }
@@ -169,8 +169,8 @@ impl ConsoleColors {
             duration: Grey,       // elapsed time — background noise
 
             // ── Token thresholds — traffic-light on light BG ──────────────────
-            token_low: Grey,         // barely there
-            token_medium: DarkGrey,  // neutral presence
+            token_low: Blue,         // barely there
+            token_medium: DarkGreen, // neutral presence
             token_warn: DarkYellow,  // amber warning
             token_critical: DarkRed, // clear alarm
         }
