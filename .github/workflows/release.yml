@@ -2,23 +2,74 @@
 
 name: Release
 
+env:
+  WASM_TRUNK_VERSION: "0.21.14"
+  NAME: "openai-compatible-chat"
+
 on:
   push:
     tags:
-      - "v*"           # déclenché par : git tag v1.0.0 && git push --tags
+      # triggered by : git tag v1.0.0 && git push --tags
+      - "v*"
     branches:
-      - ci-test        # pour tester les builds sans faire de release
+      # allows testing builds without making a release
+      - ci-test
 
 permissions:
-  contents: write      # nécessaire pour créer la release GitHub
+  # mandatory to create a github release
+  contents: write
 
 jobs:
-  build:
+  build-wasm:
+    name: Build — WASM
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Cache .cargo/registry + target/ between runs to speed up the CI
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      # Linux only
+      - name: Install Trunk
+        run: |
+          CURL_OPTS="--fail --silent --show-error --location --remote-name"
+          BINARY=trunk-x86_64-unknown-linux-gnu.tar.gz
+          curl ${CURL_OPTS} https://github.com/trunk-rs/trunk/releases/download/v${{ env.WASM_TRUNK_VERSION }}/${BINARY}
+          curl ${CURL_OPTS} https://github.com/trunk-rs/trunk/releases/download/v${{ env.WASM_TRUNK_VERSION }}/${BINARY}.sha256
+          echo "$(cat ${BINARY}.sha256)  ${BINARY}" | sha256sum --check -
+          tar xzf trunk-x86_64-unknown-linux-gnu.tar.gz
+          sudo mv trunk /usr/local/bin/
+
+      - name: Build WASM dist
+        run: cd wasm && trunk build --release && cp favicon.svg dist/ && ls -lh dist/
+
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm
+          path: wasm/dist/
+          retention-days: 1
+
+  build-binaries:
     name: Build — ${{ matrix.name }}
+    needs: build-wasm
     runs-on: ${{ matrix.os }}
 
     env:
-      # pour que le binaire puisse tourner macOS 12+
+      # so that the binary produced can run on macOS 12+
       MACOSX_DEPLOYMENT_TARGET: "12.0"
 
     strategy:
@@ -27,22 +78,18 @@ jobs:
           - name:   Linux x64 (static)
             os:     ubuntu-22.04
             target: x86_64-unknown-linux-musl
-            binary: openai-compatible-chat
 
           - name:   Windows x64
             os:     windows-2022
             target: x86_64-pc-windows-msvc
-            binary: openai-compatible-chat.exe
 
           - name:   macOS ARM
             os:     macos-15
             target: aarch64-apple-darwin
-            binary: openai-compatible-chat
 
           - name:   macOS Intel
             os:     macos-15
             target: x86_64-apple-darwin
-            binary: openai-compatible-chat
 
     steps:
       - name: Checkout
@@ -66,81 +113,96 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y musl-tools
 
-      - name: Build (release)
-        run: cargo build --release --target ${{ matrix.target }}
+      - name: Download WASM artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: wasm
+          path: wasm/dist/
+
+      - name: Build Rust binary
+        run: cargo build -p native --release --target ${{ matrix.target }}
 
       # Strip (Unix)
       - name: Strip binary (Unix)
         if: matrix.os != 'windows-2022'
         run: |
-          strip target/${{ matrix.target }}/release/${{ matrix.binary }}
+          strip target/${{ matrix.target }}/release/${{ env.NAME }}
 
       # Strip (Windows)
       - name: Strip binary (Windows)
         if: matrix.os == 'windows-2022'
         shell: bash
         run: |
-          strip target/${{ matrix.target }}/release/${{ matrix.binary }}
+          strip target/${{ matrix.target }}/release/${{ env.NAME }}.exe
 
       # Rename Linux
       - name: Rename binary (Linux)
         if: matrix.os == 'ubuntu-22.04'
         run: |
-          mv target/${{ matrix.target }}/release/${{ matrix.binary }} \
-             openai-compatible-chat-${{ matrix.target }}
+          mv target/${{ matrix.target }}/release/${{ env.NAME }} \
+            ${{ env.NAME }}-${{ matrix.target }}
 
       # Rename Windows
       - name: Rename binary (Windows)
         if: matrix.os == 'windows-2022'
         shell: pwsh
         run: |
-          Move-Item target/${{ matrix.target }}/release/${{ matrix.binary }} `
-                    openai-compatible-chat-${{ matrix.target }}.exe
+          Move-Item target/${{ matrix.target }}/release/${{ env.NAME }}.exe `
+            ${{ env.NAME }}-${{ matrix.target }}.exe
 
       # Rename macOS
       - name: Rename binary (macOS)
         if: startsWith(matrix.os, 'macos')
         run: |
-          mv target/${{ matrix.target }}/release/${{ matrix.binary }} \
-             openai-compatible-chat-${{ matrix.target }}
+          mv target/${{ matrix.target }}/release/${{ env.NAME }} \
+            ${{ env.NAME }}-${{ matrix.target }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: openai-compatible-chat-${{ matrix.target }}
-          path: openai-compatible-chat-${{ matrix.target }}*   # capture .exe aussi
+          name: ${{ env.NAME }}-${{ matrix.target }}
+          # wildcard to grab .exe on windows target
+          path: ${{ env.NAME }}-${{ matrix.target }}*
+          retention-days: 1
 
   macos-universal:
     name: Build macOS universal binary
-    needs: build
+    needs: build-binaries
     runs-on: macos-15
 
     steps:
       - name: Download macOS artifacts
         uses: actions/download-artifact@v8
         with:
+          # no name
+          # - so all artefacts are pulled (inefficient)
+          #     linx and windows too
+          #     but is small enough (~10MB) to not care
+          # - path structure will be
+          #     artifacts/__ARTEFACT_NAME__/...
           path: artifacts/
 
       - name: Create universal binary
         run: |
           mkdir macos
 
-          cp artifacts/openai-compatible-chat-aarch64-apple-darwin/openai-compatible-chat-aarch64-apple-darwin macos/openai-compatible-chat-arm64
-          cp artifacts/openai-compatible-chat-x86_64-apple-darwin/openai-compatible-chat-x86_64-apple-darwin macos/openai-compatible-chat-x64
+          cp artifacts/${{ env.NAME }}-aarch64-apple-darwin/${{ env.NAME }}-aarch64-apple-darwin macos/${{ env.NAME }}-arm64
+          cp artifacts/${{ env.NAME }}-x86_64-apple-darwin/${{ env.NAME }}-x86_64-apple-darwin macos/${{ env.NAME }}-x64
 
-          lipo -create macos/openai-compatible-chat-arm64 macos/openai-compatible-chat-x64 -o macos/openai-compatible-chat-macos
-          chmod +x macos/openai-compatible-chat-macos
+          lipo -create macos/${{ env.NAME }}-arm64 macos/${{ env.NAME }}-x64 -o macos/${{ env.NAME }}-macos
+          chmod +x macos/${{ env.NAME }}-macos
 
       - name: Upload universal binary
         uses: actions/upload-artifact@v7
         with:
-          name: openai-compatible-chat-macos
-          path: macos/openai-compatible-chat-macos
+          name: ${{ env.NAME }}-macos
+          path: macos/${{ env.NAME }}-macos
+          retention-days: 1
 
   release:
     name: Create GitHub Release
     needs:
-      - build
+      - build-binaries
       - macos-universal
     runs-on: ubuntu-22.04
 
@@ -148,12 +210,23 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
+          # no name, so
+          # - all artefacts are pulled (inefficient)
+          # - wasm too, but
+          #   - it will not be selected in the next step
+          #   - it is small enough (<MB) to not care
           path: artifacts/
+                    # no name
+          # merges to a single flat directory
+          # with all files at the same level
           merge-multiple: true
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/')   # ← skip sur les branches
+        # only allow publishing a release when a tag has triggered the action,
+        # does NOT produce a release when action is triggered from a branch
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*
-          generate_release_notes: true  # génère les notes depuis les commits
+          # wildcard to grab .exe of windows target
+          files: artifacts/${{ env.NAME }}*
+          generate_release_notes: true
