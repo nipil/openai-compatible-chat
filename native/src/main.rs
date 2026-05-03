@@ -15,7 +15,8 @@ use native::openai::list_models;
 use native::web::run_web;
 use portable::Theme;
 use reqwest::Client as ReqwestClient;
-use tracing::{info, warn};
+use terminal_light::luma;
+use tracing::{error, info};
 use tracing_appender::rolling;
 use tracing_subscriber::filter::{EnvFilter, LevelFilter};
 use tracing_subscriber::layer::SubscriberExt;
@@ -27,6 +28,7 @@ compile_error!("At lease one of the main features should be enabled !");
 
 const TRACE_LOG: &str = "trace.log";
 const DEFAULT_BIND_ADDRESS: &str = "localhost";
+const TERMINAL_BRIGHTNESS_THRESHOLD: f32 = 0.5;
 
 #[derive(Parser)]
 #[command(name = "chat", about = "openai-compatible-chat", version)]
@@ -64,8 +66,8 @@ enum Commands {
 
     #[cfg(feature = "cli")]
     Cli {
-        #[arg(long, default_value = Theme::Dark.as_ref(), value_parser = Theme::from_str)]
-        theme: Theme,
+        #[arg(long, value_parser = Theme::from_str)]
+        theme: Option<Theme>,
 
         #[arg(long, default_value_t = DEFAULT_CLI_REFRESH_INTERVAL_MS)]
         refresh_ms: u64,
@@ -354,7 +356,35 @@ async fn run() -> Result<ExitCode> {
     match &args.command {
         #[cfg(feature = "cli")]
         Commands::Cli { theme, refresh_ms } => {
-            run_cli(state, &theme, *refresh_ms).await?;
+            // manage color theme according to terminal background
+            let theme = match theme {
+                // if forced, use requested theme
+                Some(theme) => theme,
+
+                // if undefined, try to detect
+                None => match luma() {
+                    Ok(brightness) => {
+                        info!(
+                            brightness = brightness,
+                            "detected terminal background brightness (0=dark to 1=light)"
+                        );
+                        if brightness < TERMINAL_BRIGHTNESS_THRESHOLD {
+                            &Theme::Dark
+                        } else {
+                            &Theme::Light
+                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            error = e.to_string(),
+                            "Could not detect background brightness. Please explicitely specify the theme you want using `--theme` (dark or light).",
+                        );
+                        return Ok(ExitCode::FAILURE);
+                    }
+                },
+            };
+            // Run run with the final theme
+            run_cli(state, theme, *refresh_ms).await?;
         }
 
         #[cfg(feature = "web")]
