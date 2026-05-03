@@ -7,6 +7,7 @@ pub(crate) async fn get_url_path<T: DeserializeOwned>(path: &str) -> Result<T, R
         .send()
         .await
         .map_err(|e| RequestError::ConnectionError { source: e })?;
+
     if !resp.ok() {
         return Err(RequestError::HttpError {
             status: resp.status(),

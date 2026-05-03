@@ -41,8 +41,10 @@ pub fn App() -> impl IntoView {
     spawn_local(handle_err_fut_0(errors, async move {
         let cfg = get_url_path::<ConfigDto>("/api/config").await?;
         sys_prompt.set(cfg.default_system_prompt);
+
         let mut list = get_url_path::<Vec<ModelDto>>("/api/models").await?;
         list.sort();
+
         if let Ok(Some(id)) = get_cookie(COOKIE_MODEL)
             && let Some(found) = list.iter().find(|m| m.id == id)
         {
@@ -50,6 +52,7 @@ pub fn App() -> impl IntoView {
         } else if !list.is_empty() {
             sel_model.set(list[0].id.clone());
         }
+
         models.set(list);
         Ok(())
     }));
@@ -58,6 +61,7 @@ pub fn App() -> impl IntoView {
 
     let sel_meta = Memo::new(move |_| {
         let id = sel_model.get();
+
         models.get().into_iter().find(|m| m.id == id)
     });
 
@@ -65,6 +69,7 @@ pub fn App() -> impl IntoView {
 
     Effect::new(move |_| {
         let approx = estimate_tokens(&messages.get());
+
         tok_count.update(|t| t.set_approximate(approx));
     });
 
@@ -73,7 +78,9 @@ pub fn App() -> impl IntoView {
     // ── Auto-scroll ───────────────────────────────────────────────────────────
 
     Effect::new(move |_| {
+        // Just so that Leptos registers the dependency
         let _ = messages.get();
+
         if let Some(el) = conv_ref.get() {
             el.set_scroll_top(el.scroll_height());
         }
@@ -86,10 +93,13 @@ pub fn App() -> impl IntoView {
             if let Some(ac) = abort_ctl.get_untracked() {
                 ac.abort();
             }
+
             streaming.set(false);
             abort_ctl.set(None);
         }
     });
+
+    // what to do when the owner cleans up
     on_cleanup(move || drop(esc));
 
     // ── Stop ──────────────────────────────────────────────────────────────────
@@ -98,6 +108,7 @@ pub fn App() -> impl IntoView {
         if let Some(ac) = abort_ctl.get_untracked() {
             ac.abort();
         }
+
         streaming.set(false);
         abort_ctl.set(None);
     };
@@ -134,19 +145,23 @@ pub fn App() -> impl IntoView {
             started.set(true);
         }
 
+        // include the user message in the submitted chat
         hist.push(Message::new(MessageRole::User, text));
         let send_msgs = hist.clone();
-        hist.push(Message::new(MessageRole::Assistant, String::new()));
-
         save_chat(&send_msgs)?;
+        let chat_req = ChatRequest::new(model, send_msgs);
+
+        // prepare a placeholder message slot for the answer
+        hist.push(Message::new(MessageRole::Assistant, String::new()));
         messages.set(hist);
+
+        // cleans up for the next input, so the user can start right away
         input.set(String::new());
+
         streaming.set(true);
 
         let abort_signal = ac.signal();
         abort_ctl.set(Some(SendWrapper::new(ac)));
-
-        let chat_req = ChatRequest::new(model, send_msgs);
 
         let win = crate::web::dom::get_window()?;
 
@@ -156,6 +171,7 @@ pub fn App() -> impl IntoView {
                 chat_req,
                 abort_signal,
                 move |tok| {
+                    // add each token to the placeholder message
                     messages.update(|v| {
                         if let Some(last) = v.last_mut() {
                             last.content.push_str(tok);
@@ -163,6 +179,7 @@ pub fn App() -> impl IntoView {
                     });
                 },
                 move |new_total| {
+                    // update the token on chat completion
                     if tok_count.get_untracked() != TokenUsage::Exact(new_total) {
                         tok_count.update(|t| t.set_exact(new_total));
                     }
@@ -174,9 +191,12 @@ pub fn App() -> impl IntoView {
             abort_ctl.set(None);
 
             if res.is_err() {
+                // remove the placeholder (possibly incomplete) message
                 messages.update(|mv| {
                     mv.pop_if(|m| m.role == MessageRole::Assistant);
                 });
+
+                // move the submitted user message back in the input (overwrites eventual content)
                 messages.update(|mv| {
                     if let Some(message) = mv.pop_if(|m| m.role == MessageRole::User) {
                         input.set(message.content);
@@ -184,11 +204,17 @@ pub fn App() -> impl IntoView {
                 });
             }
 
+            // only go further if nothing bad happened
             res?;
+
+            // persist the latest answer
             save_chat(&messages.get_untracked())?;
+
+            // end of the SSE loop
             Ok(())
         }));
 
+        // end of on-sent action
         Ok(())
     };
 
@@ -199,27 +225,34 @@ pub fn App() -> impl IntoView {
             Theme::Dark => Theme::Light,
             Theme::Light => Theme::Dark,
         };
+
         apply_theme(&new_theme)?;
         set_cookie(COOKIE_THEME, new_theme.as_ref())?;
         theme.set(new_theme);
+
         Ok(())
     });
 
     let open_new_tab = handle_err_clos_1(errors, move |_| {
         let window = get_window()?;
+
         let href = window
             .location()
             .href()
             .map_err(|e| BrowserError::CurrentUrl { source: e.into() })?;
+
         window
             .open_with_url_and_target(&href, "_blank")
             .map_err(|e| BrowserError::OpenWindow { source: e.into() })?;
+
         Ok(())
     });
 
     let on_clear = handle_err_clos_1(errors, move |_| {
         do_stop();
+
         save_chat(&[])?;
+
         get_window()?
             .location()
             .reload()
@@ -230,6 +263,7 @@ pub fn App() -> impl IntoView {
 
     view! {
         <div class="app">
+
             <Banner
                 errors=errors
                 models=models
@@ -242,9 +276,14 @@ pub fn App() -> impl IntoView {
                 on_new_tab=open_new_tab
                 on_toggle_theme=toggle_theme
             />
+
             <SystemPrompt sys_prompt=sys_prompt started=started />
+
             <Conversation messages=messages conv_ref=conv_ref />
+
+            // shown as needed, then discarded
             <ErrorPanel errors=errors />
+
             <InputArea
                 errors=errors
                 input=input
@@ -252,6 +291,7 @@ pub fn App() -> impl IntoView {
                 on_send=do_send
                 on_stop=do_stop
             />
+
         </div>
     }
 }

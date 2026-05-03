@@ -94,8 +94,10 @@ pub struct ConfigManager {
 impl ConfigManager {
     pub fn new(file: Option<&String>) -> Result<Self, ConfigError> {
         let dirs = Directories::new().ok_or_else(|| ConfigError::Directories)?;
+
         let path = match file {
             Some(file) => Ok(PathBuf::from(file)),
+
             None => {
                 let path = Path::new(DEFAULT_CONFIG_FILE_NAME);
                 dirs.config_file(path).map_err(|e| ConfigError::io(path, e))
@@ -123,7 +125,9 @@ impl ConfigManager {
             file = %self.path.display(),
             "Saving configuration"
         );
+
         fs::write(&self.path, self.to_json()?).map_err(|e| ConfigError::io(&self.path, e))?;
+
         Ok(self)
     }
 
@@ -135,6 +139,7 @@ impl ConfigManager {
 
         let content =
             std::fs::read_to_string(&self.path).map_err(|e| ConfigError::io(&self.path, e))?;
+
         self.config =
             serde_json::from_str(&content).map_err(|e| ConfigError::json(&self.path, e))?;
 
@@ -148,10 +153,14 @@ impl ConfigManager {
                     file = %path.to_string_lossy(),
                     "Configuration not found, using defaults"
                 );
+
                 self.config = Config::default();
+
                 Ok(self)
             }
+
             Ok(_) => Ok(self),
+
             Err(e) => Err(e),
         }
     }
@@ -185,8 +194,10 @@ pub struct ModelInfoManager {
 impl ModelInfoManager {
     pub fn new(file: Option<&String>) -> Result<Self, ConfigError> {
         let dirs = Directories::new().ok_or_else(|| ConfigError::Directories)?;
+
         let path = match file {
             Some(file) => Ok(PathBuf::from(file)),
+
             None => {
                 let path = Path::new(DEFAULT_MODEL_INFO_FILE_NAME);
                 dirs.data_file(path).map_err(|e| ConfigError::io(path, e))
@@ -215,7 +226,9 @@ impl ModelInfoManager {
             file = %self.path.display(),
             "Saving model info"
         );
+
         fs::write(&self.path, self.to_json()?).map_err(|e| ConfigError::io(&self.path, e))?;
+
         Ok(self)
     }
 
@@ -227,6 +240,7 @@ impl ModelInfoManager {
 
         let content =
             std::fs::read_to_string(&self.path).map_err(|e| ConfigError::io(&self.path, e))?;
+
         self.enriched_models = serde_json::from_str::<EnrichedModels>(&content)
             .map_err(|e| ConfigError::json(&self.path, e))?;
 
@@ -240,10 +254,14 @@ impl ModelInfoManager {
                     file = %path.to_string_lossy(),
                     "Model info not found, using defaults"
                 );
+
                 self.enriched_models = EnrichedModels::default();
+
                 Ok(self)
             }
+
             Ok(_) => Ok(self),
+
             Err(e) => Err(e),
         }
     }

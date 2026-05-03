@@ -13,10 +13,13 @@ use crate::models::{EnrichedModel, EnrichedModels};
 pub enum PromptError {
     #[error("IO error {0}")]
     Input(#[from] std::io::Error),
+
     #[error("Thread join error : {0}")]
     Join(#[from] JoinError),
+
     #[error("Fuzzy prompt failed : {0}")]
     Fuzzy(#[from] dialoguer::Error),
+
     #[error("Selection failed : {0}")]
     SelectionFailed(String),
 }
@@ -65,10 +68,12 @@ pub(crate) async fn read_multiline(
             trace!("reedline success: {buf:?}");
             Some(buf)
         }
+
         Signal::CtrlC => {
             trace!("reedline Ctrl-C");
             None
         }
+
         _ => {
             warn!("reedline non-exhaustive {res:?}");
             None
@@ -89,6 +94,7 @@ pub(crate) async fn select_model(
         error!("No model available for selection");
         return Ok(None);
     };
+
     if models.len() == 1 {
         info!(model = model_id, "Auto-selected model");
         return Ok(Some(EnrichedModel::new(
@@ -104,6 +110,7 @@ pub(crate) async fn select_model(
     let index = non_blocking({
         // so that choices_dup can move yet choices stay available
         let choices_dup = choices.clone();
+
         move || {
             // The theme in fuzzyselect is not send+'static
             FuzzySelect::new()

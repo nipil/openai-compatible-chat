@@ -16,6 +16,7 @@ pub(crate) fn InputArea(
 ) -> impl IntoView {
     view! {
         <div class="input-area">
+
             <textarea
                 class="input-textarea"
                 placeholder="Message… (Cltr+Enter to send  •  Esc to stop)"
@@ -32,6 +33,7 @@ pub(crate) fn InputArea(
                 })
                 rows="3"
             />
+
             {move || if streaming.get() {
                 view! {
                     <button class="btn-stop" on:click=move |_| on_stop()>
@@ -48,6 +50,7 @@ pub(crate) fn InputArea(
                     </button>
                 }.into_any()
             }}
+
         </div>
     }
 }

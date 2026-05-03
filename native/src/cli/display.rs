@@ -47,6 +47,7 @@ pub(crate) struct LiveMarkdown {
 impl LiveMarkdown {
     pub(crate) fn new(theme: &Theme, refresh_ms: u64) -> Self {
         let (w, h) = terminal::size().unwrap_or((120, 40));
+
         Self {
             skin: make_skin(theme),
             lines_on_screen: 0,
@@ -63,12 +64,15 @@ impl LiveMarkdown {
         if self.disabled {
             return;
         }
+
         if self.last_render.elapsed() < Duration::from_millis(self.refresh_ms) {
             return;
         }
+
         if let Err(e) = self.paint(text) {
             warn!("Failed to paint : {:?}", e);
         }
+
         self.last_render = Instant::now();
     }
 
@@ -79,6 +83,7 @@ impl LiveMarkdown {
                 warn!("Failed to paint : {:?}", e);
             }
         }
+
         println!();
     }
 
@@ -88,6 +93,7 @@ impl LiveMarkdown {
     /// - only clear/updates the last line if possible, to avoid flicker
     fn paint(&mut self, text: &str) -> std::io::Result<()> {
         let rendered = format!("{}", self.skin.term_text(text));
+
         let lines = count_visual_lines(&rendered, self.term_width);
 
         // Guard: nothing is on-screen yet and there is still nothing to render.
@@ -104,13 +110,16 @@ impl LiveMarkdown {
 
         // Disable live updates once the block becomes tall.
         let threshold = (self.term_height as f32 * LIVE_UPDATE_HEIGHT_PERCENT) as u16;
+
         if !self.disabled && lines > threshold {
             self.disabled = true;
+
             // Flush whatever we have left as plain text so nothing is lost.
             if self.lines_on_screen == 0 {
                 // Batch into one write to avoid tearing
                 execute!(stdout(), style::Print(&rendered))?;
             }
+
             return Ok(());
         }
 
@@ -132,22 +141,27 @@ impl LiveMarkdown {
             } else {
                 execute!(out, style::Print(&rendered))?;
             }
+
             // check for ending newline (see above)
             if !rendered.ends_with('\n') {
                 execute!(out, style::Print("\n"))?;
             }
+
+            // update the displayed line count
             self.lines_on_screen = lines;
         } else {
             // ── Same line count: patch only the last visual line ───────────
             // This is the hot path — runs on every token, no flicker.
             let last = last_rendered_line(&rendered);
             let last_rows = visual_rows_for_line(last, self.term_width);
+
             execute!(
                 out,
                 cursor::MoveUp(last_rows),
                 terminal::Clear(terminal::ClearType::FromCursorDown),
                 style::Print(last),
             )?;
+
             // check for ending newline (see above)
             if !last.ends_with('\n') {
                 execute!(out, style::Print("\n"))?;
@@ -166,6 +180,8 @@ fn count_visual_lines(rendered: &str, term_width: u16) -> u16 {
     if term_width == 0 {
         return 0;
     }
+
+    // compute string without effects
     let plain = console::strip_ansi_codes(rendered);
 
     // Count actual newlines rather than using .lines(), so we handle the
@@ -191,9 +207,12 @@ fn visual_rows_for_line(line: &str, term_width: u16) -> u16 {
     if term_width == 0 {
         return 1;
     }
+
     // Strip ANSI in case the caller passes a raw rendered line
     let plain = console::strip_ansi_codes(line);
     let w = UnicodeWidthStr::width(plain.as_ref()) as u16;
+
+    // An empty string counts for a real line !
     if w == 0 { 1 } else { w.div_ceil(term_width) }
 }
 
@@ -201,6 +220,7 @@ fn visual_rows_for_line(line: &str, term_width: u16) -> u16 {
 /// trimming any trailing newline first so we don't get an empty slice.
 fn last_rendered_line(rendered: &str) -> &str {
     let trimmed = rendered.trim_end_matches('\n');
+
     trimmed.rsplit_once('\n').map_or(trimmed, |(_, last)| last)
 }
 
@@ -213,6 +233,7 @@ fn make_skin(theme: &Theme) -> MadSkin {
         Theme::Dark => MadSkin::default_dark(),
         Theme::Light => MadSkin::default_light(),
     };
+
     // customize colors
     let theme = ConsoleColors::new(&theme);
 

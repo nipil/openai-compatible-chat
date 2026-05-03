@@ -34,6 +34,7 @@ impl IntoResponse for WebError {
             Self::Api(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Forbidden(_) => StatusCode::FORBIDDEN,
         };
+        // Axum uses .0 as http code and .1 as body
         (status, self.to_string()).into_response()
     }
 }
@@ -42,9 +43,11 @@ impl IntoResponse for WebError {
 
 pub async fn run_web(state: AppState, bind_addr: &str, port: &u16) -> Result<(), std::io::Error> {
     let app = router(state);
+
     let listen_addr = format!("{bind_addr}:{port}");
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
     println!("Server listening on {listen_addr}");
+
     axum::serve(listener, app).await?;
     Ok(())
 }
@@ -72,11 +75,12 @@ impl RouterExt for Router {
                 serve_asset(req.uri().path())
             }))
         }
+
         #[cfg(not(feature = "embed"))]
         {
-            use tower_http::services::ServeDir;
             self.fallback_service(
-                ServeDir::new(DEFAULT_WASM_DIST).append_index_html_on_directories(true),
+                tower_http::services::ServeDir::new(DEFAULT_WASM_DIST)
+                    .append_index_html_on_directories(true),
             )
         }
     }
@@ -98,17 +102,22 @@ fn serve_asset(path: &str) -> Result<Response, Infallible> {
     if path.is_empty() {
         path = "index.html";
     }
+
     let response = match Assets::get(path) {
         Some(content) => {
             debug!(file = path, "Asset found");
+
             let mime = mime_guess::from_path(path).first_or_octet_stream();
+
             Response::builder()
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, mime.as_ref())
                 .body(Body::from(content.data))
         }
+
         None => {
             debug!(file = path, "Asset not found");
+
             Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::from("Not Found"))
@@ -217,9 +226,13 @@ impl From<ChatEvent> for SseEventOut {
 
 impl From<SseEventOut> for sse::Event {
     fn from(ev: SseEventOut) -> Self {
+        // reused later
         let ev = ev.into_inner();
+
+        // transform
         let value = match &ev {
             ChatEvent::MessageToken(token) => serde_json::to_string(&token),
+
             ChatEvent::FinishReason { reason, refusal } => {
                 #[derive(serde::Serialize)]
                 struct Tmp<T> {
@@ -231,7 +244,9 @@ impl From<SseEventOut> for sse::Event {
                     refusal: refusal.as_ref(),
                 })
             }
+
             ChatEvent::Error(err_msg) => serde_json::to_string(&err_msg),
+
             ChatEvent::TokenCount {
                 prompt,
                 generated,
@@ -245,6 +260,7 @@ impl From<SseEventOut> for sse::Event {
                     cached: Option<T>,
                     reasoning: Option<T>,
                 }
+
                 serde_json::to_string(&Tmp {
                     prompt,
                     generated,
@@ -253,9 +269,11 @@ impl From<SseEventOut> for sse::Event {
                 })
             }
         };
+
         // this serialization should never fail (on our side), but serde might.
         match value {
             Ok(value) => sse::Event::default().event(ev.as_ref()).data(value),
+
             Err(e) => {
                 error!(event=?ev, error=?e.to_string(), "Unexpected SSE event json serialization error");
                 // build an infallible event, with consistent event name and hardcoded json encoding

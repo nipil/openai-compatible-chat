@@ -22,9 +22,11 @@ pub(crate) fn get_storage(window: web_sys::Window) -> Result<Option<Storage>, Br
     let storage = window
         .session_storage()
         .map_err(|e| BrowserError::SessionStorage { source: e.into() })?;
+
     if storage.is_none() {
         web_sys::console::warn_1(&"No browser storage available".into());
     }
+
     Ok(storage)
 }
 

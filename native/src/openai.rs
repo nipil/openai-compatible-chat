@@ -17,8 +17,10 @@ use tracing::{debug, info, trace, warn};
 pub enum ProviderError {
     #[error("failed to build conversation")]
     BuildError { source: OpenAIError },
+
     #[error("request failed")]
     RequestError { source: OpenAIError },
+
     #[error("streaming reply failed")]
     StreamingError { source: OpenAIError },
 }
@@ -50,6 +52,7 @@ fn messages_to_api(
     messages: &[Message],
 ) -> Result<Vec<ChatCompletionRequestMessage>, ProviderError> {
     debug!(count = messages.len(), "Building openapi messages");
+
     messages
         .iter()
         // remove empty system messages to avoid confusing the model with empty instructions
@@ -70,11 +73,13 @@ fn msg_to_api(m: &Message) -> Result<ChatCompletionRequestMessage, ProviderError
             .build()
             .map_err(|e| ProviderError::BuildError { source: e })?
             .into(),
+
         MessageRole::Assistant => ChatCompletionRequestAssistantMessageArgs::default()
             .content(m.content.as_str())
             .build()
             .map_err(|e| ProviderError::BuildError { source: e })?
             .into(),
+
         MessageRole::User => ChatCompletionRequestUserMessageArgs::default()
             .content(m.content.as_str())
             .build()
@@ -88,7 +93,8 @@ fn get_usage_event(usage: &Option<CompletionUsage>, model_id: &str) -> Option<Ch
         return None;
     };
 
-    // extract cached token to be able to verify they work (above 1024 token)
+    // extract cached token to be able to verify they work (only workw
+    // above portable::OPENAI_CACHE_TOKEN_THRESHOLD token and by 128 increments)
     // https://developers.openai.com/api/docs/guides/prompt-caching#requirements
     let cached_tokens = if let Some(details) = &usage.prompt_tokens_details
         && let Some(cached_tokens) = details.cached_tokens
@@ -187,12 +193,15 @@ fn get_finish_event(reason: &Option<FinishReason>, refusal: &Option<String>) -> 
     let Some(reason) = reason else {
         return None;
     };
+
     debug!(reason = ?reason, refusal = ?refusal, "Finish");
+
     // This does not use strum macros, so we serialize it
     let reason = serde_json::to_string(reason)
         .expect("FinishReason serializing must not fail")
         .trim_matches('"')
         .to_owned();
+
     return Some(ChatEvent::FinishReason {
         reason,
         refusal: refusal.clone(),
@@ -205,6 +214,7 @@ pub(crate) fn get_chat_event(
 ) -> ChatEvent {
     let chunk = match chunk {
         Ok(chunk) => chunk,
+
         Err(e) => {
             warn!("Server side error while processing chunk: {:?}", e);
             return ChatEvent::Error(e.to_string());
@@ -251,6 +261,7 @@ pub async fn list_models(client: &Client<OpenAIConfig>) -> Result<Vec<String>, P
         .models()
         .list()
         .await
+        // keep only the model id from the returned data
         .map(|r| {
             r.data
                 .into_iter()
@@ -269,9 +280,13 @@ pub(crate) async fn send_chat_request(
 ) -> Result<ChatCompletionResponseStream, ProviderError> {
     // build each message then complete conversation
     let messages = messages_to_api(&chat.messages)?;
+
     let request = CreateChatCompletionRequestArgs::default()
         .model(&chat.model)
         .messages(messages)
+        // This needs more testing:
+        // - using Flex produced an error
+        // - using Priority returned a Default anyway
         .service_tier(ServiceTier::Default)
         // IMPORTANT: there can be 1 or N or 0 response in choices
         // N is alternate possible conversation (user choice or always first)
@@ -283,10 +298,11 @@ pub(crate) async fn send_chat_request(
             include_usage: Some(true),
             include_obfuscation: Some(true),
         })
+        // builds the actual request with all these options
         .build()
         .map_err(|e| ProviderError::BuildError { source: e })?;
 
-    // build and send the request for a streamed answer for this conversation
+    // send the request for a streamed answer for this conversation
     trace!(request = ?request, "openai request");
     client
         .chat()

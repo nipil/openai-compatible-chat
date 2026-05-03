@@ -3,6 +3,7 @@ use portable::TokenUsage;
 pub(crate) fn token_color_style(count: &TokenUsage, max: Option<u32>) -> String {
     let (bg, color) = match max {
         None => ("rgba(128,128,128,0.4)", "var(--text-banner)"),
+
         Some(m) => {
             let pct = u32::from(count) as f64 / m as f64;
             if pct < 0.50 {
@@ -16,5 +17,6 @@ pub(crate) fn token_color_style(count: &TokenUsage, max: Option<u32>) -> String 
             }
         }
     };
+
     format!("background:{bg}; color:{color};")
 }

@@ -144,10 +144,15 @@ enum AppError {
     Storage(#[from] StorageError),
 }
 
+/// Final error management function or top-level error display (swallows errors)
 fn show_err_get_default<T: Default>(errors: RwSignal<Vec<String>>, e: AppError) -> T {
     let msg = e.to_string();
+
     web_sys::console::error_1(&msg.clone().into());
+
     errors.update(|v| v.push(msg));
+
+    // swallows the error, and return a dummy value for the expected type
     T::default()
 }
 

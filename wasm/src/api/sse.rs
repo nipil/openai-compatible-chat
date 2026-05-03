@@ -35,19 +35,24 @@ impl TryFrom<Event> for SseEventIn {
 
     fn try_from(ev: Event) -> Result<Self, Self::Error> {
         let kind = ChatEventKind::from_str(&ev.event).map_err(ChatEventError::Strum)?;
+
         let event = match kind {
             ChatEventKind::MessageToken => {
                 ChatEvent::MessageToken(serde_json::from_str::<String>(&ev.data)?)
             }
+
             ChatEventKind::FinishReason => {
                 #[derive(serde::Deserialize)]
                 struct Tmp<T> {
                     reason: T,
                     refusal: Option<T>,
                 }
+
                 let Tmp { reason, refusal } = serde_json::from_str(&ev.data)?;
+
                 ChatEvent::FinishReason { reason, refusal }
             }
+
             ChatEventKind::TokenCount => {
                 #[derive(serde::Deserialize)]
                 struct Tmp<T> {
@@ -56,12 +61,14 @@ impl TryFrom<Event> for SseEventIn {
                     cached: Option<T>,
                     reasoning: Option<T>,
                 }
+
                 let Tmp {
                     prompt,
                     generated,
                     cached,
                     reasoning,
                 } = serde_json::from_str(&ev.data)?;
+
                 ChatEvent::TokenCount {
                     prompt,
                     generated,
@@ -69,8 +76,10 @@ impl TryFrom<Event> for SseEventIn {
                     reasoning,
                 }
             }
+
             ChatEventKind::Error => ChatEvent::Error(serde_json::from_str::<String>(&ev.data)?),
         };
+
         Ok(event.into())
     }
 }
@@ -118,6 +127,7 @@ pub(crate) async fn stream_chat(
     }
 
     let websys_reader = resp.body().ok_or(RequestError::NoBody)?;
+
     let mut event_stream = ReadableStream::from_raw(websys_reader)
         .into_stream()
         .map(|chunk| {
@@ -130,9 +140,11 @@ pub(crate) async fn stream_chat(
     while let Some(result) = event_stream.next().await {
         match result {
             Err(e) => return Err(RequestError::EventStream(e)),
+
             Ok(es_event) => {
                 let sse_event = SseEventIn::try_from(es_event)?.into_inner();
                 web_sys::console::debug_1(&format!("SSE event: {:?}", sse_event).into());
+
                 match sse_event {
                     ChatEvent::TokenCount {
                         prompt,
@@ -141,6 +153,7 @@ pub(crate) async fn stream_chat(
                         reasoning,
                     } => {
                         on_total(prompt + generated);
+
                         web_sys::console::log_1(
                             &format!(
                                 "Token count : prompt {prompt} answer={generated} \
@@ -150,15 +163,19 @@ pub(crate) async fn stream_chat(
                             .into(),
                         );
                     }
+
                     ChatEvent::MessageToken(token) => on_token(&token),
+
                     ChatEvent::FinishReason { reason, refusal } => match refusal {
                         None => {
                             web_sys::console::info_1(&format!("Finish reason: {reason}").into())
                         }
+
                         Some(refusal) => web_sys::console::warn_1(
                             &format!("Finish reason: {reason} with {refusal}").into(),
                         ),
                     },
+
                     ChatEvent::Error(err_msg) => {
                         web_sys::console::error_1(&format!("SSE error: {err_msg}").into());
                     }
@@ -166,5 +183,6 @@ pub(crate) async fn stream_chat(
             }
         }
     }
+
     Ok(())
 }

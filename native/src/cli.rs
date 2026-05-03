@@ -26,8 +26,10 @@ pub const DEFAULT_CLI_REFRESH_INTERVAL_MS: u64 = 100;
 pub enum CliError {
     #[error("API error {0}")]
     Api(#[from] ProviderError),
+
     #[error("Display error {0}")]
     Display(#[from] DisplayError),
+
     #[error("Prompt error {0}")]
     Prompt(#[from] PromptError),
 }
@@ -116,16 +118,19 @@ pub(crate) async fn run_chat(
                 }
                 input
             }
+
             Ok(None) => {
                 // decline selection (escape)
                 return Ok(());
             }
+
             Err(e) => {
                 // interrupt prompt (Ctrl-C)
                 Err(e)?
             }
         };
         debug!(input = input, "user input");
+
         termimad::print_text("\n---\n");
 
         // guard is dropped immediately
@@ -209,14 +214,21 @@ async fn handle_chat(
     while let Some(chunk) = stream.next().await {
         // forward model to enhance the cache token logging in openai module
         let event = get_chat_event(chunk, &chat.model);
+
+        // pass to the caller who will handle what he wants
         on_event(&event);
+
+        // accumulate the incoming data
         if let ChatEvent::MessageToken(ref delta) = event {
             trace!(delta = ?delta, "delta");
             full.push_str(delta);
         }
+
+        // do a new partial pass on the display
         live.update(&full);
     }
 
+    // do a full pass on the display
     live.finish(&full);
 
     Ok(full)

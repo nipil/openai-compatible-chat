@@ -12,6 +12,7 @@ pub(crate) fn ErrorPanel(errors: RwSignal<Vec<String>>) -> impl IntoView {
             class="error-panel"
             class:error-panel--visible=is_visible
         >
+
             <div class="error-panel__header">
                 <span class="error-panel__title">"Errors"</span>
                 <button
@@ -22,12 +23,14 @@ pub(crate) fn ErrorPanel(errors: RwSignal<Vec<String>>) -> impl IntoView {
                     "\u{2715}"
                 </button>
             </div>
+
             <ul class="error-panel__list">
                 {move || errors.get().into_iter()
                     .map(|msg| view! { <li class="error-panel__item">{msg}</li> })
                     .collect::<Vec<_>>()
                 }
             </ul>
+
         </div>
     }
 }

@@ -43,6 +43,7 @@ impl ChatRequest {
 pub enum ChatEventError {
     #[error("unknown value: {0}")]
     Strum(#[from] strum::ParseError),
+
     #[error("json error: {0}")]
     Serde(#[from] serde_json::Error),
 }
@@ -62,16 +63,23 @@ pub enum ChatEventKind {
 #[serde(rename_all = "snake_case")]
 pub enum ChatEvent {
     MessageToken(String),
+
     FinishReason {
         reason: String,
         refusal: Option<String>,
     },
+
     TokenCount {
         prompt: u32,
         generated: u32,
-        cached: Option<u32>, // above 1024 only
+
+        // above portable::OPENAI_CACHE_TOKEN_THRESHOLD only
+        // and only when supported by the model
+        cached: Option<u32>,
+
         reasoning: Option<u32>,
     },
+
     Error(String),
 }
 

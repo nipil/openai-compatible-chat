@@ -107,6 +107,7 @@ fn use_color() -> bool {
     if env::var_os("NO_COLOR").is_some() {
         return false;
     }
+
     // force enable
     if env::var("CLICOLOR_FORCE")
         .ok()
@@ -115,6 +116,7 @@ fn use_color() -> bool {
     {
         return true;
     }
+
     // alternate disable
     if env::var("CLICOLOR")
         .ok()
@@ -123,6 +125,7 @@ fn use_color() -> bool {
     {
         return false;
     }
+
     // default: only if stdout is a terminal
     atty::is(atty::Stream::Stdout)
 }
@@ -149,10 +152,12 @@ async fn run() -> Result<ExitCode> {
         Some(level_str) => {
             let file_appender = rolling::daily(".", TRACE_LOG);
             let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
+
             // file level must always explicitely defined
             let file_level: LevelFilter = level_str
                 .parse()
                 .map_err(|_| anyhow!("Invalid trace_file level '{level_str}'"))?;
+
             let layer = fmt::layer()
                 .with_writer(file_writer)
                 .with_ansi(false)
@@ -187,13 +192,16 @@ async fn run() -> Result<ExitCode> {
                     .load_or_default()?
                     .set_key()?
                     .save()?;
+
                 println!("Configuration API key updated.");
                 return Ok(ExitCode::SUCCESS);
             }
+
             ConfigCommands::Show => {
                 ConfigManager::new(args.config_file.as_ref())?
                     .load_or_default()?
                     .show()?;
+
                 return Ok(ExitCode::SUCCESS);
             }
         }
@@ -221,11 +229,13 @@ async fn run() -> Result<ExitCode> {
         // system proxy are handled/enabled by default for HTTP/HTTPS
         // https://docs.rs/reqwest/latest/reqwest/index.html#proxies
         let mut builder = ReqwestClient::builder();
+
         // Apply conditional timeout
         builder = match args.api_timeout_sec {
             None => builder,
             Some(seconds) => builder.timeout(std::time::Duration::from_secs(seconds)),
         };
+
         builder.build()?
     };
 
@@ -236,14 +246,17 @@ async fn run() -> Result<ExitCode> {
                 ModelInfoManager::new(args.info_file.as_ref())?
                     .load_or_default()?
                     .show()?;
+
                 return Ok(ExitCode::SUCCESS);
             }
+
             ModelInfoCommands::Update { url } => {
                 ModelInfoManager::new(args.info_file.as_ref())?
                     .load_or_default()?
                     .update(&reqwest_client, url)
                     .await?
                     .save()?;
+
                 println!("Model info updated.");
                 return Ok(ExitCode::SUCCESS);
             }
@@ -273,6 +286,7 @@ async fn run() -> Result<ExitCode> {
         .filter(|id| {
             args.model_lock.as_ref().map_or(true, |lock_id| {
                 let keep = lock_id == id;
+
                 if !keep {
                     info!(
                         model = id,
@@ -280,6 +294,7 @@ async fn run() -> Result<ExitCode> {
                         "Ignore model due to lock",
                     );
                 }
+
                 keep
             })
         })
@@ -287,6 +302,7 @@ async fn run() -> Result<ExitCode> {
         .filter(|id| {
             !cfg.exclude_model_name_regex.iter().any(|r| {
                 let reject = r.is_match(id);
+
                 if reject {
                     info!(
                         model = id,
@@ -294,6 +310,7 @@ async fn run() -> Result<ExitCode> {
                         "Ignore model matching reject pattern",
                     );
                 }
+
                 reject
             })
         })
@@ -310,6 +327,7 @@ async fn run() -> Result<ExitCode> {
         // Only keep the ones with a compatible chat-like type
         .filter(|(id, info)| {
             let keep = COMPATIBLE_MODEL_TYPES.contains(&info.model_type);
+
             if !keep {
                 info!(
                     "type" = &info.model_type.as_ref(),
@@ -317,6 +335,7 @@ async fn run() -> Result<ExitCode> {
                     "Ignoring incompatible model"
                 );
             }
+
             keep
         })
         .collect();
@@ -337,10 +356,12 @@ async fn run() -> Result<ExitCode> {
         Commands::Cli { theme, refresh_ms } => {
             run_cli(state, &theme, *refresh_ms).await?;
         }
+
         #[cfg(feature = "web")]
         Commands::Web { bind_addr, port } => {
             run_web(state, bind_addr, port).await?;
         }
+
         _ => {}
     }
     Ok(ExitCode::from(0))
@@ -350,6 +371,7 @@ async fn run() -> Result<ExitCode> {
 async fn main() -> ExitCode {
     match run().await {
         Ok(code) => return code,
+
         Err(e) => {
             // still keeps the pretty printing of anyhow
             eprintln!("Error: {e:#}");

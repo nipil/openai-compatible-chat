@@ -50,7 +50,7 @@ pub(crate) fn Banner(
                     )
                 >
                     {move || match sel_meta.get().and_then(|m| m.context_window) {
-                        Some(max) => format!("{} token / {}k", tok_count.get(), max / 1024),
+                        Some(max) => format!("{} token / {}k", tok_count.get(), max / 1_000),
                         None      => format!("{} token", tok_count.get()),
                     }}
                 </span>
@@ -64,6 +64,7 @@ pub(crate) fn Banner(
                 >
                     <i class="fab fa-github"></i>
                 </a>
+
                 <button class="theme-btn" on:click=on_toggle_theme>
                     {move || match theme.get() { Theme::Dark => "🌞", Theme::Light => "🌚" }}
                 </button>

@@ -23,11 +23,13 @@ pub(crate) fn load_chat() -> Result<Vec<Message>, StorageError> {
     let Some(storage) = get_storage(get_window()?)? else {
         return Ok(vec![]);
     };
+
     let Some(text) = storage
         .get_item(STORAGE_KEY_OPENAI)
         .map_err(|e| BrowserError::SessionStorage { source: e.into() })?
     else {
         return Ok(vec![]);
     };
+
     serde_json::from_str(&text).map_err(Into::into)
 }

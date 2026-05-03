@@ -160,6 +160,7 @@ impl Prompt for AppPrompt {
             },
             PromptEditMode::Custom(_) => LEFT_PROMPT_END,
         };
+
         Cow::Owned(format!(
             "{}{}{} ",
             crossterm_to_ansi_foreground(self.colors.accent),

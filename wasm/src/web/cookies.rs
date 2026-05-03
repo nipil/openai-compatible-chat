@@ -30,22 +30,26 @@ fn set_cookies(
 
 pub(crate) fn get_cookie(name: &str) -> Result<Option<String>, BrowserError> {
     let cookies = get_cookies(get_html_doc(get_document(get_window()?)?)?)?;
+
     let found = cookies.split(';').find_map(|pair| {
         pair.trim()
             .strip_prefix(&format!("{name}="))
             .map(str::to_string)
     });
+
     Ok(found)
 }
 
 pub(crate) fn set_cookie(name: &str, value: &str) -> Result<(), BrowserError> {
     let html_doc = get_html_doc(get_document(get_window()?)?)?;
+
     set_cookies(html_doc, name, value)
 }
 
 pub fn get_cookie_theme() -> Theme {
     match get_cookie(COOKIE_THEME).map(|x| x.map(|y| Theme::from_str(&y))) {
         Ok(Some(Ok(theme))) => theme,
+
         _ => COOKIE_THEME_DEFAULT,
     }
 }
