@@ -10,7 +10,6 @@ use thiserror::Error;
 use tracing::{info, warn};
 
 use crate::models::EnrichedModels;
-use crate::openai::ModelType;
 
 const DEFAULT_CONFIG_FILE_NAME: &str = "config.json";
 const DEFAULT_MODEL_INFO_FILE_NAME: &str = "openai.json";
@@ -84,6 +83,8 @@ impl Default for Config {
         }
     }
 }
+
+// ── Config manager ────────────────────────────────────────────────────────────
 
 pub struct ConfigManager {
     path: PathBuf,
@@ -174,19 +175,7 @@ impl ConfigManager {
     }
 }
 
-// ── ModelInfo ──────────────────────────────────────────────────────────────
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ModelInfo {
-    pub(crate) description: String,
-    pub(crate) family: String,
-
-    #[serde(rename = "type")]
-    pub model_type: ModelType,
-
-    pub(crate) context_window: Option<u32>,
-    pub(crate) release: Option<String>,
-}
+// ── ModelInfo manager ─────────────────────────────────────────────────────────
 
 pub struct ModelInfoManager {
     path: PathBuf,
