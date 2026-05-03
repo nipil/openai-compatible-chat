@@ -173,6 +173,7 @@ Usage: openai-compatible-chat.exe web --port <PORT>
 
 Options:
   -p, --port <PORT>  Port to listen on
+  -b, --bind <BIND_ADDR>  Address to bind to [default: localhost]
   -h, --help         Print help```
 ```
 

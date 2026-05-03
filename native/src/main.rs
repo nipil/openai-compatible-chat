@@ -26,6 +26,7 @@ use tracing_subscriber::{Layer, fmt};
 compile_error!("At lease one of the main features should be enabled !");
 
 const TRACE_LOG: &str = "trace.log";
+const DEFAULT_BIND_ADDRESS: &str = "localhost";
 
 #[derive(Parser)]
 #[command(name = "chat", about = "openai-compatible-chat", version)]
@@ -75,6 +76,10 @@ enum Commands {
         /// Port to listen on
         #[arg(short = 'p', long = "port")]
         port: u16,
+
+        /// Address to bind to
+        #[arg(short = 'b', long = "bind", default_value=DEFAULT_BIND_ADDRESS)]
+        bind_addr: String,
     },
 }
 
@@ -333,8 +338,8 @@ async fn run() -> Result<ExitCode> {
             run_cli(state, &theme, *refresh_ms).await?;
         }
         #[cfg(feature = "web")]
-        Commands::Web { port } => {
-            run_web(state, port).await?;
+        Commands::Web { bind_addr, port } => {
+            run_web(state, bind_addr, port).await?;
         }
         _ => {}
     }

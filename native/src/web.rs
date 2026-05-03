@@ -40,9 +40,9 @@ impl IntoResponse for WebError {
 
 // ── Web entrypoint ────────────────────────────────────────────────────────────
 
-pub async fn run_web(state: AppState, port: &u16) -> Result<(), std::io::Error> {
+pub async fn run_web(state: AppState, bind_addr: &str, port: &u16) -> Result<(), std::io::Error> {
     let app = router(state);
-    let listen_addr = format!("localhost:{port}");
+    let listen_addr = format!("{bind_addr}:{port}");
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
     println!("Server listening on {listen_addr}");
     axum::serve(listener, app).await?;
