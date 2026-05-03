@@ -36,7 +36,6 @@ pub enum CliError {
 pub async fn run_cli(state: AppState, theme: &Theme, refresh_ms: u64) -> Result<(), CliError> {
     loop {
         // let the user select a model, or exit
-        // TODO: allow using theme in dialoguer::FuzzySelect ?
         let Some(selected_model) = select_model(state.available_models.as_ref()).await? else {
             info!("User cancelation, exiting.");
             return Ok(());
@@ -117,7 +116,6 @@ pub(crate) async fn run_chat(
                 input
             }
             // or he quits
-            // TODO: ask confirmation ?
             None => return Ok(()),
         };
         debug!(input = input, "user input");

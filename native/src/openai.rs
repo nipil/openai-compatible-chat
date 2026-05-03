@@ -267,17 +267,11 @@ pub(crate) async fn send_chat_request(
     client: &Client<OpenAIConfig>,
     chat: &ChatRequest,
 ) -> Result<ChatCompletionResponseStream, ProviderError> {
-    // TODO: implement pathological cases here if needed (huge payload)
-    // TODO: implement message-based busines logic here (logging)
-
     // build each message then complete conversation
     let messages = messages_to_api(&chat.messages)?;
     let request = CreateChatCompletionRequestArgs::default()
         .model(&chat.model)
         .messages(messages)
-        // IMPORTANT: untested
-        // FIXME: with Flex ==>  invalid_request_error: Invalid service_tier argument
-        // FIXME: with Priority ==> response service_tier=Some(Default)
         .service_tier(ServiceTier::Default)
         // IMPORTANT: there can be 1 or N or 0 response in choices
         // N is alternate possible conversation (user choice or always first)
