@@ -200,10 +200,10 @@ impl Prompt for AppPrompt {
 pub(crate) fn build_reedline(hinter_style: Style) -> Reedline {
     let mut keybindings = default_emacs_keybindings();
 
-    // Ctrl+Enter → submit (the only way to leave the editor)
-    keybindings.add_binding(KeyModifiers::CONTROL, KeyCode::Enter, ReedlineEvent::Submit);
+    // Alt+Enter → submit (works reliably on Linux and Windows)
+    keybindings.add_binding(KeyModifiers::ALT, KeyCode::Enter, ReedlineEvent::Submit);
 
-    // Ctrl+D → submit (the only way to leave the editor) --> Alternate when in vscode
+    // Ctrl+D → submit (standard Unix EOF, works everywhere)
     keybindings.add_binding(
         KeyModifiers::CONTROL,
         KeyCode::Char('d'),
