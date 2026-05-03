@@ -122,7 +122,6 @@ impl ConfigManager {
             file = %self.path.display(),
             "Saving configuration"
         );
-        // TODO: async write
         fs::write(&self.path, self.to_json()?).map_err(|e| ConfigError::io(&self.path, e))?;
         Ok(self)
     }
@@ -133,7 +132,6 @@ impl ConfigManager {
             "Loading configuration file"
         );
 
-        // TODO: async read
         let content =
             std::fs::read_to_string(&self.path).map_err(|e| ConfigError::io(&self.path, e))?;
         self.config =
@@ -228,7 +226,6 @@ impl ModelInfoManager {
             file = %self.path.display(),
             "Saving model info"
         );
-        // TODO: async write
         fs::write(&self.path, self.to_json()?).map_err(|e| ConfigError::io(&self.path, e))?;
         Ok(self)
     }
@@ -239,7 +236,6 @@ impl ModelInfoManager {
             "Loading model info"
         );
 
-        // TODO: async read
         let content =
             std::fs::read_to_string(&self.path).map_err(|e| ConfigError::io(&self.path, e))?;
         self.enriched_models = serde_json::from_str::<EnrichedModels>(&content)
