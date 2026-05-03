@@ -321,7 +321,10 @@ async fn run() -> Result<ExitCode> {
             enriched_models
                 .remove(&id)
                 .or_else(|| {
-                    warn!(model = id, "No metadata available, update required");
+                    error!(
+                        model = id,
+                        "No metadata available for this model, run `model-info update` subcommand. If this message stays, create an issue on the project site."
+                    );
                     None
                 })
                 .and_then(|info| Some((id, info)))
