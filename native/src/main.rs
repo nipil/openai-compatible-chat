@@ -12,6 +12,7 @@ use native::cli::{DEFAULT_CLI_REFRESH_INTERVAL_MS, run_cli};
 use native::config::{ConfigManager, DEFAULT_MODEL_INFO_FILE_URL, ModelInfoManager};
 use native::models::{COMPATIBLE_MODEL_TYPES, EnrichedModels};
 use native::openai::list_models;
+use native::service::{install, start, stop, uninstall};
 use native::web::run_web;
 use portable::Theme;
 use reqwest::Client as ReqwestClient;
@@ -82,6 +83,10 @@ enum Commands {
         /// Address to bind to
         #[arg(short = 'b', long = "bind", default_value=DEFAULT_BIND_ADDRESS)]
         bind_addr: String,
+
+        /// Installs or uninstalls as an auto-running service using the OS service manager
+        #[arg(long = "install")]
+        install_flag: Option<bool>,
     },
 }
 
@@ -391,7 +396,23 @@ async fn run() -> Result<ExitCode> {
         }
 
         #[cfg(feature = "web")]
-        Commands::Web { bind_addr, port } => {
+        Commands::Web {
+            bind_addr,
+            port,
+            install_flag,
+        } => {
+            // if the install flag is positionned
+            // FIXME: does require the other args when uninstalling, not nice.
+            if let Some(install_flag) = install_flag {
+                if *install_flag {
+                    install(*port, bind_addr)?;
+                    start()?;
+                } else {
+                    stop()?;
+                    uninstall()?;
+                }
+                return Ok(ExitCode::SUCCESS);
+            }
             run_web(state, bind_addr, port).await?;
         }
 

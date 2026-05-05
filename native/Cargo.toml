@@ -35,6 +35,7 @@ rust-embed = "8.11.0"
 serde_json.workspace = true
 serde_regex = "1"
 serde.workspace = true
+service-manager = "0.11.0"
 strum.workspace = true
 termimad = "0.34.1" # markdown → ANSI terminal rendering
 terminal-light = "1.8.0"
@@ -46,6 +47,7 @@ tracing = "0.1.44"
 tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 unicode-width = "0.2.2"
+whoami = "2.1.2"
 
 [target.'cfg(windows)'.dependencies]
 enable-ansi-support = "0.3.1"

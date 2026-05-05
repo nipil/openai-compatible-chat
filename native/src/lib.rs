@@ -8,6 +8,7 @@ use crate::models::EnrichedModels;
 pub mod config;
 pub mod models;
 pub mod openai;
+pub mod service;
 
 #[cfg(feature = "cli")]
 pub mod cli;
