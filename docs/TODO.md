@@ -1,7 +1,5 @@
 # What remains to be done
 
-NIX: add a sytemd unit for user so that it auto-starts in web mode
-
 UX: provide model info to frontend
 
 CFG: add auth headers + cookies
