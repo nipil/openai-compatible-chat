@@ -47,9 +47,10 @@ fn get_manager(user: bool) -> Result<Box<dyn ServiceManager>, ServiceManagerErro
 /// Install the service as the SAME user that runs the install command
 pub fn install(user: bool, port: u16, bind_addr: &str) -> Result<(), ServiceManagerError> {
     let args = vec![
+        OsString::from("web"),
         OsString::from("--port"),
         OsString::from(port.to_string()),
-        OsString::from("--bind-addr"),
+        OsString::from("--bind"),
         OsString::from(bind_addr),
     ];
 

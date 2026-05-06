@@ -387,11 +387,17 @@ async fn run() -> Result<ExitCode> {
     // Now we have checked everything is fine, allow for background service installation
     if let Commands::Service { user, command } = &args.command {
         match command {
-            ServiceCommands::Install { port, bind_addr } => install(*user, *port, bind_addr)?,
+            ServiceCommands::Install { port, bind_addr } => {
+                install(*user, *port, bind_addr)?;
+                start(*user)?;
+            }
             ServiceCommands::Start => start(*user)?,
             ServiceCommands::Restart => restart(*user)?,
             ServiceCommands::Stop => stop(*user)?,
-            ServiceCommands::Uninstall => uninstall(*user)?,
+            ServiceCommands::Uninstall => {
+                stop(*user)?;
+                uninstall(*user)?;
+            }
         };
         return Ok(ExitCode::SUCCESS);
     }
