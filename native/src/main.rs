@@ -12,7 +12,7 @@ use native::cli::{DEFAULT_CLI_REFRESH_INTERVAL_MS, run_cli};
 use native::config::{ConfigManager, DEFAULT_MODEL_INFO_FILE_URL, ModelInfoManager};
 use native::models::{COMPATIBLE_MODEL_TYPES, EnrichedModels};
 use native::openai::list_models;
-use native::service::{install, start, stop, uninstall};
+use native::service::{install, restart, start, stop, uninstall};
 use native::web::run_web;
 use portable::Theme;
 use reqwest::Client as ReqwestClient;
@@ -83,10 +83,15 @@ enum Commands {
         /// Address to bind to
         #[arg(short = 'b', long = "bind", default_value=DEFAULT_BIND_ADDRESS)]
         bind_addr: String,
+    },
 
-        /// Installs or uninstalls as an auto-running service using the OS service manager
-        #[arg(long = "install")]
-        install_flag: Option<bool>,
+    Service {
+        /// User mode or admin mode
+        #[arg(long = "user", default_value_t = false)]
+        user: bool,
+
+        #[command(subcommand)]
+        command: ServiceCommands,
     },
 }
 
@@ -107,6 +112,24 @@ enum ModelInfoCommands {
         #[arg(long, short = 'u', default_value = DEFAULT_MODEL_INFO_FILE_URL)]
         url: String,
     },
+}
+
+#[derive(Subcommand)]
+enum ServiceCommands {
+    Install {
+        /// Port to listen on
+        #[arg(short = 'p', long = "port")]
+        port: u16,
+
+        /// Address to bind to
+        #[arg(short = 'b', long = "bind", default_value=DEFAULT_BIND_ADDRESS)]
+        bind_addr: String,
+    },
+
+    Start,
+    Stop,
+    Restart,
+    Uninstall,
 }
 
 fn use_color() -> bool {
@@ -353,6 +376,26 @@ async fn run() -> Result<ExitCode> {
     // Drop unused model information to free up memory before the actual run
     drop(enriched_models);
 
+    // Check that we have at least one model to work with
+    if available_models.is_empty() {
+        eprintln!(
+            "Empty model list ! Update you models, review your configuration filters and parameters"
+        );
+        return Ok(ExitCode::FAILURE);
+    }
+
+    // Now we have checked everything is fine, allow for background service installation
+    if let Commands::Service { user, command } = &args.command {
+        match command {
+            ServiceCommands::Install { port, bind_addr } => install(*user, *port, bind_addr)?,
+            ServiceCommands::Start => start(*user)?,
+            ServiceCommands::Restart => restart(*user)?,
+            ServiceCommands::Stop => stop(*user)?,
+            ServiceCommands::Uninstall => uninstall(*user)?,
+        };
+        return Ok(ExitCode::SUCCESS);
+    }
+
     // Finally assemble the state and provide it
     let state = AppState {
         openai_client: Arc::new(openai_client),
@@ -396,23 +439,7 @@ async fn run() -> Result<ExitCode> {
         }
 
         #[cfg(feature = "web")]
-        Commands::Web {
-            bind_addr,
-            port,
-            install_flag,
-        } => {
-            // if the install flag is positionned
-            // FIXME: does require the other args when uninstalling, not nice.
-            if let Some(install_flag) = install_flag {
-                if *install_flag {
-                    install(*port, bind_addr)?;
-                    start()?;
-                } else {
-                    stop()?;
-                    uninstall()?;
-                }
-                return Ok(ExitCode::SUCCESS);
-            }
+        Commands::Web { bind_addr, port } => {
             run_web(state, bind_addr, port).await?;
         }
 
