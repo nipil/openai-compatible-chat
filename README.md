@@ -75,6 +75,28 @@ Binaries are automatically generated at each release.
 - after setting up a [configuration file](#configuration)
 - and taking a look at the [usage](#usage)
 
+## Service
+
+Once you are happy with the configuration and all, you can set it to autostart **in web mode**
+
+You can install it as a service :
+
+```bash
+... service [--user] install --port N [--bind addr]
+... service [--user] start
+... service [--user] stop
+... service [--user] restart
+... service [--user] uninstall
+```
+
+IMPORTANT
+
+- it auto-starts after install, and auto-stops before uninstall
+- it will run from the place it was executed
+- you can install it
+  - in "admin" mode (by default, linux & windows)
+  - in user mode (only linux like systemd and friends, uses the running user)
+
 ## Update
 
 Simply download the latest version from the releases page and replace the old binary.

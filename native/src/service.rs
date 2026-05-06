@@ -6,6 +6,7 @@ use service_manager::{
     ServiceStopCtx, ServiceUninstallCtx,
 };
 use thiserror::Error;
+use tracing::debug;
 use whoami::username;
 
 const SERVICE_LABEL: &str = "com.github.nipil.openai-compatible-cli-chat";
@@ -30,6 +31,9 @@ fn get_label() -> Result<ServiceLabel, ServiceManagerError> {
     let label: ServiceLabel = SERVICE_LABEL
         .parse()
         .map_err(|e| ServiceManagerError::Manager(format!("Invalid label: {}", e)))?;
+
+    debug!(label = ?label, "Service label");
+
     Ok(label)
 }
 
@@ -37,15 +41,20 @@ fn get_manager(user: bool) -> Result<Box<dyn ServiceManager>, ServiceManagerErro
     let mut manager = <dyn ServiceManager>::native().map_err(|e| {
         ServiceManagerError::Manager(format!("No service manager detected : {}", e))
     })?;
+
     // switch to user mode in OS and service manager that support it (systemd, ...)
     if user {
+        debug!("Service level set: user");
         manager.set_level(ServiceLevel::User)?;
     }
+
     Ok(manager)
 }
 
 /// Install the service as the SAME user that runs the install command
 pub fn install(user: bool, port: u16, bind_addr: &str) -> Result<(), ServiceManagerError> {
+    let label = get_label()?;
+
     let args = vec![
         OsString::from("web"),
         OsString::from("--port"),
@@ -53,10 +62,9 @@ pub fn install(user: bool, port: u16, bind_addr: &str) -> Result<(), ServiceMana
         OsString::from("--bind"),
         OsString::from(bind_addr),
     ];
-
     let context = ServiceInstallCtx {
         // https://docs.rs/service-manager/latest/service_manager/struct.ServiceInstallCtx.html#fields
-        label: get_label()?,
+        label: label.clone(),
         program: current_exe_path()?,
         args,
         contents: None,
@@ -71,45 +79,58 @@ pub fn install(user: bool, port: u16, bind_addr: &str) -> Result<(), ServiceMana
         },
     };
 
+    debug!(context = ?context, "Service install");
+
     get_manager(user)?
         .install(context)
         .map_err(|e| ServiceManagerError::Manager(e.to_string()))?;
 
+    println!("Service {} installed.", label);
     Ok(())
 }
 
 pub fn uninstall(user: bool) -> Result<(), ServiceManagerError> {
+    let label = get_label()?;
+
     get_manager(user)?
         .uninstall(ServiceUninstallCtx {
-            label: get_label()?,
+            label: label.clone(),
         })
         .map_err(|e| ServiceManagerError::Manager(e.to_string()))?;
 
+    println!("Service {} uninstalled.", label);
     Ok(())
 }
 
 pub fn start(user: bool) -> Result<(), ServiceManagerError> {
+    let label = get_label()?;
+
     get_manager(user)?
         .start(ServiceStartCtx {
-            label: get_label()?,
+            label: label.clone(),
         })
         .map_err(|e| ServiceManagerError::Manager(e.to_string()))?;
 
+    println!("Service {} started.", label);
     Ok(())
 }
 
 pub fn stop(user: bool) -> Result<(), ServiceManagerError> {
+    let label = get_label()?;
+
     get_manager(user)?
         .stop(ServiceStopCtx {
-            label: get_label()?,
+            label: label.clone(),
         })
         .map_err(|e| ServiceManagerError::Manager(e.to_string()))?;
 
+    println!("Service {} stopped.", label);
     Ok(())
 }
 
 pub fn restart(user: bool) -> Result<(), ServiceManagerError> {
     stop(user)?;
     start(user)?;
+
     Ok(())
 }
