@@ -78,7 +78,11 @@ impl Default for Config {
         Self {
             api_key: Default::default(),
             base_url: String::from(DEFAULT_OPENAI_API_BASE_URL),
-            exclude_model_name_regex: Default::default(),
+            exclude_model_name_regex: vec![
+                // https://developers.openai.com/api/docs/models/chat-latest
+                // exclude this "floating / auto-updating reference" model
+                Regex::new("chat-latest").expect("Hardcoded regex must not fail"),
+            ],
             default_system_prompt: Default::default(),
         }
     }
