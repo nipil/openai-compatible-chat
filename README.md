@@ -83,13 +83,17 @@ Simply download the latest version from the releases page and replace the old bi
 
 Use `config set-key` command to set your api key (and automatically generate a default configuration)
 
+Use `config set-url` if you use another OpenAI-compatible provider, to use another base URL for API calls
+
 Use `config show` command to see your configuration.
 
 ```json
 {
-  "api_key": "",
+  "api_key": "YOUR_API_KEY",
   "base_url": "https://api.openai.com/v1",
-  "exclude_model_name_regex": [],
+  "exclude_model_name_regex": [
+    "chat-latest"
+  ],
   "default_system_prompt": ""
 }
 ```

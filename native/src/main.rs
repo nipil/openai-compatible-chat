@@ -98,6 +98,7 @@ enum Commands {
 #[derive(Subcommand)]
 enum ConfigCommands {
     SetKey,
+    SetUrl,
     Show,
 }
 
@@ -224,6 +225,16 @@ async fn run() -> Result<ExitCode> {
                     .save()?;
 
                 println!("Configuration API key updated.");
+                return Ok(ExitCode::SUCCESS);
+            }
+
+            ConfigCommands::SetUrl => {
+                ConfigManager::new(args.config_file.as_ref())?
+                    .load_or_default()?
+                    .set_url()?
+                    .save()?;
+
+                println!("Configuration API base url updated.");
                 return Ok(ExitCode::SUCCESS);
             }
 

@@ -186,6 +186,27 @@ impl ConfigManager {
         println!("API key set in {file}", file = self.path.to_string_lossy());
         Ok(self)
     }
+
+    pub fn set_url(&mut self) -> Result<&Self, ConfigError> {
+        print!(
+            "Configuration : {file}\nAPI base url ? ",
+            file = self.path.to_string_lossy()
+        );
+        let _ = io::stdout().flush();
+
+        let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .map_err(|e| ConfigError::io(&self.path, e))?;
+
+        self.config.base_url = input.trim().into();
+
+        println!(
+            "API bsae url set in {file}",
+            file = self.path.to_string_lossy()
+        );
+        Ok(self)
+    }
 }
 
 // ── ModelInfo manager ─────────────────────────────────────────────────────────
