@@ -214,7 +214,7 @@ Proxy: if needed, set the VSCode setting `rust-analyzer.cargo.extraEnv`:
 
 ```json
 "rust-analyzer.cargo.extraEnv": {
-  "ALL_PROXY": "http://10.154.61.6:3128"
+  "ALL_PROXY": "http://YOUR_PROXY_IP:3128"
 }
 ```
 
