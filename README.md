@@ -231,6 +231,8 @@ rustup target add wasm32-unknown-unknown
 # IMPORTANT: builds are done using stable !
 rustup toolchain install nightly
 rustup component add rustfmt --toolchain nightly
+# remove everything but rustc, so that `rustup update` does not show an error
+rustup component remove cargo clippy rust-docs rust-std --toolchain nightly
 
 # tool for hot-building/reloading wasm and static files
 cargo install trunk
